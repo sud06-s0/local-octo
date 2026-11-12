@@ -1,0 +1,77 @@
+/* src/index.css */
+@import "tailwindcss";
+
+/* White-label theme: change these values to rebrand the whole app. */
+@theme {
+  --font-sans: "Fira Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --color-brand-50: #eef7f0;
+  --color-brand-100: #dcefe1;
+  --color-brand-200: #b9dfc3;
+  --color-brand-300: #8bc89c;
+  --color-brand-400: #55a86c;
+  --color-brand-500: #2f8c4a;
+  --color-brand-600: #1f7a3a;
+  --color-brand-700: #17672e;
+  --color-brand-800: #135426;
+  --color-brand-900: #10431f;
+
+  --color-canvas: #f8f9f9;
+  --color-line: #e4e7e6;
+  --color-ink: #1d2320;
+  --color-muted: #5d6762;
+  --color-star: #fbbf24;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  @apply bg-canvas text-ink antialiased;
+}
+
+/* Range slider used on Request Scheduling */
+.lo-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    var(--color-brand-700) var(--fill, 0%),
+    #e8ebea var(--fill, 0%)
+  );
+  outline: none;
+  cursor: pointer;
+}
+.lo-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 2px solid var(--color-brand-700);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.15);
+}
+.lo-range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 2px solid var(--color-brand-700);
+}
+.lo-range:focus-visible::-webkit-slider-thumb {
+  outline: 3px solid var(--color-brand-200);
+}
+
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}

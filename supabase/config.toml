@@ -1,0 +1,29 @@
+# supabase/config.toml
+# Minimal CLI config. Every function checks auth itself (user JWT, cron secret,
+# API key or Meta signature), so the gateway JWT check is turned off — this also
+# works with the new sb_publishable_/sb_secret_ keys, which are not JWTs.
+project_id = "local-octo"
+
+[functions.dispatch]
+verify_jwt = false
+
+[functions.r]
+verify_jwt = false
+
+[functions.contacts-webhook]
+verify_jwt = false
+
+[functions.whatsapp-webhook]
+verify_jwt = false
+
+[functions.send-test]
+verify_jwt = false
+
+[functions.ai-reply]
+verify_jwt = false
+
+[functions.widget]
+verify_jwt = false
+
+[functions.review-image]
+verify_jwt = false
