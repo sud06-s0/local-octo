@@ -7,10 +7,12 @@ import { Modal } from '../components/ui/Modal'
 import { useStore } from '../store/AppStore'
 import { useToast } from '../components/ui/Toast'
 import { brand } from '../config/brand'
-import { cn, copyText, fillTemplate, initials, isEmail, isPhone, timeAgo } from '../lib/utils'
+import { cn, copyText, fillTemplate, isEmail, isPhone, timeAgo } from '../lib/utils'
 import type { WaTemplate, WaTemplateKind, WaTemplateStatus } from '../types'
 
 const SAMPLE = 'Jessica'
+/** Demo photo shown in the preview until a business uploads its own (public/default-personal.png) */
+const DEFAULT_IMAGE = `${import.meta.env.BASE_URL}default-personal.png`
 const MAX_CHARS = 400
 const TOKENS: Array<{ label: string; token: string; required?: boolean }> = [
   { label: 'First Name', token: '{first_name}' },
@@ -282,13 +284,8 @@ export default function Messaging() {
             {m.personalizedImage && (
               <div className="ml-auto w-[86%] overflow-hidden rounded-2xl">
                 <div className="relative aspect-[4/3] bg-gradient-to-br from-brand-500 to-brand-800">
-                  {m.imageDataUrl ? (
-                    <img src={m.imageDataUrl} alt="Personalized" className="size-full object-cover" />
-                  ) : (
-                    <div className="flex size-full items-start justify-center pt-5 text-white/90">
-                      <span className="flex size-16 items-center justify-center rounded-full bg-white/15 text-xl font-semibold">{initials(m.ownerFirstName || 'LO')}</span>
-                    </div>
-                  )}
+                  {/* The business's own photo, or the built-in demo photo until they upload one */}
+                  <img src={m.imageDataUrl || DEFAULT_IMAGE} alt="Personalized" className="size-full object-cover" />
                   <span className="absolute bottom-2.5 left-1/2 -translate-x-1/2 rounded-md bg-white px-2.5 py-0.5 text-lg font-bold text-ink shadow">{SAMPLE}!</span>
                 </div>
               </div>
