@@ -16,7 +16,7 @@ Follow the steps in order. Commands run from the project folder (`local-octo-app
 ## 2. Create the database
 **Option A, no CLI:** open **SQL Editor → New query**, paste all of
 `supabase/migrations/20261112000001_init.sql`, and click **Run**. Then do the same with
-`supabase/migrations/20261113000001_whatsapp_templates.sql`, which adds custom WhatsApp templates.
+`supabase/migrations/20261113000001_whatsapp_templates.sql` and `supabase/migrations/20261113000002_wa_manual_templates.sql`, which add custom WhatsApp templates.
 
 **Option B, CLI:**
 ```bash
@@ -52,7 +52,7 @@ This deploys all 9 functions. `supabase/config.toml` turns the gateway JWT check
 | `ai-reply` | app "Draft with AI" | signed-in user |
 | `widget` | client websites | public key in URL |
 | `review-image` | WhatsApp / email (downloads the personalised photo) | contact token or signed URL |
-| `wa-template` | app: submits Custom Messages to Meta, checks approval | signed-in user |
+| `wa-template` | app: submits Custom Messages to Meta, "Check WhatsApp" status | signed-in user |
 
 ## 5. Set secrets
 Fill in what you have now and add the rest later. Missing channels are skipped.
@@ -74,7 +74,6 @@ npx supabase secrets set \
   WHATSAPP_TEMPLATE_LANG="en" \
   WHATSAPP_VERIFY_TOKEN="$(openssl rand -hex 16)" \
   WHATSAPP_WABA_ID="your-whatsapp-business-account-id" \
-  WHATSAPP_APP_ID="your-meta-app-id" \
   WHATSAPP_APP_SECRET="meta-app-secret" \
   AI_PROVIDER="gemini" \
   GEMINI_API_KEY="..."
@@ -162,16 +161,13 @@ update public.profiles set is_platform_admin = true where email = 'you@localocto
 ---
 
 ## Custom Messages on WhatsApp
-WhatsApp only lets a business start a chat with a template Meta has approved. When a client saves a **Custom Message** or **Custom Follow-up**, the app submits it to Meta automatically (`wa-template` function):
-- `{first_name}` and `{review_link}` become `{{1}}`, `{{2}}`. `{business_name}` and `{owner_name}` are written in as fixed text.
-- If the text starts or ends with a variable, "Hi" or "Thank you!" is added, because Meta rejects those otherwise.
-- Three versions are tracked per client: first message, first message with photo, and follow-up. The Messaging page shows **Waiting for approval**, **Approved** or **Rejected (reason)**.
-- Until a version is approved, the standard templates above are sent, so nothing stops.
+WhatsApp only lets a business start a chat with a template Meta has approved. **Approval happens in WhatsApp Manager. The app only checks the status.** Only `WHATSAPP_WABA_ID` and the access token are needed; no App ID.
 
-Needs:
-- secrets `WHATSAPP_WABA_ID` (WhatsApp Manager → account settings) and `WHATSAPP_APP_ID` (Meta app → App settings → Basic, used for the photo version's sample image);
-- an access token with **whatsapp_business_management**;
-- the second migration.
+When a client saves a **Custom Message** or **Custom Follow-up** (Messaging page):
+- **Text versions** (first message, follow-up) are submitted to Meta automatically. `{first_name}` and `{review_link}` become `{{1}}`, `{{2}}`; `{business_name}` and `{owner_name}` are written in as fixed text. "Hi" or "Thank you!" is added if the text would start or end with a variable, because Meta rejects that.
+- **Photo version** (first message with photo): the app shows an exact **template name** and **body** with copy buttons. Create it once in **WhatsApp Manager → Message templates → Create** with category Marketing, the same language, Header = **Image** (any sample photo), and that name and body.
+- **Check WhatsApp** looks every template up by name in your WhatsApp account and shows **Approved · ready to send**, **Waiting for approval** or **Rejected (reason)**. With the webhook subscribed to `message_template_status_update`, this also updates by itself.
+- Only approved templates are used. Until then the standard templates are sent, so nothing stops.
 
 ## Personalised image: how it works
 Messaging page → **Personalized Image** on → upload a photo of the owner or team. For every initial request, the `review-image` function builds an 800×600 JPEG: the photo with **"Priya!"** on a white label, the same look as the phone preview.

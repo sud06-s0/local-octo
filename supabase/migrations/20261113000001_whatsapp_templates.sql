@@ -10,7 +10,7 @@ create table public.whatsapp_templates (
   language text not null default 'en',
   body text not null,                    -- exact text submitted to Meta, with {{1}} {{2}} placeholders
   params jsonb not null default '[]'::jsonb, -- which value fills each placeholder, e.g. ["first_name","review_link"]
-  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected', 'paused', 'disabled', 'failed')),
+  status text not null default 'pending' check (status in ('not_created', 'pending', 'approved', 'rejected', 'paused', 'disabled', 'failed')),
   meta_template_id text,
   reason text,                           -- rejection / failure reason from Meta
   created_at timestamptz not null default now(),

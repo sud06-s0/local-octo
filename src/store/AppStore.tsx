@@ -92,6 +92,7 @@ const toWaTemplate = (r: Row): WaTemplate => ({
   id: r.id,
   kind: r.kind,
   name: r.name,
+  language: r.language ?? 'en',
   body: r.body,
   status: r.status,
   reason: r.reason ?? null,
@@ -196,7 +197,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         c.from('reviews').select('*').eq('business_id', bid).order('review_created_at', { ascending: false }).limit(500),
         c.from('notifications').select('*').eq('business_id', bid).order('created_at', { ascending: false }).limit(100),
         c.from('social_posts').select('*').eq('business_id', bid).order('created_at', { ascending: false }).limit(50),
-        c.from('whatsapp_templates').select('id, kind, name, body, status, reason, created_at').eq('business_id', bid).order('created_at', { ascending: false }).limit(30),
+        c.from('whatsapp_templates').select('id, kind, name, language, body, status, reason, created_at').eq('business_id', bid).order('created_at', { ascending: false }).limit(30),
       ])
       // whatsapp_templates comes from the second migration; don't fail the whole load if it isn't run yet
       setWaTemplates(templates.error ? [] : (templates.data ?? []).map(toWaTemplate))
@@ -400,9 +401,18 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         // Demo: pretend they were submitted and are waiting for Meta
         const m = stateRef.current.settings.messaging
         const now = new Date().toISOString()
-        const make = (kind: WaTemplateKind, body: string): WaTemplate => ({ id: uid('t'), kind, name: `lo_demo_${kind}`, body, status: 'pending', reason: null, createdAt: now })
+        const make = (kind: WaTemplateKind, body: string, status: WaTemplate['status'] = 'pending'): WaTemplate => ({
+          id: uid('t'),
+          kind,
+          name: `lo_demo_${kind}_${Date.now().toString(36)}`,
+          language: 'en',
+          body,
+          status,
+          reason: null,
+          createdAt: now,
+        })
         const rows: WaTemplate[] = []
-        if (kinds.includes('initial')) rows.push(make('initial', m.customMessage), make('initial_image', m.customMessage))
+        if (kinds.includes('initial')) rows.push(make('initial', m.customMessage), make('initial_image', m.customMessage, 'not_created'))
         if (kinds.includes('followup')) rows.push(make('followup', m.customFollowUp))
         setWaTemplates((t) => [...rows, ...t])
         return []

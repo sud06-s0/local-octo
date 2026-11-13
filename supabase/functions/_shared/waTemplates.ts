@@ -1,5 +1,6 @@
 // supabase/functions/_shared/waTemplates.ts
 // Turns a client's Custom Message into a WhatsApp template, submits it to Meta and tracks approval.
+// Only needs the WABA ID + token. Photo (image-header) templates are created by hand in WhatsApp Manager.
 
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 
@@ -11,7 +12,6 @@ const EXAMPLES: Record<ParamKey, string> = { first_name: 'Priya', review_link: '
 
 export interface MetaConfig {
   wabaId: string
-  appId: string
   token: string
   version: string
   lang: string
@@ -21,7 +21,6 @@ export async function metaConfig(admin: SupabaseClient, businessId: string): Pro
   const { data: row } = await admin.from('business_channels').select('*').eq('business_id', businessId).maybeSingle()
   return {
     wabaId: (row?.whatsapp_waba_id as string) || env('WHATSAPP_WABA_ID'),
-    appId: env('WHATSAPP_APP_ID'),
     token: (row?.whatsapp_access_token as string) || env('WHATSAPP_ACCESS_TOKEN'),
     version: env('WHATSAPP_API_VERSION') || 'v23.0',
     lang: (row?.whatsapp_template_lang as string) || env('WHATSAPP_TEMPLATE_LANG') || 'en',
@@ -87,33 +86,9 @@ async function graph(cfg: MetaConfig, path: string, init: RequestInit = {}) {
   return body
 }
 
-/** Image headers need a sample image uploaded through Meta's Resumable Upload API (needs WHATSAPP_APP_ID). */
-export async function uploadSampleImage(cfg: MetaConfig, jpeg: Uint8Array): Promise<string> {
-  if (!cfg.appId) throw new Error('WHATSAPP_APP_ID is not set (needed for the photo template)')
-  const session = await graph(
-    cfg,
-    `${cfg.appId}/uploads?file_name=sample.jpg&file_length=${jpeg.byteLength}&file_type=image/jpeg`,
-    { method: 'POST' },
-  )
-  const res = await fetch(`https://graph.facebook.com/${cfg.version}/${session.id}`, {
-    method: 'POST',
-    headers: { Authorization: `OAuth ${cfg.token}`, file_offset: '0' },
-    body: new Blob([jpeg as Uint8Array<ArrayBuffer>]),
-  })
-  const body = await res.json().catch(() => ({}))
-  if (!res.ok || !body.h) throw new Error(body?.error?.message ?? 'Sample image upload failed')
-  return body.h as string
-}
-
-export async function createTemplate(
-  cfg: MetaConfig,
-  name: string,
-  body: string,
-  example: string[],
-  headerHandle?: string,
-): Promise<{ id: string; status: string }> {
+/** Creates a text-only template (no App ID needed). */
+export async function createTemplate(cfg: MetaConfig, name: string, body: string, example: string[]): Promise<{ id: string; status: string }> {
   const components: unknown[] = []
-  if (headerHandle) components.push({ type: 'HEADER', format: 'IMAGE', example: { header_handle: [headerHandle] } })
   components.push({ type: 'BODY', text: body, ...(example.length ? { example: { body_text: [example] } } : {}) })
   const res = await graph(cfg, `${cfg.wabaId}/message_templates`, {
     method: 'POST',
@@ -123,10 +98,17 @@ export async function createTemplate(
   return { id: String(res.id), status: mapStatus(res.status) }
 }
 
-export async function fetchTemplateStatus(cfg: MetaConfig, id: string): Promise<{ status: string; reason: string | null }> {
-  const res = await graph(cfg, `${id}?fields=status,rejected_reason`)
-  const reason = res.rejected_reason && res.rejected_reason !== 'NONE' ? String(res.rejected_reason) : null
-  return { status: mapStatus(res.status), reason }
+/** Looks a template up by exact name in the WhatsApp Business Account (works for API- and hand-made ones). */
+export async function findTemplateByName(
+  cfg: MetaConfig,
+  name: string,
+): Promise<{ id: string; status: string; reason: string | null; language: string } | null> {
+  const res = await graph(cfg, `${cfg.wabaId}/message_templates?name=${encodeURIComponent(name)}&fields=id,name,status,rejected_reason,language&limit=50`)
+  const hit = (res.data ?? []).find((t: { name: string; language: string }) => t.name === name && (!cfg.lang || t.language === cfg.lang))
+    ?? (res.data ?? []).find((t: { name: string }) => t.name === name)
+  if (!hit) return null
+  const reason = hit.rejected_reason && hit.rejected_reason !== 'NONE' ? String(hit.rejected_reason) : null
+  return { id: String(hit.id), status: mapStatus(hit.status), reason, language: hit.language }
 }
 
 export interface ApprovedTemplate {

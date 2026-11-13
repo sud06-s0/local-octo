@@ -58,13 +58,14 @@ export interface SocialPost {
 }
 
 export type WaTemplateKind = 'initial' | 'initial_image' | 'followup'
-export type WaTemplateStatus = 'pending' | 'approved' | 'rejected' | 'paused' | 'disabled' | 'failed'
+export type WaTemplateStatus = 'not_created' | 'pending' | 'approved' | 'rejected' | 'paused' | 'disabled' | 'failed'
 
 /** A business's Custom Message submitted to Meta as a WhatsApp template */
 export interface WaTemplate {
   id: string
   kind: WaTemplateKind
   name: string
+  language: string
   body: string
   status: WaTemplateStatus
   reason: string | null

@@ -1,13 +1,13 @@
 // src/pages/Messaging.tsx
 import { forwardRef, useRef, useState } from 'react'
-import { Bell, CircleCheck, Clock, Calendar, ImagePlus, MessageCircle, MessageSquare, RefreshCw, Sparkles, TrendingUp, Trash2, CircleStop } from 'lucide-react'
+import { Bell, CircleCheck, Clock, Calendar, Copy, ExternalLink, ImagePlus, MessageCircle, MessageSquare, RefreshCw, Sparkles, TrendingUp, Trash2, CircleStop } from 'lucide-react'
 import { Badge, Button, Card, Input, Label, PageHeader, Segmented, Textarea, Toggle } from '../components/ui/primitives'
 import { IncomingBubble, OutgoingBubble, PhoneMockup } from '../components/ui/PhoneMockup'
 import { Modal } from '../components/ui/Modal'
 import { useStore } from '../store/AppStore'
 import { useToast } from '../components/ui/Toast'
 import { brand } from '../config/brand'
-import { cn, fillTemplate, initials, isEmail, isPhone, timeAgo } from '../lib/utils'
+import { cn, copyText, fillTemplate, initials, isEmail, isPhone, timeAgo } from '../lib/utils'
 import type { WaTemplate, WaTemplateKind, WaTemplateStatus } from '../types'
 
 const SAMPLE = 'Jessica'
@@ -43,12 +43,55 @@ const KIND_LABEL: Record<WaTemplateKind, string> = {
   followup: 'Follow-up',
 }
 const STATUS_STYLE: Record<WaTemplateStatus, { label: string; tone: 'green' | 'amber' | 'red' | 'gray' }> = {
+  not_created: { label: 'Create it in WhatsApp Manager', tone: 'gray' },
   pending: { label: 'Waiting for WhatsApp approval', tone: 'amber' },
-  approved: { label: 'Approved', tone: 'green' },
+  approved: { label: 'Approved · ready to send', tone: 'green' },
   rejected: { label: 'Rejected', tone: 'red' },
   failed: { label: 'Not submitted', tone: 'red' },
   paused: { label: 'Paused by WhatsApp', tone: 'amber' },
   disabled: { label: 'Disabled by WhatsApp', tone: 'red' },
+}
+
+function CopyField({ label, value }: { label: string; value: string }) {
+  const toast = useToast()
+  return (
+    <div>
+      <p className="text-[11px] font-medium uppercase tracking-wide text-muted">{label}</p>
+      <div className="mt-1 flex items-start gap-2">
+        <code className="flex-1 whitespace-pre-line break-all rounded-md bg-canvas px-2 py-1.5 text-xs text-ink">{value}</code>
+        <button
+          type="button"
+          onClick={async () => toast((await copyText(value)) ? `${label} copied` : 'Could not copy', 'success')}
+          className="rounded-md p-1.5 text-muted hover:bg-canvas hover:text-ink"
+          aria-label={`Copy ${label}`}
+        >
+          <Copy className="size-3.5" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/** Exact steps to create the photo template by hand (image headers can't be created by the API without an App ID). */
+function ManualSteps({ t }: { t: WaTemplate }) {
+  return (
+    <div className="mt-2.5 space-y-2.5 rounded-lg border border-dashed border-line p-3">
+      <p className="text-xs text-ink/85">
+        In <b>WhatsApp Manager → Message templates → Create</b>: category <b>Marketing</b>, language <b>{t.language}</b>, header{' '}
+        <b>Image</b> (any sample photo), and this exact name and body. Then click <b>Check WhatsApp</b>.
+      </p>
+      <CopyField label="Template name" value={t.name} />
+      <CopyField label="Body" value={t.body} />
+      <a
+        href="https://business.facebook.com/wa/manage/message-templates/"
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline"
+      >
+        Open WhatsApp Manager <ExternalLink className="size-3" />
+      </a>
+    </div>
+  )
 }
 
 /** Latest WhatsApp template per kind, with approval status. */
@@ -66,7 +109,7 @@ function WhatsAppApproval({
   busy: boolean
 }) {
   const latest = kinds.map((k) => ({ kind: k, t: templates.find((x) => x.kind === k) }))
-  const anyPending = latest.some((l) => l.t?.status === 'pending')
+  const anyOpen = latest.some((l) => l.t)
   const anyBad = latest.some((l) => l.t && ['rejected', 'failed', 'disabled'].includes(l.t.status))
   return (
     <div className="mt-5 rounded-xl border border-line bg-canvas/60 p-4">
@@ -75,9 +118,9 @@ function WhatsAppApproval({
           <MessageCircle className="size-4 text-[#25D366]" /> WhatsApp approval
         </p>
         <div className="flex gap-2">
-          {anyPending && (
+          {anyOpen && (
             <Button size="sm" variant="outline" icon={RefreshCw} disabled={busy} onClick={onRefresh}>
-              Check status
+              Check WhatsApp
             </Button>
           )}
           {anyBad && (
@@ -103,9 +146,11 @@ function WhatsAppApproval({
             </div>
             {t && (
               <>
-                <p className="mt-1.5 whitespace-pre-line text-xs leading-relaxed text-muted">{t.body}</p>
+                {t.status === 'not_created' ? <ManualSteps t={t} /> : <p className="mt-1.5 whitespace-pre-line text-xs leading-relaxed text-muted">{t.body}</p>}
                 {t.reason && <p className={cn('mt-1.5 text-xs', t.status === 'approved' ? 'text-muted' : 'text-red-600')}>{t.reason}</p>}
-                <p className="mt-1 text-[11px] text-muted/80">Submitted {timeAgo(t.createdAt)}</p>
+                <p className="mt-1 text-[11px] text-muted/80">
+                  {t.status === 'not_created' ? 'Added' : 'Submitted'} {timeAgo(t.createdAt)} · {t.name}
+                </p>
               </>
             )}
           </li>

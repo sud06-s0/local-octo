@@ -24,6 +24,7 @@ interface WaValue {
   // message_template_status_update
   event?: string
   message_template_id?: number | string
+  message_template_name?: string
   reason?: string
   metadata?: { phone_number_id?: string }
   statuses?: Array<{ id: string; status: string; errors?: Array<{ title?: string; message?: string }> }>
@@ -58,10 +59,13 @@ Deno.serve(async (req) => {
       if (change.field === 'message_template_status_update' && value.message_template_id) {
         const status = TEMPLATE_MAP[(value.event ?? '').toUpperCase()]
         if (status) {
+          const id = String(value.message_template_id).replace(/\D/g, '')
+          const name = /^[a-z0-9_]+$/.test(value.message_template_name ?? '') ? value.message_template_name : ''
+          // Match by Meta ID, or by name for templates created by hand in WhatsApp Manager
           await admin
             .from('whatsapp_templates')
-            .update({ status, reason: value.reason && value.reason !== 'NONE' ? value.reason : null })
-            .eq('meta_template_id', String(value.message_template_id))
+            .update({ status, meta_template_id: id, reason: value.reason && value.reason !== 'NONE' ? value.reason : null })
+            .or(name ? `meta_template_id.eq.${id},name.eq.${name}` : `meta_template_id.eq.${id}`)
         }
         continue
       }
