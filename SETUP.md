@@ -15,7 +15,8 @@ Follow the steps in order. Commands run from the project folder (`local-octo-app
 
 ## 2. Create the database
 **Option A, no CLI:** open **SQL Editor → New query**, paste all of
-`supabase/migrations/20261112000001_init.sql`, and click **Run**.
+`supabase/migrations/20261112000001_init.sql`, and click **Run**. Then do the same with
+`supabase/migrations/20261113000001_whatsapp_templates.sql`, which adds custom WhatsApp templates.
 
 **Option B, CLI:**
 ```bash
@@ -39,7 +40,7 @@ npx supabase login
 npx supabase link --project-ref REF
 npx supabase functions deploy
 ```
-This deploys all 8 functions. `supabase/config.toml` turns the gateway JWT check off because each function checks auth itself.
+This deploys all 9 functions. `supabase/config.toml` turns the gateway JWT check off because each function checks auth itself.
 
 | Function | Who calls it | Auth |
 |---|---|---|
@@ -51,6 +52,7 @@ This deploys all 8 functions. `supabase/config.toml` turns the gateway JWT check
 | `ai-reply` | app "Draft with AI" | signed-in user |
 | `widget` | client websites | public key in URL |
 | `review-image` | WhatsApp / email (downloads the personalised photo) | contact token or signed URL |
+| `wa-template` | app: submits Custom Messages to Meta, checks approval | signed-in user |
 
 ## 5. Set secrets
 Fill in what you have now and add the rest later. Missing channels are skipped.
@@ -71,6 +73,8 @@ npx supabase secrets set \
   WHATSAPP_TEMPLATE_FOLLOWUP="review_followup" \
   WHATSAPP_TEMPLATE_LANG="en" \
   WHATSAPP_VERIFY_TOKEN="$(openssl rand -hex 16)" \
+  WHATSAPP_WABA_ID="your-whatsapp-business-account-id" \
+  WHATSAPP_APP_ID="your-meta-app-id" \
   WHATSAPP_APP_SECRET="meta-app-secret" \
   AI_PROVIDER="gemini" \
   GEMINI_API_KEY="..."
@@ -117,14 +121,16 @@ Each run sends what is due, only between **9 AM and 7 PM in each business's time
 2. Business Settings → **System users** → create one, give it the app and WhatsApp account, and generate a **permanent token** with `whatsapp_business_messaging` and `whatsapp_business_management`. Use it as `WHATSAPP_ACCESS_TOKEN`.
 3. Copy the **Phone number ID**, not the number itself, into `WHATSAPP_PHONE_NUMBER_ID`.
 4. WhatsApp Manager → **Message templates**: create two templates, language English (`en`):
-   - `review_request`: `Hi {{1}}, thanks for choosing {{2}}! Would you mind taking a moment to leave us a Google review? {{3}}`
+   Meta rejects a template whose body **starts or ends with a variable**, so each body ends with fixed text after `{{3}}`.
+   - `review_request`: `Hi {{1}}, thanks for choosing {{2}}! Would you mind taking a moment to leave us a Google review? {{3}} Thank you!`
    - `review_request_image`: **Header = Image** (upload any sample photo when creating it), body the same as `review_request`. This one is used when the business has uploaded a photo and turned on **Personalized Image**. The customer then gets the photo with their name on it, with the text underneath, in one message.
-   - `review_followup`: `Hi {{1}}, just a quick reminder from {{2}} — your feedback means a lot to us! {{3}}`
+   - `review_followup`: `Hi {{1}}, just a quick reminder from {{2}} — your feedback means a lot to us! {{3}} Thank you!`
    Meta usually puts these in the **Marketing** category, which is charged per message.
 5. App → WhatsApp → **Configuration → Webhook**:
    - Callback URL: `https://REF.supabase.co/functions/v1/whatsapp-webhook`
    - Verify token: your `WHATSAPP_VERIFY_TOKEN`
    - Subscribe to the **messages** field. Delivery ticks then update the `messages` table, and a customer replying **STOP** goes onto Do Not Contact.
+   - Also subscribe to **message_template_status_update**, so Custom Message approvals show up in the app straight away.
 6. App Settings → Basic → **App secret**: use it as `WHATSAPP_APP_SECRET`, so fake webhook calls are rejected.
 
 ## 9. Frontend
@@ -154,6 +160,18 @@ update public.profiles set is_platform_admin = true where email = 'you@localocto
    ```
 
 ---
+
+## Custom Messages on WhatsApp
+WhatsApp only lets a business start a chat with a template Meta has approved. When a client saves a **Custom Message** or **Custom Follow-up**, the app submits it to Meta automatically (`wa-template` function):
+- `{first_name}` and `{review_link}` become `{{1}}`, `{{2}}`. `{business_name}` and `{owner_name}` are written in as fixed text.
+- If the text starts or ends with a variable, "Hi" or "Thank you!" is added, because Meta rejects those otherwise.
+- Three versions are tracked per client: first message, first message with photo, and follow-up. The Messaging page shows **Waiting for approval**, **Approved** or **Rejected (reason)**.
+- Until a version is approved, the standard templates above are sent, so nothing stops.
+
+Needs:
+- secrets `WHATSAPP_WABA_ID` (WhatsApp Manager → account settings) and `WHATSAPP_APP_ID` (Meta app → App settings → Basic, used for the photo version's sample image);
+- an access token with **whatsapp_business_management**;
+- the second migration.
 
 ## Personalised image: how it works
 Messaging page → **Personalized Image** on → upload a photo of the owner or team. For every initial request, the `review-image` function builds an 800×600 JPEG: the photo with **"Priya!"** on a white label, the same look as the phone preview.

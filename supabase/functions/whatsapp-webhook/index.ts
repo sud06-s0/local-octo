@@ -8,6 +8,7 @@ import { safeEqual } from '../_shared/http.ts'
 
 const STOP_WORDS = /^\s*(stop|unsubscribe|cancel|opt\s?out|end|quit)\s*$/i
 const STATUS_MAP: Record<string, string> = { sent: 'sent', delivered: 'delivered', read: 'read', failed: 'failed' }
+const TEMPLATE_MAP: Record<string, string> = { APPROVED: 'approved', REJECTED: 'rejected', PAUSED: 'paused', DISABLED: 'disabled', PENDING: 'pending' }
 
 async function validSignature(raw: string, header: string | null): Promise<boolean> {
   const secret = Deno.env.get('WHATSAPP_APP_SECRET')
@@ -20,6 +21,10 @@ async function validSignature(raw: string, header: string | null): Promise<boole
 }
 
 interface WaValue {
+  // message_template_status_update
+  event?: string
+  message_template_id?: number | string
+  reason?: string
   metadata?: { phone_number_id?: string }
   statuses?: Array<{ id: string; status: string; errors?: Array<{ title?: string; message?: string }> }>
   messages?: Array<{ from: string; type: string; text?: { body?: string }; button?: { text?: string } }>
@@ -37,7 +42,7 @@ Deno.serve(async (req) => {
   const raw = await req.text()
   if (!(await validSignature(raw, req.headers.get('x-hub-signature-256')))) return new Response('Bad signature', { status: 401 })
 
-  let payload: { entry?: Array<{ changes?: Array<{ value?: WaValue }> }> }
+  let payload: { entry?: Array<{ changes?: Array<{ field?: string; value?: WaValue }> }> }
   try {
     payload = JSON.parse(raw)
   } catch {
@@ -48,6 +53,18 @@ Deno.serve(async (req) => {
   for (const entry of payload.entry ?? []) {
     for (const change of entry.changes ?? []) {
       const value = change.value ?? {}
+
+      // Template approved / rejected (subscribe to "message_template_status_update" in Meta)
+      if (change.field === 'message_template_status_update' && value.message_template_id) {
+        const status = TEMPLATE_MAP[(value.event ?? '').toUpperCase()]
+        if (status) {
+          await admin
+            .from('whatsapp_templates')
+            .update({ status, reason: value.reason && value.reason !== 'NONE' ? value.reason : null })
+            .eq('meta_template_id', String(value.message_template_id))
+        }
+        continue
+      }
 
       for (const s of value.statuses ?? []) {
         const status = STATUS_MAP[s.status]

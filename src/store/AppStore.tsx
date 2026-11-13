@@ -3,7 +3,7 @@
 // isolated); demo mode (no env vars) uses sample data saved in localStorage.
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { AppNotification, AppState, Contact, NewContact, Review, ReviewReply, Settings, SocialPost } from '../types'
+import type { AppNotification, AppState, Contact, NewContact, Review, ReviewReply, Settings, SocialPost, WaTemplate, WaTemplateKind } from '../types'
 import { initialState } from '../data/mockData'
 import { storage, uid } from '../lib/utils'
 import { db, invokeFn, isLive } from '../lib/supabase'
@@ -35,12 +35,15 @@ interface AppStore {
   activeBusinessId: string | null
   publicKey: string
   apiKeyPrefix: string
+  waTemplates: WaTemplate[]
+  submitWhatsAppTemplates: (kinds: Array<'initial' | 'followup'>) => Promise<string[]>
+  refreshWhatsAppTemplates: () => Promise<string[]>
   switchBusiness: (id: string) => void
   createBusiness: (input: { name: string; address?: string; reviewLink?: string; mapsUrl?: string }) => Promise<void>
   addContacts: (items: NewContact[], source?: 'manual' | 'csv') => Promise<AddResult>
   updateContact: (id: string, patch: Partial<Contact>) => void
   deleteContact: (id: string) => void
-  updateSettings: <K extends keyof Settings>(key: K, patch: Partial<Settings[K]>) => void
+  updateSettings: <K extends keyof Settings>(key: K, patch: Partial<Settings[K]>) => Promise<void>
   setReviewReply: (id: string, reply: ReviewReply | undefined) => void
   addSocialPost: (post: Omit<SocialPost, 'id'>) => void
   markNotificationRead: (id: string) => void
@@ -84,6 +87,16 @@ const toReview = (r: Row): Review => ({
 })
 
 const toNotification = (r: Row): AppNotification => ({ id: r.id, type: r.type, title: r.title, body: r.body, at: r.created_at, read: r.read })
+
+const toWaTemplate = (r: Row): WaTemplate => ({
+  id: r.id,
+  kind: r.kind,
+  name: r.name,
+  body: r.body,
+  status: r.status,
+  reason: r.reason ?? null,
+  createdAt: r.created_at,
+})
 
 const toPost = (r: Row): SocialPost => ({ id: r.id, reviewId: r.review_id, network: r.network, format: r.format, status: r.status, at: r.scheduled_at })
 
@@ -130,6 +143,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const [activeId, setActiveId] = useState<string | null>(isLive ? storage.get<string | null>(ACTIVE_KEY, null) : 'demo')
   const [keys, setKeys] = useState({ publicKey: isLive ? '' : 'demo0public0key000000000', apiKeyPrefix: '' })
   const [loading, setLoading] = useState(isLive)
+  const [waTemplates, setWaTemplates] = useState<WaTemplate[]>([])
   const stateRef = useRef(state)
   stateRef.current = state
   const userId = session?.user.id
@@ -176,13 +190,16 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     async (bid: string) => {
       setLoading(true)
       const c = db()
-      const [b, contacts, reviews, notifications, posts] = await Promise.all([
+      const [b, contacts, reviews, notifications, posts, templates] = await Promise.all([
         c.from('businesses').select(BUSINESS_COLS).eq('id', bid).single(),
         c.from('contacts').select('*').eq('business_id', bid).order('created_at', { ascending: false }).limit(2000),
         c.from('reviews').select('*').eq('business_id', bid).order('review_created_at', { ascending: false }).limit(500),
         c.from('notifications').select('*').eq('business_id', bid).order('created_at', { ascending: false }).limit(100),
         c.from('social_posts').select('*').eq('business_id', bid).order('created_at', { ascending: false }).limit(50),
+        c.from('whatsapp_templates').select('id, kind, name, body, status, reason, created_at').eq('business_id', bid).order('created_at', { ascending: false }).limit(30),
       ])
+      // whatsapp_templates comes from the second migration; don't fail the whole load if it isn't run yet
+      setWaTemplates(templates.error ? [] : (templates.data ?? []).map(toWaTemplate))
       const err = b.error || contacts.error || reviews.error || notifications.error || posts.error
       if (check(err, 'Could not load data') && b.data) {
         setState({
@@ -267,7 +284,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   )
 
   const updateSettings = useCallback(
-    <K extends keyof Settings>(key: K, patch: Partial<Settings[K]>) => {
+    async <K extends keyof Settings>(key: K, patch: Partial<Settings[K]>) => {
       const next = { ...stateRef.current.settings[key], ...patch } as Settings[K]
       setState((s) => ({ ...s, settings: { ...s.settings, [key]: next } }))
       if (!isLive || !activeId) return
@@ -279,7 +296,8 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       } else {
         row = { [SETTINGS_COLUMN[key as Exclude<keyof Settings, 'business'>]]: next }
       }
-      db().from('businesses').update(row).eq('id', activeId).then(({ error }) => check(error, 'Could not save settings'))
+      const { error } = await db().from('businesses').update(row).eq('id', activeId)
+      check(error, 'Could not save settings')
     },
     [activeId, check],
   )
@@ -376,6 +394,36 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     return k
   }, [activeId, check])
 
+  const submitWhatsAppTemplates = useCallback(
+    async (kinds: Array<'initial' | 'followup'>) => {
+      if (!isLive) {
+        // Demo: pretend they were submitted and are waiting for Meta
+        const m = stateRef.current.settings.messaging
+        const now = new Date().toISOString()
+        const make = (kind: WaTemplateKind, body: string): WaTemplate => ({ id: uid('t'), kind, name: `lo_demo_${kind}`, body, status: 'pending', reason: null, createdAt: now })
+        const rows: WaTemplate[] = []
+        if (kinds.includes('initial')) rows.push(make('initial', m.customMessage), make('initial_image', m.customMessage))
+        if (kinds.includes('followup')) rows.push(make('followup', m.customFollowUp))
+        setWaTemplates((t) => [...rows, ...t])
+        return []
+      }
+      const res = await invokeFn<{ templates: Row[]; warnings: string[] }>('wa-template', { businessId: activeId, action: 'submit', kinds })
+      setWaTemplates(res.templates.map(toWaTemplate))
+      return res.warnings ?? []
+    },
+    [activeId],
+  )
+
+  const refreshWhatsAppTemplates = useCallback(async () => {
+    if (!isLive) {
+      setWaTemplates((t) => t.map((x) => (x.status === 'pending' ? { ...x, status: 'approved' } : x)))
+      return []
+    }
+    const res = await invokeFn<{ templates: Row[]; warnings: string[] }>('wa-template', { businessId: activeId, action: 'refresh' })
+    setWaTemplates(res.templates.map(toWaTemplate))
+    return res.warnings ?? []
+  }, [activeId])
+
   const refresh = useCallback(async () => {
     if (isLive && activeId) await load(activeId)
   }, [activeId, load])
@@ -395,6 +443,9 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       activeBusinessId: activeId,
       publicKey: keys.publicKey,
       apiKeyPrefix: keys.apiKeyPrefix,
+      waTemplates,
+      submitWhatsAppTemplates,
+      refreshWhatsAppTemplates,
       switchBusiness,
       createBusiness,
       addContacts,
@@ -412,7 +463,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       refresh,
       resetDemo,
     }),
-    [loading, state, businesses, activeId, keys, switchBusiness, createBusiness, addContacts, updateContact, deleteContact, updateSettings, setReviewReply, addSocialPost, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, regenerateApiKey, refresh, resetDemo],
+    [loading, state, businesses, activeId, keys, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, switchBusiness, createBusiness, addContacts, updateContact, deleteContact, updateSettings, setReviewReply, addSocialPost, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, regenerateApiKey, refresh, resetDemo],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
