@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
   }
   const messaging = (b.messaging ?? {}) as Messaging
   const firstName = (user.user_metadata?.full_name as string | undefined)?.split(' ')[0] || 'there'
-  const imageUrl = messaging.personalizedImage && messaging.imageDataUrl ? await testImageUrl(businessId, firstName) : undefined
+  const imageUrl = messaging.personalizedImage ? await testImageUrl(businessId, firstName) : undefined
 
   const result = await deliver({
     admin,

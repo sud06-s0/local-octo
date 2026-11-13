@@ -151,7 +151,7 @@ async function deliver(input) {
     if (input.messaging.mode === "custom") {
       const custom = await approvedTemplates(input.admin, input.businessId);
       const values = { first_name: input.firstName, review_link: input.link };
-      const pick = isFollow ? custom.followup : input.imageUrl && custom.initial_image || custom.initial;
+      const pick = isFollow ? custom.followup : input.imageUrl ? custom.initial_image : custom.initial;
       if (pick) {
         template = pick.name;
         lang = pick.language;
@@ -274,7 +274,8 @@ Deno.serve(async (req) => {
       businessName: row.business_name,
       messaging: row.messaging ?? {},
       link: `${linkBase}?t=${row.token}`,
-      imageUrl: kind === "initial" && row.messaging?.personalizedImage && row.messaging?.imageDataUrl ? contactImageUrl(row.token) : void 0
+      // Photo with the customer's name (business photo, or the demo photo if none uploaded)
+      imageUrl: kind === "initial" && row.messaging?.personalizedImage ? contactImageUrl(row.token) : void 0
     });
     const now = /* @__PURE__ */ new Date();
     if (result.ok) {

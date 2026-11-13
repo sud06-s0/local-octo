@@ -63,7 +63,7 @@ create table public.businesses (
     'mode', 'smart',
     'ownerFirstName', '',
     'businessName', '',
-    'personalizedImage', false,
+    'personalizedImage', true,
     'imageDataUrl', null,
     'customMessage', 'Hey {first_name}, we hope you enjoyed your experience with {business_name}! Would you mind taking a moment to leave a review? Here''s the link: {review_link}',
     'customFollowUp', 'Hi {first_name}, just a quick reminder — your feedback means a lot to us! {review_link}',

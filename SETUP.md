@@ -16,7 +16,7 @@ Follow the steps in order. Commands run from the project folder (`local-octo-app
 ## 2. Create the database
 **Option A, no CLI:** open **SQL Editor → New query**, paste all of
 `supabase/migrations/20261112000001_init.sql`, and click **Run**. Then do the same with
-`supabase/migrations/20261113000001_whatsapp_templates.sql` and `supabase/migrations/20261113000002_wa_manual_templates.sql`, which add custom WhatsApp templates.
+`supabase/migrations/20261113000001_whatsapp_templates.sql`, `20261113000002_wa_manual_templates.sql` and `20261113000003_personal_image_default.sql`, in that order.
 
 **Option B, CLI:**
 ```bash
@@ -170,12 +170,16 @@ When a client saves a **Custom Message** or **Custom Follow-up** (Messaging page
 - Only approved templates are used. Until then the standard templates are sent, so nothing stops.
 
 ## Personalised image: how it works
-Messaging page → **Personalized Image** on → upload a photo of the owner or team. For every initial request, the `review-image` function builds an 800×600 JPEG: the photo with **"Priya!"** on a white label, the same look as the phone preview.
-- **WhatsApp:** sent as the image header of `review_request_image`, with the text below.
-- **Email:** shown through `{{image_url}}`.
-- **SMS:** text only. Indian SMS (DLT) can't carry images and carriers don't support MMS.
+**Personalized Image** (Messaging page) is **on by default**. Every first message carries an 800×600 photo with the customer's first name on a white label ("Priya!"), built by the `review-image` function:
+- the business's own uploaded photo; or
+- the **demo photo** if they haven't uploaded one: `public/default-personal.jpg`, served at `https://local-octo.vercel.app/default-personal.jpg`. To use another URL, set the secret `DEFAULT_REVIEW_IMAGE_URL`.
+
+Where it goes:
+- **WhatsApp:** sent through a template with **Header = Image**: `review_request_image`, or the business's approved custom photo template. With a photo, the custom text is only used once its photo template is approved, so the name is always on a photo.
+- **Email:** `{{image_url}}`.
+- **SMS:** text only.
 - Follow-ups are text only.
-- Names in non-Latin scripts (for example Bengali or Hindi) show **"Thank you!"** instead, because the embedded font covers Latin letters only.
+- Names in non-Latin scripts show "Thank you!" instead.
 
 ## Not built yet (needs outside approval or a next phase)
 - **Pulling Google reviews and posting replies to Google** needs Google Business Profile API access. Apply at the Google Business Profile API page; approval takes a few weeks. Until then:

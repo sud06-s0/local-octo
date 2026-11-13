@@ -165,7 +165,7 @@ async function deliver(input) {
     if (input.messaging.mode === "custom") {
       const custom = await approvedTemplates(input.admin, input.businessId);
       const values = { first_name: input.firstName, review_link: input.link };
-      const pick = isFollow ? custom.followup : input.imageUrl && custom.initial_image || custom.initial;
+      const pick = isFollow ? custom.followup : input.imageUrl ? custom.initial_image : custom.initial;
       if (pick) {
         template = pick.name;
         lang = pick.language;
@@ -285,7 +285,7 @@ Deno.serve(async (req) => {
   }
   const messaging = b.messaging ?? {};
   const firstName = user.user_metadata?.full_name?.split(" ")[0] || "there";
-  const imageUrl = messaging.personalizedImage && messaging.imageDataUrl ? await testImageUrl(businessId, firstName) : void 0;
+  const imageUrl = messaging.personalizedImage ? await testImageUrl(businessId, firstName) : void 0;
   const result = await deliver({
     admin,
     businessId,

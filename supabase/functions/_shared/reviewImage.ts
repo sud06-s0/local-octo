@@ -27,10 +27,16 @@ export function labelText(firstName: string): string {
   return name && name.length <= 22 && LATIN.test(name) ? `${name}!` : 'Thank you!'
 }
 
+/** Demo photo used when a business hasn't uploaded its own (public/default-personal.jpg in the app). */
+export function defaultPhotoUrl(): string {
+  return Deno.env.get('DEFAULT_REVIEW_IMAGE_URL') || 'https://local-octo.vercel.app/default-personal.jpg'
+}
+
 export async function renderReviewImage(photoUrl: string | null, firstName: string): Promise<Uint8Array> {
   const { Image } = await import('npm:imagescript@1.3.0')
+  photoUrl = photoUrl || defaultPhotoUrl()
 
-  // Background: the business photo, cover-cropped to 800x600, or brand green if none/unreadable
+  // Background: the business photo (or demo photo), cover-cropped to 800x600; brand green only if it can't be loaded
   let canvas = new Image(W, H).fill(Image.rgbaToColor(23, 103, 46, 255))
   if (photoUrl && /^https?:\/\//i.test(photoUrl)) {
     try {

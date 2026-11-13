@@ -203,7 +203,9 @@ export async function deliver(input: DeliverInput): Promise<DeliverResult> {
     if (input.messaging.mode === 'custom') {
       const custom = await approvedTemplates(input.admin, input.businessId)
       const values: Record<ParamKey, string> = { first_name: input.firstName, review_link: input.link }
-      const pick = isFollow ? custom.followup : (input.imageUrl && custom.initial_image) || custom.initial
+      // With a photo, only the approved photo template is used, so the customer's name is always on a photo.
+      // Until it's approved, the standard photo template goes out instead.
+      const pick = isFollow ? custom.followup : input.imageUrl ? custom.initial_image : custom.initial
       if (pick) {
         template = pick.name
         lang = pick.language

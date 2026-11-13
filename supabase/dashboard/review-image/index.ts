@@ -44,8 +44,12 @@ function labelText(firstName) {
   const name = (firstName || "").trim().split(/\s+/)[0] ?? "";
   return name && name.length <= 22 && LATIN.test(name) ? `${name}!` : "Thank you!";
 }
+function defaultPhotoUrl() {
+  return Deno.env.get("DEFAULT_REVIEW_IMAGE_URL") || "https://local-octo.vercel.app/default-personal.jpg";
+}
 async function renderReviewImage(photoUrl, firstName) {
   const { Image } = await import("npm:imagescript@1.3.0");
+  photoUrl = photoUrl || defaultPhotoUrl();
   let canvas = new Image(W, H).fill(Image.rgbaToColor(23, 103, 46, 255));
   if (photoUrl && /^https?:\/\//i.test(photoUrl)) {
     try {
