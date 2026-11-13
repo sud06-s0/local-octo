@@ -75,7 +75,7 @@ create table public.businesses (
     'popup', jsonb_build_object('position', 'left', 'star', '#FFC107', 'background', '#FFFFFF', 'text', '#000000'),
     'carousel', jsonb_build_object('star', '#FFC107', 'background', '#FFFFFF', 'text', '#333333')
   ),
-  social jsonb not null default '{"facebookConnected": false, "instagramConnected": false, "autoPost": false, "feed": true, "story": true, "template": "green", "minRating": 5}'::jsonb,
+  social jsonb not null default '{"facebookConnected": false, "instagramConnected": false, "autoPost": false, "captionSource": "review", "templates": [], "activeTemplateId": null}'::jsonb,
   notification_prefs jsonb not null default '{"emailNewReview": true, "emailLowRating": true, "whatsappLowRating": true, "weeklySummary": true, "lowRatingThreshold": 3}'::jsonb,
   integrations jsonb not null default '{}'::jsonb,
   created_by uuid references auth.users (id) on delete set null,

@@ -52,6 +52,7 @@ interface AppStore {
   sendTest: (to: string) => Promise<string>
   draftReply: (review: Review) => Promise<string>
   uploadMessageImage: (file: File) => Promise<void>
+  uploadBusinessAsset: (file: File, prefix: string) => Promise<string>
   regenerateApiKey: () => Promise<string>
   refresh: () => Promise<void>
   resetDemo: () => void
@@ -140,7 +141,27 @@ const emptyState: AppState = { contacts: [], reviews: [], notifications: [], soc
 export function AppStoreProvider({ children }: { children: ReactNode }) {
   const { session } = useAuth()
   const toast = useToast()
-  const [state, setState] = useState<AppState>(() => (isLive ? emptyState : storage.get(STORAGE_KEY, initialState)))
+  const [state, setState] = useState<AppState>(() => {
+    if (isLive) return emptyState
+    // Demo data saved by an older version may miss newer settings: fill them from the defaults
+    const saved = storage.get(STORAGE_KEY, initialState)
+    const d = initialState.settings
+    const s = saved.settings ?? d
+    return {
+      ...initialState,
+      ...saved,
+      settings: {
+        business: { ...d.business, ...s.business },
+        messaging: { ...d.messaging, ...s.messaging },
+        scheduling: { ...d.scheduling, ...s.scheduling },
+        ai: { ...d.ai, ...s.ai },
+        widgets: { ...d.widgets, ...s.widgets },
+        social: { ...d.social, ...s.social },
+        notifications: { ...d.notifications, ...s.notifications },
+        integrations: { ...d.integrations, ...s.integrations },
+      },
+    }
+  })
   const [businesses, setBusinesses] = useState<BusinessSummary[]>(isLive ? [] : [{ id: 'demo', name: initialState.settings.business.name }])
   const [activeId, setActiveId] = useState<string | null>(isLive ? storage.get<string | null>(ACTIVE_KEY, null) : 'demo')
   const [keys, setKeys] = useState({ publicKey: isLive ? '' : 'demo0public0key000000000', apiKeyPrefix: '' })
@@ -387,6 +408,26 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     [activeId, check, updateSettings],
   )
 
+  /** Uploads a file to the business's storage folder and returns its public URL (demo: data URL). */
+  const uploadBusinessAsset = useCallback(
+    async (file: File, prefix: string) => {
+      if (!isLive || !activeId) {
+        return await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(String(reader.result))
+          reader.onerror = () => reject(reader.error)
+          reader.readAsDataURL(file)
+        })
+      }
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+      const path = `${activeId}/${prefix}-${Date.now()}.${ext}`
+      const { error } = await db().storage.from('business-assets').upload(path, file, { upsert: true, contentType: file.type })
+      if (!check(error, 'Upload failed')) throw new Error(error?.message)
+      return db().storage.from('business-assets').getPublicUrl(path).data.publicUrl
+    },
+    [activeId, check],
+  )
+
   const regenerateApiKey = useCallback(async () => {
     if (!isLive) return 'lo_live_demo_key_only_works_when_connected'
     const { data, error } = await db().rpc('regenerate_api_key', { p_business: activeId })
@@ -484,11 +525,12 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       sendTest,
       draftReply,
       uploadMessageImage,
+      uploadBusinessAsset,
       regenerateApiKey,
       refresh,
       resetDemo,
     }),
-    [loading, state, businesses, activeId, keys, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, switchBusiness, createBusiness, addContacts, updateContact, deleteContact, updateSettings, setReviewReply, addSocialPost, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, regenerateApiKey, refresh, resetDemo],
+    [loading, state, businesses, activeId, keys, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, switchBusiness, createBusiness, addContacts, updateContact, deleteContact, updateSettings, setReviewReply, addSocialPost, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, regenerateApiKey, refresh, resetDemo],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

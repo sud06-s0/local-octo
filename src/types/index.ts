@@ -88,6 +88,18 @@ export interface WidgetColors {
   text: string
 }
 
+export type CaptionSource = 'review' | 'reply' | 'custom'
+export type DayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
+
+/** Background design for review posts: a preset (CSS background) or an uploaded image URL */
+export interface PostTemplate {
+  id: string
+  name: string
+  kind: 'preset' | 'upload'
+  background: string
+  textColor: string
+}
+
 export interface Settings {
   business: {
     name: string
@@ -122,10 +134,11 @@ export interface Settings {
     facebookConnected: boolean
     instagramConnected: boolean
     autoPost: boolean
-    feed: boolean
-    story: boolean
-    template: 'green' | 'white' | 'quote'
-    minRating: 4 | 5
+    captionSource: CaptionSource
+    customCaption: string
+    schedule: Record<DayKey, { story: boolean; feed: boolean }>
+    templates: PostTemplate[]
+    activeTemplateId: string | null
   }
   notifications: {
     emailNewReview: boolean
