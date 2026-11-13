@@ -510,13 +510,16 @@ export default function Messaging() {
       <p className="mt-1 text-[16px] text-muted">Increase your review rate with automated follow-ups</p>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_1.1fr] lg:gap-10">
-        <PhoneMockup>
-          {m.personalizedImage && <PreviewImage src={m.imageDataUrl || DEFAULT_IMAGE} />}
-          <OutgoingBubble time="2:30 PM">
-            <Rendered text={followText} />
-          </OutgoingBubble>
-          <IncomingBubble time="2:45 PM">Just left a review! Thanks for your help!</IncomingBubble>
-        </PhoneMockup>
+        {/* Phone preview: sticky and its own height, so a tall settings column can't stretch it */}
+        <div className="lg:sticky lg:top-8 lg:self-start">
+          <PhoneMockup>
+            {m.personalizedImage && <PreviewImage src={m.imageDataUrl || DEFAULT_IMAGE} />}
+            <OutgoingBubble time="2:30 PM">
+              <Rendered text={followText} />
+            </OutgoingBubble>
+            <IncomingBubble time="2:45 PM">Just left a review! Thanks for your help!</IncomingBubble>
+          </PhoneMockup>
+        </div>
 
         <div className="space-y-6">
           <Card className="p-5 sm:p-6">

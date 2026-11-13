@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 
 export function PhoneMockup({ children }: { children: ReactNode }) {
   return (
-    <div className="mx-auto w-[280px] rounded-[44px] bg-[#111] p-3 shadow-xl">
+    <div className="mx-auto h-fit w-[280px] self-start rounded-[44px] bg-[#111] p-3 shadow-xl">
       <div className="relative h-[540px] overflow-hidden rounded-[34px] bg-[#f4f5f5]">
         <div className="absolute left-1/2 top-0 h-6 w-32 -translate-x-1/2 rounded-b-2xl bg-[#111]" />
         <div className="flex items-center justify-between px-6 pt-3 text-[11px] font-semibold text-ink">
