@@ -1,8 +1,9 @@
 // supabase/functions/wa-template/index.ts
-// Custom Messages on WhatsApp. Body: { businessId, action: 'submit' | 'refresh', kinds?: ('initial' | 'followup')[] }
+// Custom Messages on WhatsApp. Body: { businessId, action: 'submit' | 'refresh' | 'standard', kinds?: ('initial' | 'followup')[] }
 //  - submit:  text versions are submitted to Meta automatically (WABA ID + token only, no App ID).
 //             The photo version is listed as 'not_created' with the exact name + text to create in WhatsApp Manager.
 //  - refresh: "Check WhatsApp" — looks every template up by name in the WhatsApp Business Account and updates its status.
+//  - standard: approval status of the 4 standard templates (review_request, review_request_image, review_followup, review_followup_image).
 
 import { adminClient, getUser, isMember } from '../_shared/supabase.ts'
 import { json, preflight } from '../_shared/http.ts'
@@ -28,7 +29,7 @@ Deno.serve(async (req) => {
 
   const { businessId, action = 'refresh', kinds } = (await req.json().catch(() => ({}))) as {
     businessId?: string
-    action?: 'submit' | 'refresh'
+    action?: 'submit' | 'refresh' | 'standard'
     kinds?: Array<'initial' | 'followup'>
   }
   if (!businessId) return json({ error: 'businessId is required' }, 400)
@@ -38,6 +39,28 @@ Deno.serve(async (req) => {
   if (!cfg.wabaId || !cfg.token) return json({ error: 'WhatsApp is not connected yet (WHATSAPP_WABA_ID / WHATSAPP_ACCESS_TOKEN missing)' }, 400)
 
   const warnings: string[] = []
+
+  if (action === 'standard') {
+    const { data: ch } = await admin.from('business_channels').select('*').eq('business_id', businessId).maybeSingle()
+    const env = (k: string) => Deno.env.get(k) ?? ''
+    const list: Array<{ kind: TemplateKind; col: string; key: string; def: string }> = [
+      { kind: 'initial', col: 'whatsapp_template_initial', key: 'WHATSAPP_TEMPLATE_INITIAL', def: 'review_request' },
+      { kind: 'initial_image', col: 'whatsapp_template_initial_image', key: 'WHATSAPP_TEMPLATE_INITIAL_IMAGE', def: 'review_request_image' },
+      { kind: 'followup', col: 'whatsapp_template_followup', key: 'WHATSAPP_TEMPLATE_FOLLOWUP', def: 'review_followup' },
+      { kind: 'followup_image', col: 'whatsapp_template_followup_image', key: 'WHATSAPP_TEMPLATE_FOLLOWUP_IMAGE', def: 'review_followup_image' },
+    ]
+    const standard = []
+    for (const t of list) {
+      const name = (ch?.[t.col] as string) || env(t.key) || t.def
+      try {
+        const found = await findTemplateByName(cfg, name)
+        standard.push({ kind: t.kind, name, status: found ? found.status : 'not_created', reason: found?.reason ?? null })
+      } catch (e) {
+        standard.push({ kind: t.kind, name, status: 'failed', reason: e instanceof Error ? e.message : String(e) })
+      }
+    }
+    return json({ ok: true, standard })
+  }
 
   if (action === 'submit') {
     const { data: b } = await admin.from('businesses').select('name, messaging').eq('id', businessId).single()
@@ -65,14 +88,8 @@ Deno.serve(async (req) => {
       }
 
       // Photo version: created by hand in WhatsApp Manager (same text + Image header), tracked here by name
-      if (job.kind === 'initial') {
-        await admin.from('whatsapp_templates').insert({
-          ...base,
-          kind: 'initial_image',
-          name: templateName(businessId, 'initial_image'),
-          status: 'not_created',
-        })
-      }
+      const photoKind: TemplateKind = job.kind === 'initial' ? 'initial_image' : 'followup_image'
+      await admin.from('whatsapp_templates').insert({ ...base, kind: photoKind, name: templateName(businessId, photoKind), status: 'not_created' })
     }
   }
 

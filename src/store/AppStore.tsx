@@ -3,7 +3,7 @@
 // isolated); demo mode (no env vars) uses sample data saved in localStorage.
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { AppNotification, AppState, Contact, NewContact, Review, ReviewReply, Settings, SocialPost, WaTemplate, WaTemplateKind } from '../types'
+import type { AppNotification, AppState, Contact, NewContact, Review, ReviewReply, Settings, SocialPost, WaStandardTemplate, WaTemplate, WaTemplateKind } from '../types'
 import { initialState } from '../data/mockData'
 import { storage, uid } from '../lib/utils'
 import { db, invokeFn, isLive } from '../lib/supabase'
@@ -38,6 +38,7 @@ interface AppStore {
   waTemplates: WaTemplate[]
   submitWhatsAppTemplates: (kinds: Array<'initial' | 'followup'>) => Promise<string[]>
   refreshWhatsAppTemplates: () => Promise<string[]>
+  checkStandardTemplates: () => Promise<WaStandardTemplate[]>
   switchBusiness: (id: string) => void
   createBusiness: (input: { name: string; address?: string; reviewLink?: string; mapsUrl?: string }) => Promise<void>
   addContacts: (items: NewContact[], source?: 'manual' | 'csv') => Promise<AddResult>
@@ -413,7 +414,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         })
         const rows: WaTemplate[] = []
         if (kinds.includes('initial')) rows.push(make('initial', m.customMessage), make('initial_image', m.customMessage, 'not_created'))
-        if (kinds.includes('followup')) rows.push(make('followup', m.customFollowUp))
+        if (kinds.includes('followup')) rows.push(make('followup', m.customFollowUp), make('followup_image', m.customFollowUp, 'not_created'))
         setWaTemplates((t) => [...rows, ...t])
         return []
       }
@@ -432,6 +433,19 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     const res = await invokeFn<{ templates: Row[]; warnings: string[] }>('wa-template', { businessId: activeId, action: 'refresh' })
     setWaTemplates(res.templates.map(toWaTemplate))
     return res.warnings ?? []
+  }, [activeId])
+
+  const checkStandardTemplates = useCallback(async (): Promise<WaStandardTemplate[]> => {
+    if (!isLive) {
+      return [
+        { kind: 'initial', name: 'review_request', status: 'approved', reason: null },
+        { kind: 'initial_image', name: 'review_request_image', status: 'approved', reason: null },
+        { kind: 'followup', name: 'review_followup', status: 'pending', reason: null },
+        { kind: 'followup_image', name: 'review_followup_image', status: 'not_created', reason: null },
+      ]
+    }
+    const res = await invokeFn<{ standard: WaStandardTemplate[] }>('wa-template', { businessId: activeId, action: 'standard' })
+    return res.standard
   }, [activeId])
 
   const refresh = useCallback(async () => {
@@ -456,6 +470,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       waTemplates,
       submitWhatsAppTemplates,
       refreshWhatsAppTemplates,
+      checkStandardTemplates,
       switchBusiness,
       createBusiness,
       addContacts,
@@ -473,7 +488,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       refresh,
       resetDemo,
     }),
-    [loading, state, businesses, activeId, keys, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, switchBusiness, createBusiness, addContacts, updateContact, deleteContact, updateSettings, setReviewReply, addSocialPost, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, regenerateApiKey, refresh, resetDemo],
+    [loading, state, businesses, activeId, keys, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, switchBusiness, createBusiness, addContacts, updateContact, deleteContact, updateSettings, setReviewReply, addSocialPost, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, regenerateApiKey, refresh, resetDemo],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

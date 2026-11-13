@@ -16,7 +16,7 @@ Follow the steps in order. Commands run from the project folder (`local-octo-app
 ## 2. Create the database
 **Option A, no CLI:** open **SQL Editor → New query**, paste all of
 `supabase/migrations/20261112000001_init.sql`, and click **Run**. Then do the same with
-`supabase/migrations/20261113000001_whatsapp_templates.sql`, `20261113000002_wa_manual_templates.sql` and `20261113000003_personal_image_default.sql`, in that order.
+`supabase/migrations/20261113000001_whatsapp_templates.sql`, `20261113000002_wa_manual_templates.sql`, `20261113000003_personal_image_default.sql` and `20261113000004_followup_image.sql`, in that order.
 
 **Option B, CLI:**
 ```bash
@@ -124,6 +124,8 @@ Each run sends what is due, only between **9 AM and 7 PM in each business's time
    - `review_request`: `Hi {{1}}, thanks for choosing {{2}}! Would you mind taking a moment to leave us a Google review? {{3}} Thank you!`
    - `review_request_image`: **Header = Image** (upload any sample photo when creating it), body the same as `review_request`. This one is used when the business has uploaded a photo and turned on **Personalized Image**. The customer then gets the photo with their name on it, with the text underneath, in one message.
    - `review_followup`: `Hi {{1}}, just a quick reminder from {{2}} — your feedback means a lot to us! {{3}} Thank you!`
+   - `review_followup_image`: **Header = Image**, body the same as `review_followup`.
+   The **Messaging page → WhatsApp templates** panel shows whether each of these 4 is approved, and gives the exact name and body for any that are missing.
    Meta usually puts these in the **Marketing** category, which is charged per message.
 5. App → WhatsApp → **Configuration → Webhook**:
    - Callback URL: `https://REF.supabase.co/functions/v1/whatsapp-webhook`
@@ -178,7 +180,7 @@ Where it goes:
 - **WhatsApp:** sent through a template with **Header = Image**: `review_request_image`, or the business's approved custom photo template. With a photo, the custom text is only used once its photo template is approved, so the name is always on a photo.
 - **Email:** `{{image_url}}`.
 - **SMS:** text only.
-- Follow-ups are text only.
+- **Follow-ups** carry the photo too, with their own text: `review_followup_image`, or the business's approved custom follow-up photo template.
 - Names in non-Latin scripts show "Thank you!" instead.
 
 ## Not built yet (needs outside approval or a next phase)

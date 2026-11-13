@@ -20,7 +20,16 @@ export interface Messaging {
 }
 
 interface Channels {
-  whatsapp: null | { phoneNumberId: string; token: string; initial: string; initialImage: string; followUp: string; lang: string; version: string }
+  whatsapp: null | {
+    phoneNumberId: string
+    token: string
+    initial: string
+    initialImage: string
+    followUp: string
+    followUpImage: string
+    lang: string
+    version: string
+  }
   sms: null | { authKey: string; initial: string; followUp: string }
   email: null | { authKey: string; from: string; fromName: string; domain: string; templateId: string }
 }
@@ -55,6 +64,7 @@ export async function loadChannels(admin: SupabaseClient, businessId: string): P
             initial: pick('whatsapp_template_initial', 'WHATSAPP_TEMPLATE_INITIAL', 'review_request'),
             initialImage: pick('whatsapp_template_initial_image', 'WHATSAPP_TEMPLATE_INITIAL_IMAGE', 'review_request_image'),
             followUp: pick('whatsapp_template_followup', 'WHATSAPP_TEMPLATE_FOLLOWUP', 'review_followup'),
+            followUpImage: pick('whatsapp_template_followup_image', 'WHATSAPP_TEMPLATE_FOLLOWUP_IMAGE', 'review_followup_image'),
             lang: pick('whatsapp_template_lang', 'WHATSAPP_TEMPLATE_LANG', 'en'),
             version: env('WHATSAPP_API_VERSION') || 'v23.0',
           }
@@ -170,7 +180,7 @@ export interface DeliverInput {
   businessName: string
   messaging: Messaging
   link: string
-  /** Personalised image URL (initial + test messages, only when a photo is uploaded) */
+  /** Photo with the customer's name (when Personalized Image is on) — first message and follow-ups */
   imageUrl?: string
 }
 
@@ -194,9 +204,9 @@ export async function deliver(input: DeliverInput): Promise<DeliverResult> {
   if (input.phone && ch.whatsapp) {
     const wa = ch.whatsapp
     // Default templates: {{1}} first name, {{2}} business name, {{3}} review link
-    let template = isFollow ? wa.followUp : input.imageUrl ? wa.initialImage : wa.initial
+    let template = isFollow ? (input.imageUrl ? wa.followUpImage : wa.followUp) : input.imageUrl ? wa.initialImage : wa.initial
     let params = [input.firstName, input.businessName, input.link]
-    let header = isFollow ? undefined : input.imageUrl
+    let header = input.imageUrl
     let lang: string | undefined
 
     // Custom Message mode: use the business's own approved template when there is one
@@ -205,12 +215,14 @@ export async function deliver(input: DeliverInput): Promise<DeliverResult> {
       const values: Record<ParamKey, string> = { first_name: input.firstName, review_link: input.link }
       // With a photo, only the approved photo template is used, so the customer's name is always on a photo.
       // Until it's approved, the standard photo template goes out instead.
-      const pick = isFollow ? custom.followup : input.imageUrl ? custom.initial_image : custom.initial
+      const pick = isFollow
+        ? input.imageUrl ? custom.followup_image : custom.followup
+        : input.imageUrl ? custom.initial_image : custom.initial
       if (pick) {
         template = pick.name
         lang = pick.language
         params = pick.params.map((p) => values[p] ?? '')
-        header = !isFollow && input.imageUrl && pick === custom.initial_image ? input.imageUrl : undefined
+        header = input.imageUrl
       }
     }
 
@@ -239,7 +251,7 @@ export async function deliver(input: DeliverInput): Promise<DeliverResult> {
           business_name: input.businessName,
           message: text,
           review_link: input.link,
-          image_url: isFollow ? '' : (input.imageUrl ?? ''),
+          image_url: input.imageUrl ?? '',
         }),
     })
   }

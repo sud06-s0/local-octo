@@ -141,6 +141,27 @@ Deno.serve(async (req) => {
   const cfg = await metaConfig(admin, businessId);
   if (!cfg.wabaId || !cfg.token) return json({ error: "WhatsApp is not connected yet (WHATSAPP_WABA_ID / WHATSAPP_ACCESS_TOKEN missing)" }, 400);
   const warnings = [];
+  if (action === "standard") {
+    const { data: ch } = await admin.from("business_channels").select("*").eq("business_id", businessId).maybeSingle();
+    const env2 = (k) => Deno.env.get(k) ?? "";
+    const list = [
+      { kind: "initial", col: "whatsapp_template_initial", key: "WHATSAPP_TEMPLATE_INITIAL", def: "review_request" },
+      { kind: "initial_image", col: "whatsapp_template_initial_image", key: "WHATSAPP_TEMPLATE_INITIAL_IMAGE", def: "review_request_image" },
+      { kind: "followup", col: "whatsapp_template_followup", key: "WHATSAPP_TEMPLATE_FOLLOWUP", def: "review_followup" },
+      { kind: "followup_image", col: "whatsapp_template_followup_image", key: "WHATSAPP_TEMPLATE_FOLLOWUP_IMAGE", def: "review_followup_image" }
+    ];
+    const standard = [];
+    for (const t of list) {
+      const name = ch?.[t.col] || env2(t.key) || t.def;
+      try {
+        const found = await findTemplateByName(cfg, name);
+        standard.push({ kind: t.kind, name, status: found ? found.status : "not_created", reason: found?.reason ?? null });
+      } catch (e) {
+        standard.push({ kind: t.kind, name, status: "failed", reason: e instanceof Error ? e.message : String(e) });
+      }
+    }
+    return json({ ok: true, standard });
+  }
   if (action === "submit") {
     const { data: b } = await admin.from("businesses").select("name, messaging").eq("id", businessId).single();
     if (!b) return json({ error: "Business not found" }, 404);
@@ -161,14 +182,8 @@ Deno.serve(async (req) => {
       } catch (e) {
         await admin.from("whatsapp_templates").insert({ ...base, kind: job.kind, name, status: "failed", reason: e instanceof Error ? e.message : String(e) });
       }
-      if (job.kind === "initial") {
-        await admin.from("whatsapp_templates").insert({
-          ...base,
-          kind: "initial_image",
-          name: templateName(businessId, "initial_image"),
-          status: "not_created"
-        });
-      }
+      const photoKind = job.kind === "initial" ? "initial_image" : "followup_image";
+      await admin.from("whatsapp_templates").insert({ ...base, kind: photoKind, name: templateName(businessId, photoKind), status: "not_created" });
     }
   }
   const { data: open } = await admin.from("whatsapp_templates").select("id, name").eq("business_id", businessId).in("status", ["not_created", "pending", "paused"]);

@@ -58,6 +58,7 @@ async function loadChannels(admin, businessId) {
       initial: pick("whatsapp_template_initial", "WHATSAPP_TEMPLATE_INITIAL", "review_request"),
       initialImage: pick("whatsapp_template_initial_image", "WHATSAPP_TEMPLATE_INITIAL_IMAGE", "review_request_image"),
       followUp: pick("whatsapp_template_followup", "WHATSAPP_TEMPLATE_FOLLOWUP", "review_followup"),
+      followUpImage: pick("whatsapp_template_followup_image", "WHATSAPP_TEMPLATE_FOLLOWUP_IMAGE", "review_followup_image"),
       lang: pick("whatsapp_template_lang", "WHATSAPP_TEMPLATE_LANG", "en"),
       version: env("WHATSAPP_API_VERSION") || "v23.0"
     } : null,
@@ -144,19 +145,19 @@ async function deliver(input) {
   const attempts = [];
   if (input.phone && ch.whatsapp) {
     const wa = ch.whatsapp;
-    let template = isFollow ? wa.followUp : input.imageUrl ? wa.initialImage : wa.initial;
+    let template = isFollow ? input.imageUrl ? wa.followUpImage : wa.followUp : input.imageUrl ? wa.initialImage : wa.initial;
     let params = [input.firstName, input.businessName, input.link];
-    let header = isFollow ? void 0 : input.imageUrl;
+    let header = input.imageUrl;
     let lang;
     if (input.messaging.mode === "custom") {
       const custom = await approvedTemplates(input.admin, input.businessId);
       const values = { first_name: input.firstName, review_link: input.link };
-      const pick = isFollow ? custom.followup : input.imageUrl ? custom.initial_image : custom.initial;
+      const pick = isFollow ? input.imageUrl ? custom.followup_image : custom.followup : input.imageUrl ? custom.initial_image : custom.initial;
       if (pick) {
         template = pick.name;
         lang = pick.language;
         params = pick.params.map((p) => values[p] ?? "");
-        header = !isFollow && input.imageUrl && pick === custom.initial_image ? input.imageUrl : void 0;
+        header = input.imageUrl;
       }
     }
     attempts.push({
@@ -183,7 +184,7 @@ async function deliver(input) {
         business_name: input.businessName,
         message: text,
         review_link: input.link,
-        image_url: isFollow ? "" : input.imageUrl ?? ""
+        image_url: input.imageUrl ?? ""
       })
     });
   }
@@ -275,7 +276,7 @@ Deno.serve(async (req) => {
       messaging: row.messaging ?? {},
       link: `${linkBase}?t=${row.token}`,
       // Photo with the customer's name (business photo, or the demo photo if none uploaded)
-      imageUrl: kind === "initial" && row.messaging?.personalizedImage ? contactImageUrl(row.token) : void 0
+      imageUrl: row.messaging?.personalizedImage ? contactImageUrl(row.token) : void 0
     });
     const now = /* @__PURE__ */ new Date();
     if (result.ok) {

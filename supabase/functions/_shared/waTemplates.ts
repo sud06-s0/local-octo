@@ -4,7 +4,7 @@
 
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 
-export type TemplateKind = 'initial' | 'initial_image' | 'followup'
+export type TemplateKind = 'initial' | 'initial_image' | 'followup' | 'followup_image'
 export type ParamKey = 'first_name' | 'review_link'
 
 const env = (k: string) => Deno.env.get(k) ?? ''

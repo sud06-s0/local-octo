@@ -1,5 +1,5 @@
 // src/pages/Messaging.tsx
-import { forwardRef, useRef, useState } from 'react'
+import { forwardRef, useEffect, useRef, useState } from 'react'
 import { Bell, CircleCheck, Clock, Calendar, Copy, ExternalLink, ImagePlus, MessageCircle, MessageSquare, RefreshCw, Sparkles, TrendingUp, Trash2, CircleStop } from 'lucide-react'
 import { Badge, Button, Card, Input, Label, PageHeader, Segmented, Textarea, Toggle } from '../components/ui/primitives'
 import { IncomingBubble, OutgoingBubble, PhoneMockup } from '../components/ui/PhoneMockup'
@@ -8,7 +8,7 @@ import { useStore } from '../store/AppStore'
 import { useToast } from '../components/ui/Toast'
 import { brand } from '../config/brand'
 import { cn, copyText, fillTemplate, isEmail, isPhone, timeAgo } from '../lib/utils'
-import type { WaTemplate, WaTemplateKind, WaTemplateStatus } from '../types'
+import type { WaStandardTemplate, WaTemplate, WaTemplateKind, WaTemplateStatus } from '../types'
 
 const SAMPLE = 'Jessica'
 /** Demo photo shown in the preview until a business uploads its own (public/default-personal.png) */
@@ -43,6 +43,88 @@ const KIND_LABEL: Record<WaTemplateKind, string> = {
   initial: 'First message',
   initial_image: 'First message with photo',
   followup: 'Follow-up',
+  followup_image: 'Follow-up with photo',
+}
+
+/** Exact text for the 4 standard templates (Meta rejects bodies that end with a variable, hence "Thank you!") */
+const STANDARD_BODY: Record<WaTemplateKind, string> = {
+  initial: 'Hi {{1}}, thanks for choosing {{2}}! Would you mind taking a moment to leave us a Google review? {{3}} Thank you!',
+  initial_image: 'Hi {{1}}, thanks for choosing {{2}}! Would you mind taking a moment to leave us a Google review? {{3}} Thank you!',
+  followup: 'Hi {{1}}, just a quick reminder from {{2}} — your feedback means a lot to us! {{3}} Thank you!',
+  followup_image: 'Hi {{1}}, just a quick reminder from {{2}} — your feedback means a lot to us! {{3}} Thank you!',
+}
+
+/** Photo with the sample customer's name, as customers receive it */
+function PreviewImage({ src }: { src: string }) {
+  return (
+    <div className="ml-auto w-[86%] overflow-hidden rounded-2xl">
+      <div className="relative aspect-[4/3] bg-gradient-to-br from-brand-500 to-brand-800">
+        <img src={src} alt="Personalized" className="size-full object-cover" />
+        <span className="absolute bottom-2.5 left-1/2 -translate-x-1/2 rounded-md bg-white px-2.5 py-0.5 text-lg font-bold text-ink shadow">{SAMPLE}!</span>
+      </div>
+    </div>
+  )
+}
+
+/** Status of the 4 standard templates created in WhatsApp Manager. */
+function StandardTemplates() {
+  const { mode, checkStandardTemplates } = useStore()
+  const [list, setList] = useState<WaStandardTemplate[] | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  const check = async () => {
+    setBusy(true)
+    setError('')
+    try {
+      setList(await checkStandardTemplates())
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not check WhatsApp')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  useEffect(() => {
+    check()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode])
+
+  return (
+    <Card className="p-5 sm:p-6">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="flex items-center gap-2 text-[17px] font-semibold">
+            <MessageCircle className="size-5 text-[#25D366]" /> WhatsApp templates
+          </p>
+          <p className="mt-0.5 text-sm text-muted">Standard messages, approved in WhatsApp Manager. Used for Smart Messaging and until a Custom Message is approved.</p>
+        </div>
+        <Button size="sm" variant="outline" icon={RefreshCw} disabled={busy} onClick={check}>
+          {busy ? 'Checking…' : 'Check WhatsApp'}
+        </Button>
+      </div>
+      {error && <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">{error}</p>}
+      {list && (
+        <ul className="mt-4 space-y-2.5">
+          {list.map((t) => (
+            <li key={t.kind} className="rounded-lg p-3 ring-1 ring-line">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm font-medium">
+                  {KIND_LABEL[t.kind]} <span className="font-mono text-xs text-muted">· {t.name}</span>
+                </span>
+                <Badge tone={STATUS_STYLE[t.status].tone}>{STATUS_STYLE[t.status].label}</Badge>
+              </div>
+              {t.reason && <p className="mt-1.5 text-xs text-red-600">{t.reason}</p>}
+              {t.status === 'not_created' && (
+                <ManualSteps t={{ id: t.kind, kind: t.kind, name: t.name, language: 'en', body: STANDARD_BODY[t.kind], status: 'not_created', reason: null, createdAt: '' }} image={t.kind.endsWith('_image')} />
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {mode === 'demo' && <p className="mt-3 text-xs text-muted">Demo data. Connect WhatsApp to see the real status.</p>}
+    </Card>
+  )
 }
 const STATUS_STYLE: Record<WaTemplateStatus, { label: string; tone: 'green' | 'amber' | 'red' | 'gray' }> = {
   not_created: { label: 'Create it in WhatsApp Manager', tone: 'gray' },
@@ -74,13 +156,13 @@ function CopyField({ label, value }: { label: string; value: string }) {
   )
 }
 
-/** Exact steps to create the photo template by hand (image headers can't be created by the API without an App ID). */
-function ManualSteps({ t }: { t: WaTemplate }) {
+/** Exact steps to create a template by hand in WhatsApp Manager. */
+function ManualSteps({ t, image = true }: { t: WaTemplate; image?: boolean }) {
   return (
     <div className="mt-2.5 space-y-2.5 rounded-lg border border-dashed border-line p-3">
       <p className="text-xs text-ink/85">
-        In <b>WhatsApp Manager → Message templates → Create</b>: category <b>Marketing</b>, language <b>{t.language}</b>, header{' '}
-        <b>Image</b> (any sample photo), and this exact name and body. Then click <b>Check WhatsApp</b>.
+        In <b>WhatsApp Manager → Message templates → Create</b>: category <b>Marketing</b>, language <b>{t.language}</b>,{' '}
+        {image ? <>header <b>Image</b> (any sample photo),</> : <>no header,</>} and this exact name and body. Then click <b>Check WhatsApp</b>.
       </p>
       <CopyField label="Template name" value={t.name} />
       <CopyField label="Body" value={t.body} />
@@ -281,15 +363,8 @@ export default function Messaging() {
         {/* Phone preview */}
         <div className="lg:sticky lg:top-8 lg:self-start">
           <PhoneMockup>
-            {m.personalizedImage && (
-              <div className="ml-auto w-[86%] overflow-hidden rounded-2xl">
-                <div className="relative aspect-[4/3] bg-gradient-to-br from-brand-500 to-brand-800">
-                  {/* The business's own photo, or the built-in demo photo until they upload one */}
-                  <img src={m.imageDataUrl || DEFAULT_IMAGE} alt="Personalized" className="size-full object-cover" />
-                  <span className="absolute bottom-2.5 left-1/2 -translate-x-1/2 rounded-md bg-white px-2.5 py-0.5 text-lg font-bold text-ink shadow">{SAMPLE}!</span>
-                </div>
-              </div>
-            )}
+            {/* The business's own photo, or the built-in demo photo until they upload one */}
+            {m.personalizedImage && <PreviewImage src={m.imageDataUrl || DEFAULT_IMAGE} />}
             <OutgoingBubble time="9:41 AM">
               <Rendered text={initialText} />
             </OutgoingBubble>
@@ -424,6 +499,8 @@ export default function Messaging() {
               </div>
             )}
           </Card>
+
+          <StandardTemplates />
         </div>
       </div>
 
@@ -434,6 +511,7 @@ export default function Messaging() {
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_1.1fr] lg:gap-10">
         <PhoneMockup>
+          {m.personalizedImage && <PreviewImage src={m.imageDataUrl || DEFAULT_IMAGE} />}
           <OutgoingBubble time="2:30 PM">
             <Rendered text={followText} />
           </OutgoingBubble>
@@ -479,7 +557,7 @@ export default function Messaging() {
                   {waBusy ? 'Saving…' : 'Save Follow-up'}
                 </Button>
                 <WhatsAppApproval
-                  kinds={['followup']}
+                  kinds={['followup', 'followup_image']}
                   templates={waTemplates}
                   busy={waBusy}
                   onRefresh={refreshWa}
