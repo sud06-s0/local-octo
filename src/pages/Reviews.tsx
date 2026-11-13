@@ -1,6 +1,7 @@
 // src/pages/Reviews.tsx
 import { useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
+import { GoogleG } from '../components/ui/BrandIcons'
 import { ChevronLeft, ChevronRight, Globe, Link2, MessageSquare, Pencil, RefreshCw, Search, Send, Share2, Sparkles, Star, Trash2 } from 'lucide-react'
 import { Avatar, Badge, Button, Card, EmptyState, Input, Label, Stars, Textarea, Toggle } from '../components/ui/primitives'
 import { useStore } from '../store/AppStore'
@@ -155,8 +156,21 @@ function ReviewCard({ review }: { review: Review }) {
 }
 
 export default function Reviews() {
-  const { state, updateSettings } = useStore()
+  const { state, updateSettings, importFromGoogle } = useStore()
   const toast = useToast()
+  const [syncing, setSyncing] = useState(false)
+  const biz = state.settings.business
+  const syncGoogle = async () => {
+    setSyncing(true)
+    try {
+      const r = await importFromGoogle(biz.placeId)
+      toast(r.added ? `${r.added} new review${r.added > 1 ? 's' : ''} from Google` : 'Up to date with Google')
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Google sync failed', 'error')
+    } finally {
+      setSyncing(false)
+    }
+  }
   const [params, setParams] = useSearchParams()
   const [query, setQuery] = useState('')
   const [replyFilter, setReplyFilter] = useState<ReplyFilter>('all')
@@ -202,8 +216,29 @@ export default function Reviews() {
 
   return (
     <div className="mx-auto max-w-[960px]">
-      <h1 className="text-[26px] font-semibold tracking-tight">Reviews</h1>
-      <p className="mt-1 text-[16px] text-muted">What Google actually shows, and where every reply stands.</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-[26px] font-semibold tracking-tight">Reviews</h1>
+          <p className="mt-1 text-[16px] text-muted">What Google actually shows, and where every reply stands.</p>
+        </div>
+        {biz.placeId && (
+          <div className="flex items-center gap-3">
+            {biz.googleSyncedAt && <span className="text-xs text-muted">Synced {timeAgo(biz.googleSyncedAt)}</span>}
+            <Button variant="outline" icon={RefreshCw} disabled={syncing} onClick={syncGoogle}>
+              {syncing ? 'Syncing…' : 'Sync from Google'}
+            </Button>
+          </div>
+        )}
+      </div>
+      {!biz.placeId && (
+        <div className="mt-5 flex flex-wrap items-center gap-3 rounded-xl border border-line bg-white p-4">
+          <GoogleG className="size-6" />
+          <p className="flex-1 text-[15px] text-ink/85">Link your Google Business Profile to import your rating and latest reviews.</p>
+          <Link to="/dashboard" className="text-sm font-medium text-brand-700 hover:underline">
+            Link on Dashboard →
+          </Link>
+        </div>
+      )}
 
       {/* AI settings */}
       <Card className="mt-6 p-5 sm:p-6">

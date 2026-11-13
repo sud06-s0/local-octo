@@ -64,6 +64,12 @@ export const initialState: AppState = {
       address: '2nd Floor, 1109-2/1, 25th Main Road, 1st Phase, J. P. Nagar',
       mapsUrl: 'https://maps.google.com/?q=Local+Octo+J.P.+Nagar',
       reviewLink: 'https://search.google.com/local/writereview?placeid=YOUR_PLACE_ID',
+      placeId: '',
+      phone: '',
+      website: '',
+      googleRating: null,
+      googleReviewCount: null,
+      googleSyncedAt: null,
     },
     messaging: {
       mode: 'smart',

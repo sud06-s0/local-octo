@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
   if (!/^[a-f0-9]{24}$/.test(key)) return json({ error: 'Invalid key' }, 400)
 
   const admin = adminClient()
-  const { data: b } = await admin.from('businesses').select('id, name, maps_url, widgets').eq('public_key', key).maybeSingle()
+  const { data: b } = await admin.from('businesses').select('id, name, maps_url, widgets, google_rating, google_review_count').eq('public_key', key).maybeSingle()
   if (!b) return json({ error: 'Not found' }, 404)
 
   const [{ data: top }, { data: all }] = await Promise.all([
@@ -86,8 +86,9 @@ Deno.serve(async (req) => {
     {
       name: b.name,
       mapsUrl: /^https?:\/\//i.test(b.maps_url ?? '') ? b.maps_url : '',
-      rating,
-      count: ratings.length,
+      // Prefer Google's own totals (imported with the Places API) over what's stored here
+      rating: b.google_rating != null ? Number(b.google_rating) : rating,
+      count: b.google_review_count ?? ratings.length,
       widgets: b.widgets,
       poweredBy: Deno.env.get('WIDGET_POWERED_BY') || 'Local Octo',
       reviews: (top ?? []).sort((a, c) => Number(!!c.text) - Number(!!a.text)),

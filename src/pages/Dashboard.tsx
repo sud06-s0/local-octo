@@ -30,7 +30,7 @@ function StatTile({ label, value, icon: Icon }: { label: string; value: number; 
 }
 
 export default function Dashboard() {
-  const { state, updateSettings } = useStore()
+  const { state, updateSettings, importFromGoogle } = useStore()
   const toast = useToast()
   const { reviews, contacts, settings } = state
   const [range, setRange] = useState<Range>('30d')
@@ -48,7 +48,10 @@ export default function Dashboard() {
     [reviews, contacts],
   )
 
-  const avg = reviews.length ? reviews.reduce((n, r) => n + r.rating, 0) / reviews.length : 0
+  // Google's own totals when imported (Places API), otherwise what's stored here
+  const storedAvg = reviews.length ? reviews.reduce((n, r) => n + r.rating, 0) / reviews.length : 0
+  const avg = settings.business.googleRating ?? storedAvg
+  const totalReviews = settings.business.googleReviewCount ?? reviews.length
 
   const chartData = useMemo(() => {
     const days = range === '7d' ? 7 : range === '30d' ? 30 : null
@@ -70,8 +73,8 @@ export default function Dashboard() {
   }, [reviews, range])
 
   // 5-star reviews needed to lift the average to 4.9
-  const ratingSum = reviews.reduce((n, r) => n + r.rating, 0)
-  const toNext = avg >= 4.9 ? null : Math.ceil((4.9 * reviews.length - ratingSum) / 0.1)
+  const ratingSum = avg * totalReviews
+  const toNext = avg >= 4.9 ? null : Math.ceil((4.9 * totalReviews - ratingSum) / 0.1)
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_400px]">
@@ -171,8 +174,8 @@ export default function Dashboard() {
             <Button variant="outline" onClick={() => setDetailsOpen(false)}>Cancel</Button>
             <Button
               disabled={!businessDetailsValid(details)}
-              onClick={() => {
-                updateSettings('business', {
+              onClick={async () => {
+                await updateSettings('business', {
                   name: details.name.trim(),
                   address: details.address.trim(),
                   reviewLink: details.reviewLink.trim(),
@@ -180,6 +183,15 @@ export default function Dashboard() {
                 })
                 setDetailsOpen(false)
                 toast('Business details saved')
+                // Newly linked to Google: import rating, phone, website and latest reviews
+                if (details.placeId && details.placeId !== settings.business.placeId) {
+                  try {
+                    const r = await importFromGoogle(details.placeId)
+                    if (r.imported) toast(`Imported ${r.imported} reviews from Google`)
+                  } catch (e) {
+                    toast(e instanceof Error ? e.message : 'Google import failed', 'error')
+                  }
+                }
               }}
             >
               Save
@@ -202,7 +214,7 @@ export default function Dashboard() {
             <span className="ml-1 text-muted">/ 5</span>
           </p>
           <Stars rating={avg} size={24} className="mt-1" />
-          <p className="mt-2 text-sm text-muted">{reviews.length} Google reviews</p>
+          <p className="mt-2 text-sm text-muted">{totalReviews} Google reviews</p>
         </div>
 
         <div className="my-6 h-px bg-line" />

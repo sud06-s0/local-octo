@@ -16,7 +16,7 @@ Follow the steps in order. Commands run from the project folder (`local-octo-app
 ## 2. Create the database
 **Option A, no CLI:** open **SQL Editor → New query**, paste all of
 `supabase/migrations/20261112000001_init.sql`, and click **Run**. Then do the same with
-`supabase/migrations/20261113000001_whatsapp_templates.sql`, `20261113000002_wa_manual_templates.sql`, `20261113000003_personal_image_default.sql` and `20261113000004_followup_image.sql`, in that order.
+`supabase/migrations/20261113000001_whatsapp_templates.sql`, `20261113000002_wa_manual_templates.sql`, `20261113000003_personal_image_default.sql`, `20261113000004_followup_image.sql` and `20261113000005_google_places.sql`, in that order.
 
 **Option B, CLI:**
 ```bash
@@ -40,7 +40,7 @@ npx supabase login
 npx supabase link --project-ref REF
 npx supabase functions deploy
 ```
-This deploys all 9 functions. `supabase/config.toml` turns the gateway JWT check off because each function checks auth itself.
+This deploys all 10 functions. `supabase/config.toml` turns the gateway JWT check off because each function checks auth itself.
 
 | Function | Who calls it | Auth |
 |---|---|---|
@@ -53,6 +53,7 @@ This deploys all 9 functions. `supabase/config.toml` turns the gateway JWT check
 | `widget` | client websites | public key in URL |
 | `review-image` | WhatsApp / email (downloads the personalised photo) | contact token or signed URL |
 | `wa-template` | app: submits Custom Messages to Meta, "Check WhatsApp" status | signed-in user |
+| `google-places` | app: "Find your business on Google", Sync from Google | signed-in user |
 
 ## 5. Set secrets
 Fill in what you have now and add the rest later. Missing channels are skipped.
@@ -75,6 +76,7 @@ npx supabase secrets set \
   WHATSAPP_VERIFY_TOKEN="$(openssl rand -hex 16)" \
   WHATSAPP_WABA_ID="your-whatsapp-business-account-id" \
   WHATSAPP_APP_SECRET="meta-app-secret" \
+  GOOGLE_PLACES_API_KEY="AIza..." \
   AI_PROVIDER="gemini" \
   GEMINI_API_KEY="..."
 ```
@@ -161,6 +163,17 @@ update public.profiles set is_platform_admin = true where email = 'you@localocto
    ```
 
 ---
+
+## Importing a client's Google Business Profile
+**Find your business on Google** appears on Onboarding, Add business and Dashboard → pencil (Business details). The client types their business name and picks it from Google's results. Then:
+- name, address, **review link** (`search.google.com/local/writereview?placeid=…`) and **Google Maps link** are filled in automatically;
+- on save, the `google-places` function imports **phone, website, Google rating, total review count** and the **latest reviews**. Google's Places API returns at most 5 reviews per request.
+- **Reviews → Sync from Google** pulls again any time. Replies saved in the app are kept.
+- The Dashboard rating card and the website widgets use Google's own rating and total count.
+
+Setup: Google Cloud Console → enable **Places API (New)** → Credentials → **Create API key**. Restrict it to Places API (New), then add it as the Supabase secret `GOOGLE_PLACES_API_KEY`. Billing must be on in Google Cloud; Place Details and Text Search have a free monthly allowance, then are charged per request.
+
+For **all** reviews and posting replies to Google, the next step is the **Google Business Profile API** ("Connect with Google" sign-in). It needs Google's approval, so apply early.
 
 ## Custom Messages on WhatsApp
 WhatsApp only lets a business start a chat with a template Meta has approved. **Approval happens in WhatsApp Manager. The app only checks the status.** Only `WHATSAPP_WABA_ID` and the access token are needed; no App ID.

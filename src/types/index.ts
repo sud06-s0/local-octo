@@ -80,6 +80,15 @@ export interface WaStandardTemplate {
   reason: string | null
 }
 
+/** A Google search result for "Find your business on Google" */
+export interface GooglePlaceResult {
+  placeId: string
+  name: string
+  address: string
+  rating: number | null
+  reviewCount: number
+}
+
 export type IntegrationStatus = 'connected' | 'available' | 'coming_soon'
 
 export interface WidgetColors {
@@ -106,6 +115,12 @@ export interface Settings {
     address: string
     mapsUrl: string
     reviewLink: string
+    placeId: string
+    phone: string
+    website: string
+    googleRating: number | null
+    googleReviewCount: number | null
+    googleSyncedAt: string | null
   }
   messaging: {
     mode: 'smart' | 'custom'

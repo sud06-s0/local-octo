@@ -3,7 +3,7 @@
 // isolated); demo mode (no env vars) uses sample data saved in localStorage.
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { AppNotification, AppState, Contact, NewContact, Review, ReviewReply, Settings, SocialPost, WaStandardTemplate, WaTemplate, WaTemplateKind } from '../types'
+import type { AppNotification, AppState, Contact, GooglePlaceResult, NewContact, Review, ReviewReply, Settings, SocialPost, WaStandardTemplate, WaTemplate, WaTemplateKind } from '../types'
 import { initialState } from '../data/mockData'
 import { storage, uid } from '../lib/utils'
 import { db, invokeFn, isLive } from '../lib/supabase'
@@ -14,7 +14,7 @@ import { useToast } from '../components/ui/Toast'
 const STORAGE_KEY = 'lo-app-state-v1'
 const ACTIVE_KEY = 'lo-active-business'
 const BUSINESS_COLS =
-  'id, name, address, review_link, maps_url, timezone, country_code, public_key, api_key_prefix, messaging, scheduling, ai, widgets, social, notification_prefs, integrations'
+  'id, name, address, place_id, phone, website, google_rating, google_review_count, google_synced_at, review_link, maps_url, timezone, country_code, public_key, api_key_prefix, messaging, scheduling, ai, widgets, social, notification_prefs, integrations'
 
 export interface BusinessSummary {
   id: string
@@ -40,7 +40,9 @@ interface AppStore {
   refreshWhatsAppTemplates: () => Promise<string[]>
   checkStandardTemplates: () => Promise<WaStandardTemplate[]>
   switchBusiness: (id: string) => void
-  createBusiness: (input: { name: string; address?: string; reviewLink?: string; mapsUrl?: string }) => Promise<void>
+  createBusiness: (input: { name: string; address?: string; reviewLink?: string; mapsUrl?: string; placeId?: string }) => Promise<void>
+  searchGoogle: (query: string) => Promise<GooglePlaceResult[]>
+  importFromGoogle: (placeId: string) => Promise<{ added: number; imported: number }>
   addContacts: (items: NewContact[], source?: 'manual' | 'csv') => Promise<AddResult>
   updateContact: (id: string, patch: Partial<Contact>) => void
   deleteContact: (id: string) => void
@@ -106,7 +108,18 @@ const toPost = (r: Row): SocialPost => ({ id: r.id, reviewId: r.review_id, netwo
 function toSettings(b: Row): Settings {
   const d = initialState.settings
   return {
-    business: { name: b.name, address: b.address ?? '', mapsUrl: b.maps_url ?? '', reviewLink: b.review_link ?? '' },
+    business: {
+      name: b.name,
+      address: b.address ?? '',
+      mapsUrl: b.maps_url ?? '',
+      reviewLink: b.review_link ?? '',
+      placeId: b.place_id ?? '',
+      phone: b.phone ?? '',
+      website: b.website ?? '',
+      googleRating: b.google_rating != null ? Number(b.google_rating) : null,
+      googleReviewCount: b.google_review_count ?? null,
+      googleSyncedAt: b.google_synced_at ?? null,
+    },
     messaging: { ...d.messaging, ...b.messaging },
     scheduling: { ...d.scheduling, ...b.scheduling },
     ai: { ...d.ai, ...b.ai },
@@ -249,15 +262,49 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const switchBusiness = useCallback((id: string) => setActiveId(id), [])
 
   const createBusiness = useCallback(
-    async ({ name, address = '', reviewLink = '', mapsUrl = '' }: { name: string; address?: string; reviewLink?: string; mapsUrl?: string }) => {
+    async ({ name, address = '', reviewLink = '', mapsUrl = '', placeId = '' }: { name: string; address?: string; reviewLink?: string; mapsUrl?: string; placeId?: string }) => {
       if (!isLive) return toast('Locations are available once Supabase is connected')
       const { data: id, error } = await db().rpc('create_business', { p_name: name, p_address: address })
       if (!check(error, 'Could not create business')) throw new Error(error?.message)
       if (reviewLink || mapsUrl) await db().from('businesses').update({ review_link: reviewLink, maps_url: mapsUrl }).eq('id', id)
+      // Picked from Google: pull rating, phone, website and latest reviews too
+      if (placeId) {
+        try {
+          await invokeFn('google-places', { action: 'import', businessId: id, placeId })
+        } catch (e) {
+          toast(`Business created, but Google import failed: ${e instanceof Error ? e.message : 'unknown error'}`, 'error')
+        }
+      }
       await loadBusinesses()
       setActiveId(id as string)
     },
     [check, loadBusinesses, toast],
+  )
+
+  const searchGoogle = useCallback(async (query: string): Promise<GooglePlaceResult[]> => {
+    if (!isLive) {
+      // Demo results so the search can be tried without a Google key
+      const q = query.trim()
+      return [
+        { placeId: 'demo_place_1', name: q || 'Local Octo', address: '2nd Floor, 25th Main Road, J. P. Nagar, Bengaluru', rating: 5, reviewCount: 4 },
+        { placeId: 'demo_place_2', name: `${q || 'Local Octo'} Studio`, address: 'Indiranagar, Bengaluru', rating: 4.7, reviewCount: 38 },
+      ]
+    }
+    const res = await invokeFn<{ results: GooglePlaceResult[] }>('google-places', { action: 'search', query })
+    return res.results
+  }, [])
+
+  const importFromGoogle = useCallback(
+    async (placeId: string) => {
+      if (!isLive || !activeId) {
+        toast('Google import works once Supabase and the Places API key are connected')
+        return { added: 0, imported: 0 }
+      }
+      const res = await invokeFn<{ added: number; imported: number }>('google-places', { action: 'import', businessId: activeId, placeId })
+      await load(activeId)
+      return res
+    },
+    [activeId, load, toast],
   )
 
   const addContacts = useCallback(
@@ -314,7 +361,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       let row: Row
       if (key === 'business') {
         const b = next as Settings['business']
-        row = { name: b.name, address: b.address, maps_url: b.mapsUrl, review_link: b.reviewLink }
+        row = { name: b.name, address: b.address, maps_url: b.mapsUrl, review_link: b.reviewLink, phone: b.phone, website: b.website }
         setBusinesses((list) => list.map((x) => (x.id === activeId ? { ...x, name: b.name } : x)))
       } else {
         row = { [SETTINGS_COLUMN[key as Exclude<keyof Settings, 'business'>]]: next }
@@ -514,6 +561,8 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       checkStandardTemplates,
       switchBusiness,
       createBusiness,
+      searchGoogle,
+      importFromGoogle,
       addContacts,
       updateContact,
       deleteContact,
@@ -530,7 +579,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       refresh,
       resetDemo,
     }),
-    [loading, state, businesses, activeId, keys, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, switchBusiness, createBusiness, addContacts, updateContact, deleteContact, updateSettings, setReviewReply, addSocialPost, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, regenerateApiKey, refresh, resetDemo],
+    [loading, state, businesses, activeId, keys, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, switchBusiness, createBusiness, searchGoogle, importFromGoogle, addContacts, updateContact, deleteContact, updateSettings, setReviewReply, addSocialPost, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, regenerateApiKey, refresh, resetDemo],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
