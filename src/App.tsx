@@ -1,25 +1,27 @@
 // src/App.tsx
-import { lazy, Suspense } from 'react'
+import { Suspense } from 'react'
 import { BrowserRouter, HashRouter, Navigate, Route, Routes } from 'react-router'
 import { AppStoreProvider, useStore } from './store/AppStore'
 import { AuthProvider, useAuth } from './store/AuthProvider'
 import { isLive } from './lib/supabase'
+import { lazyPage } from './lib/lazyPage'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { ToastProvider } from './components/ui/Toast'
 import { AppLayout } from './components/layout/AppLayout'
-const Dashboard = lazy(() => import('./pages/Dashboard'))
-const Contacts = lazy(() => import('./pages/Contacts'))
-const AddContacts = lazy(() => import('./pages/AddContacts'))
-const Messaging = lazy(() => import('./pages/Messaging'))
-const RequestScheduling = lazy(() => import('./pages/RequestScheduling'))
-const Reviews = lazy(() => import('./pages/Reviews'))
-const Widgets = lazy(() => import('./pages/Widgets'))
-const SocialPosting = lazy(() => import('./pages/SocialPosting'))
-const Websites = lazy(() => import('./pages/Websites'))
-const Integrations = lazy(() => import('./pages/Integrations'))
-const Notifications = lazy(() => import('./pages/Notifications'))
-const NotFound = lazy(() => import('./pages/NotFound'))
-const Login = lazy(() => import('./pages/Login'))
-const Onboarding = lazy(() => import('./pages/Onboarding'))
+const Dashboard = lazyPage(() => import('./pages/Dashboard'))
+const Contacts = lazyPage(() => import('./pages/Contacts'))
+const AddContacts = lazyPage(() => import('./pages/AddContacts'))
+const Messaging = lazyPage(() => import('./pages/Messaging'))
+const RequestScheduling = lazyPage(() => import('./pages/RequestScheduling'))
+const Reviews = lazyPage(() => import('./pages/Reviews'))
+const Widgets = lazyPage(() => import('./pages/Widgets'))
+const SocialPosting = lazyPage(() => import('./pages/SocialPosting'))
+const Websites = lazyPage(() => import('./pages/Websites'))
+const Integrations = lazyPage(() => import('./pages/Integrations'))
+const Notifications = lazyPage(() => import('./pages/Notifications'))
+const NotFound = lazyPage(() => import('./pages/NotFound'))
+const Login = lazyPage(() => import('./pages/Login'))
+const Onboarding = lazyPage(() => import('./pages/Onboarding'))
 
 // Preview builds use hash URLs so they work from any static host without rewrites.
 const Router = import.meta.env.MODE === 'preview' ? HashRouter : BrowserRouter
@@ -68,7 +70,9 @@ export default function App() {
       <AuthProvider>
         <AppStoreProvider>
           <Router>
-            <Gate />
+            <ErrorBoundary>
+              <Gate />
+            </ErrorBoundary>
           </Router>
         </AppStoreProvider>
       </AuthProvider>

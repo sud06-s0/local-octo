@@ -3,6 +3,7 @@ import { Suspense, useEffect, useState } from 'react'
 import { Outlet, useLocation } from 'react-router'
 import { Copy, Gift, LifeBuoy, Mail, Menu, MessageCircle, X } from 'lucide-react'
 import { Sidebar } from './Sidebar'
+import { ErrorBoundary } from '../ErrorBoundary'
 import { Modal } from '../ui/Modal'
 import { Button, Input } from '../ui/primitives'
 import { useToast } from '../ui/Toast'
@@ -53,15 +54,17 @@ export function AppLayout() {
 
       <main className="lg:pl-[272px]">
         <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-          <Suspense
-            fallback={
-              <div className="flex h-64 items-center justify-center">
-                <span className="size-8 animate-spin rounded-full border-[3px] border-brand-100 border-t-brand-700" />
-              </div>
-            }
-          >
-            <Outlet />
-          </Suspense>
+          <ErrorBoundary resetKey={pathname}>
+            <Suspense
+              fallback={
+                <div className="flex h-64 items-center justify-center">
+                  <span className="size-8 animate-spin rounded-full border-[3px] border-brand-100 border-t-brand-700" />
+                </div>
+              }
+            >
+              <Outlet />
+            </Suspense>
+          </ErrorBoundary>
         </div>
       </main>
 
