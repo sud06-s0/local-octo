@@ -245,10 +245,7 @@ function preflight(req) {
 }
 
 // supabase/functions/_shared/reviewImage.ts
-var D = Deno;
-D.core ??= {};
-D.core.encode ??= (s) => new TextEncoder().encode(s);
-var LATIN = /^[\x20-\x7E -ÿ‘-”]+$/;
+var LATIN = /^[\x20-\x7E -ÿ‘-”]+$/;
 function labelText(firstName) {
   const name = (firstName || "").trim().split(/\s+/)[0] ?? "";
   return name && name.length <= 22 && LATIN.test(name) ? `${name}!` : "Thank you!";

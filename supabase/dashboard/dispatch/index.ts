@@ -234,9 +234,6 @@ function safeEqual(a, b) {
 }
 
 // supabase/functions/_shared/reviewImage.ts
-var D = Deno;
-D.core ??= {};
-D.core.encode ??= (s) => new TextEncoder().encode(s);
 function contactImageUrl(token) {
   return `${functionsUrl()}/review-image?t=${token}`;
 }

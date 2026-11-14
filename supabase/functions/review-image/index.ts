@@ -5,7 +5,8 @@
 // WhatsApp downloads this URL once when the message is sent.
 
 import { adminClient } from '../_shared/supabase.ts'
-import { renderReviewImage, verifyTestSignature } from '../_shared/reviewImage.ts'
+import { verifyTestSignature } from '../_shared/reviewImage.ts'
+import { renderReviewImage } from '../_shared/renderImage.ts'
 
 Deno.serve(async (req) => {
   const url = new URL(req.url)

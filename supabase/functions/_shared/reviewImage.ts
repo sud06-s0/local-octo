@@ -1,24 +1,9 @@
 // supabase/functions/_shared/reviewImage.ts
-// Builds the personalised review-request image: the business photo with "<Name>!" on a white label.
+// Label text and signed URLs for the personalised review-request image (drawing lives in renderImage.ts).
 
-// ImageScript's npm build still calls the Deno 1 API `Deno.core.encode`; provide it on Deno 2.
-// deno-lint-ignore no-explicit-any
-const D = Deno as any
-D.core ??= {}
-D.core.encode ??= (s: string) => new TextEncoder().encode(s)
-
-import { FIRA_SANS_BOLD_LATIN } from './font.ts'
 import { functionsUrl } from './supabase.ts'
 
-const W = 800
-const H = 600
-const LATIN = /^[\x20-\x7E -ÿ‘-”]+$/
-
-let fontBytes: Uint8Array | null = null
-function font(): Uint8Array {
-  if (!fontBytes) fontBytes = Uint8Array.from(atob(FIRA_SANS_BOLD_LATIN), (c) => c.charCodeAt(0))
-  return fontBytes
-}
+const LATIN = /^[\x20-\x7E -ÿ‘-”]+$/
 
 /** First name for the label; falls back when the name uses a script the font doesn't cover. */
 export function labelText(firstName: string): string {
@@ -30,45 +15,6 @@ export function labelText(firstName: string): string {
 /** Demo photo used when a business hasn't uploaded its own (public/default-personal.jpg in the app). */
 export function defaultPhotoUrl(): string {
   return Deno.env.get('DEFAULT_REVIEW_IMAGE_URL') || 'https://local-octo.vercel.app/default-personal.jpg'
-}
-
-export async function renderReviewImage(photoUrl: string | null, firstName: string): Promise<Uint8Array> {
-  const { Image } = await import('npm:imagescript@1.3.0')
-  photoUrl = photoUrl || defaultPhotoUrl()
-
-  // Background: the business photo (or demo photo), cover-cropped to 800x600; brand green only if it can't be loaded
-  let canvas = new Image(W, H).fill(Image.rgbaToColor(23, 103, 46, 255))
-  if (photoUrl && /^https?:\/\//i.test(photoUrl)) {
-    try {
-      const res = await fetch(photoUrl)
-      if (res.ok) {
-        const decoded = await Image.decode(new Uint8Array(await res.arrayBuffer()))
-        if (decoded instanceof Image) {
-          const scale = Math.max(W / decoded.width, H / decoded.height)
-          const resized = decoded.resize(Math.ceil(decoded.width * scale), Math.ceil(decoded.height * scale))
-          canvas = resized.crop(Math.floor((resized.width - W) / 2), Math.floor((resized.height - H) / 2), W, H)
-        }
-      }
-    } catch {
-      /* keep the green background */
-    }
-  }
-
-  // Label: shrink the font until it fits 80% of the width
-  const text = labelText(firstName)
-  let size = 72
-  let rendered = await Image.renderText(font(), size, text, Image.rgbaToColor(17, 17, 17, 255))
-  while (rendered.width > W * 0.86 && size > 30) {
-    size -= 6
-    rendered = await Image.renderText(font(), size, text, Image.rgbaToColor(17, 17, 17, 255))
-  }
-  const padX = Math.round(size * 0.4)
-  const padY = Math.round(size * 0.12)
-  const label = new Image(rendered.width + padX * 2, rendered.height + padY * 2).fill(0xffffffff).roundCorners(Math.round(size * 0.22))
-  label.composite(rendered, padX, padY)
-  canvas.composite(label, Math.round((W - label.width) / 2), H - label.height - 32)
-
-  return await canvas.encodeJPEG(85)
 }
 
 /* ---------- URLs ---------- */
