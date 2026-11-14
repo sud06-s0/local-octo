@@ -492,17 +492,20 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         // Demo: pretend they were submitted and are waiting for Meta
         const m = stateRef.current.settings.messaging
         const now = new Date().toISOString()
-        const make = (kind: WaTemplateKind, body: string, status: WaTemplate['status'] = 'pending'): WaTemplate => ({
+        const make = (kind: WaTemplateKind, body: string, status: WaTemplate['status'] = 'pending'): WaTemplate => {
+          const base = (kind.startsWith('initial') ? m.customTemplateName : m.customFollowUpTemplateName)?.replace(/^_+|_+$/g, '')
+          return {
           id: uid('t'),
           kind,
-          name: `lo_demo_${kind}_${Date.now().toString(36)}`,
+          name: base ? `${base}${kind.endsWith('_image') ? '_photo' : ''}` : `lo_demo_${kind}_${Date.now().toString(36)}`,
           language: 'en',
           body,
           status,
           reason: null,
           category: 'marketing',
           createdAt: now,
-        })
+          }
+        }
         const rows: WaTemplate[] = []
         if (kinds.includes('initial')) rows.push(make('initial', m.customMessage), make('initial_image', m.customMessage))
         if (kinds.includes('followup')) rows.push(make('followup', m.customFollowUp), make('followup_image', m.customFollowUp))

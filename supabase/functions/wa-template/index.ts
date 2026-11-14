@@ -1,6 +1,7 @@
 // supabase/functions/wa-template/index.ts
 // WhatsApp templates. Body: { businessId, action, kinds? }
-//  - submit:          Custom Message / Custom Follow-up → submitted to Meta as text AND photo (Image header) templates.
+//  - submit:          Custom Message / Custom Follow-up → submitted to Meta as text AND photo (Image header) templates,
+//                     named by the business (customTemplateName / customFollowUpTemplateName, photo version + "_photo").
 //  - refresh:         "Check WhatsApp" — looks every custom template up by name and updates its status.
 //  - standard:        approval status of the 4 standard templates (review_request, review_request_image, review_followup, review_followup_image).
 //  - submit_standard: submits whichever of the 4 standard templates don't exist yet, then returns their status.
@@ -26,7 +27,12 @@ interface Messaging {
   ownerFirstName?: string
   customMessage?: string
   customFollowUp?: string
+  customTemplateName?: string
+  customFollowUpTemplateName?: string
 }
+
+/** WhatsApp template names: lowercase letters, numbers and underscores. */
+const cleanName = (v?: string) => (v ?? '').toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60)
 
 const COLS = 'id, kind, name, language, body, status, reason, category, created_at, updated_at'
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
@@ -88,18 +94,19 @@ Deno.serve(async (req) => {
     const vars = { businessName: m.businessName || b.name, ownerName: m.ownerFirstName || '' }
     const want = new Set(kinds?.length ? kinds : ['initial', 'followup'])
 
-    const jobs: Array<{ kind: TemplateKind; source: string }> = []
-    if (want.has('initial') && m.customMessage) jobs.push({ kind: 'initial', source: m.customMessage })
-    if (want.has('followup') && m.customFollowUp) jobs.push({ kind: 'followup', source: m.customFollowUp })
+    const jobs: Array<{ kind: TemplateKind; source: string; name: string }> = []
+    if (want.has('initial') && m.customMessage) jobs.push({ kind: 'initial', source: m.customMessage, name: cleanName(m.customTemplateName) })
+    if (want.has('followup') && m.customFollowUp) jobs.push({ kind: 'followup', source: m.customFollowUp, name: cleanName(m.customFollowUpTemplateName) })
 
     for (const job of jobs) {
       const built = buildTemplateBody(job.source, vars)
       const base = { business_id: businessId, language: cfg.lang, body: built.body, params: built.params }
       const photoKind: TemplateKind = job.kind === 'initial' ? 'initial_image' : 'followup_image'
 
-      // Text version and photo version (same text + Image header), both submitted to Meta
+      // Text version and photo version (same text + Image header), both submitted to Meta.
+      // Names come from the business ("my_name" and "my_name_photo"); generated if none was given.
       for (const kind of [job.kind, photoKind]) {
-        const name = templateName(businessId, kind)
+        const name = job.name ? `${job.name}${kind === photoKind ? '_photo' : ''}` : templateName(businessId, kind)
         try {
           if (!built.params.includes('review_link')) throw new Error('The message must include the Review Link')
           const header = kind === photoKind ? await getPhoto() : undefined

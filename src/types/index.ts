@@ -133,6 +133,10 @@ export interface Settings {
     imageDataUrl: string | null
     customMessage: string
     customFollowUp: string
+    /** WhatsApp template name for the Custom Message (photo version gets "_photo") */
+    customTemplateName: string
+    /** WhatsApp template name for the Custom Follow-up (photo version gets "_photo") */
+    customFollowUpTemplateName: string
     followUpsEnabled: boolean
   }
   scheduling: {

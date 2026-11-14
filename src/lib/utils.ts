@@ -115,6 +115,11 @@ export const storage = {
   },
 }
 
+/** WhatsApp template names: lowercase letters, numbers and underscores only. */
+export function toTemplateName(v: string): string {
+  return v.toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/_+/g, '_').slice(0, 60)
+}
+
 export function fillTemplate(template: string, vars: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (m, key: string) => vars[key] ?? m)
 }

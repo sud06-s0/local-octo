@@ -7,7 +7,7 @@ import { Modal } from '../components/ui/Modal'
 import { useStore } from '../store/AppStore'
 import { useToast } from '../components/ui/Toast'
 import { brand } from '../config/brand'
-import { cn, fillTemplate, isEmail, isPhone, timeAgo } from '../lib/utils'
+import { cn, fillTemplate, toTemplateName, isEmail, isPhone, timeAgo } from '../lib/utils'
 import type { WaStandardTemplate, WaTemplate, WaTemplateKind, WaTemplateStatus } from '../types'
 
 const SAMPLE = 'Jessica'
@@ -165,13 +165,11 @@ function WhatsAppApproval({
   kinds,
   templates,
   onRefresh,
-  onResubmit,
   busy,
 }: {
   kinds: WaTemplateKind[]
   templates: WaTemplate[]
   onRefresh: () => void
-  onResubmit: () => void
   busy: boolean
 }) {
   const latest = kinds.map((k) => ({ kind: k, t: templates.find((x) => x.kind === k) }))
@@ -189,15 +187,11 @@ function WhatsAppApproval({
               Check WhatsApp
             </Button>
           )}
-          {anyBad && (
-            <Button size="sm" variant="outline" disabled={busy} onClick={onResubmit}>
-              Resubmit
-            </Button>
-          )}
         </div>
       </div>
       <p className="mt-1 text-xs text-muted">
         WhatsApp only sends messages Meta has approved. Until yours is approved, customers get the standard message.
+        {anyBad && <span className="mt-1 block text-red-600">To submit again, change the template name above and save. WhatsApp doesn't reuse a name.</span>}
       </p>
       <ul className="mt-3 space-y-2.5">
         {latest.map(({ kind, t }) => (
@@ -225,6 +219,22 @@ function WhatsAppApproval({
           </li>
         ))}
       </ul>
+    </div>
+  )
+}
+
+const cleanName = (v: string) => v.replace(/^_+|_+$/g, '')
+
+/** Name the business gives its WhatsApp template (shown in WhatsApp Manager). */
+function TemplateNameField({ id, value, onChange, placeholder }: { id: string; value: string; onChange: (v: string) => void; placeholder: string }) {
+  const n = cleanName(value)
+  return (
+    <div className="mt-4">
+      <Label htmlFor={id}>Template name</Label>
+      <Input id={id} value={value} placeholder={placeholder} onChange={(e) => onChange(toTemplateName(e.target.value))} />
+      <p className="mt-1 text-xs text-muted">
+        Lowercase letters, numbers and _ only.{n && <> The photo version is named <span className="font-mono">{n}_photo</span>.</>}
+      </p>
     </div>
   )
 }
@@ -269,6 +279,8 @@ export default function Messaging() {
   const [biz, setBiz] = useState(m.businessName)
   const [custom, setCustom] = useState(m.customMessage)
   const [customFollow, setCustomFollow] = useState(m.customFollowUp)
+  const [tplName, setTplName] = useState(m.customTemplateName ?? '')
+  const [followTplName, setFollowTplName] = useState(m.customFollowUpTemplateName ?? '')
   const [testOpen, setTestOpen] = useState(false)
   const [testTo, setTestTo] = useState('')
   const [sending, setSending] = useState(false)
@@ -422,13 +434,20 @@ export default function Messaging() {
               <>
                 <h2 className="text-lg font-semibold">Custom Message</h2>
                 <p className="mt-0.5 text-[15px] text-muted">Write your own message template</p>
+                <TemplateNameField id="tpl-name" value={tplName} onChange={setTplName} placeholder="e.g. review_request_localocto" />
                 <TokenChips onInsert={insertToken} />
                 <CounterTextarea ref={customRef} value={custom} onChange={setCustom} rows={5} />
                 {!custom.includes('{review_link}') && <p className="mt-1.5 text-xs text-red-600">Add the Review Link so customers can leave a review</p>}
                 <Button
                   className="mt-4 w-full"
-                  disabled={!custom.trim() || !custom.includes('{review_link}') || custom === m.customMessage || waBusy}
-                  onClick={() => saveAndSubmit({ customMessage: custom }, ['initial'], 'Custom message saved')}
+                  disabled={
+                    !custom.trim() || !custom.includes('{review_link}') || !cleanName(tplName) ||
+                    (custom === m.customMessage && cleanName(tplName) === (m.customTemplateName ?? '')) || waBusy
+                  }
+                  onClick={() => {
+                    setTplName(cleanName(tplName))
+                    saveAndSubmit({ customMessage: custom, customTemplateName: cleanName(tplName) }, ['initial'], 'Custom message saved')
+                  }}
                 >
                   {waBusy ? 'Saving…' : 'Save Message'}
                 </Button>
@@ -437,7 +456,6 @@ export default function Messaging() {
                   templates={waTemplates}
                   busy={waBusy}
                   onRefresh={refreshWa}
-                  onResubmit={() => saveAndSubmit({}, ['initial'], 'Resubmitted')}
                 />
               </>
             )}
@@ -537,12 +555,19 @@ export default function Messaging() {
               <div className="mt-6 border-t border-line pt-5">
                 <p className="text-[16px] font-semibold">Custom Follow-up Message</p>
                 <p className="mt-0.5 text-[15px] text-muted">Sent if the customer hasn't clicked your review link</p>
+                <TemplateNameField id="follow-tpl-name" value={followTplName} onChange={setFollowTplName} placeholder="e.g. review_followup_localocto" />
                 <TokenChips onInsert={(t) => setCustomFollow((v) => (v + ' ' + t).slice(0, MAX_CHARS))} />
                 <CounterTextarea value={customFollow} onChange={setCustomFollow} rows={4} />
                 <Button
                   className="mt-4 w-full"
-                  disabled={!customFollow.trim() || !customFollow.includes('{review_link}') || customFollow === m.customFollowUp || waBusy}
-                  onClick={() => saveAndSubmit({ customFollowUp: customFollow }, ['followup'], 'Follow-up message saved')}
+                  disabled={
+                    !customFollow.trim() || !customFollow.includes('{review_link}') || !cleanName(followTplName) ||
+                    (customFollow === m.customFollowUp && cleanName(followTplName) === (m.customFollowUpTemplateName ?? '')) || waBusy
+                  }
+                  onClick={() => {
+                    setFollowTplName(cleanName(followTplName))
+                    saveAndSubmit({ customFollowUp: customFollow, customFollowUpTemplateName: cleanName(followTplName) }, ['followup'], 'Follow-up message saved')
+                  }}
                 >
                   {waBusy ? 'Saving…' : 'Save Follow-up'}
                 </Button>
@@ -551,7 +576,6 @@ export default function Messaging() {
                   templates={waTemplates}
                   busy={waBusy}
                   onRefresh={refreshWa}
-                  onResubmit={() => saveAndSubmit({}, ['followup'], 'Resubmitted')}
                 />
               </div>
             )}

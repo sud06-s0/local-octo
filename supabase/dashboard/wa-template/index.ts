@@ -163,6 +163,7 @@ async function findTemplateByName(cfg, name) {
 }
 
 // supabase/functions/wa-template/index.ts
+var cleanName = (v) => (v ?? "").toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "").slice(0, 60);
 var COLS = "id, kind, name, language, body, status, reason, category, created_at, updated_at";
 var errText = (e) => e instanceof Error ? e.message : String(e);
 function photoHandle(cfg) {
@@ -210,14 +211,14 @@ Deno.serve(async (req) => {
     const vars = { businessName: m.businessName || b.name, ownerName: m.ownerFirstName || "" };
     const want = new Set(kinds?.length ? kinds : ["initial", "followup"]);
     const jobs = [];
-    if (want.has("initial") && m.customMessage) jobs.push({ kind: "initial", source: m.customMessage });
-    if (want.has("followup") && m.customFollowUp) jobs.push({ kind: "followup", source: m.customFollowUp });
+    if (want.has("initial") && m.customMessage) jobs.push({ kind: "initial", source: m.customMessage, name: cleanName(m.customTemplateName) });
+    if (want.has("followup") && m.customFollowUp) jobs.push({ kind: "followup", source: m.customFollowUp, name: cleanName(m.customFollowUpTemplateName) });
     for (const job of jobs) {
       const built = buildTemplateBody(job.source, vars);
       const base = { business_id: businessId, language: cfg.lang, body: built.body, params: built.params };
       const photoKind = job.kind === "initial" ? "initial_image" : "followup_image";
       for (const kind of [job.kind, photoKind]) {
-        const name = templateName(businessId, kind);
+        const name = job.name ? `${job.name}${kind === photoKind ? "_photo" : ""}` : templateName(businessId, kind);
         try {
           if (!built.params.includes("review_link")) throw new Error("The message must include the Review Link");
           const header = kind === photoKind ? await getPhoto() : void 0;
