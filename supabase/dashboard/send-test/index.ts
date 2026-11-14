@@ -282,7 +282,7 @@ Deno.serve(async (req) => {
     phone = digits.length === 10 ? `${b.country_code}${digits}` : digits;
   }
   const messaging = b.messaging ?? {};
-  const firstName = user.user_metadata?.full_name?.split(" ")[0] || "there";
+  const firstName = messaging.ownerFirstName?.trim().split(/\s+/)[0] || user.user_metadata?.full_name?.trim().split(/\s+/)[0] || messaging.businessName?.trim() || b.name;
   const imageUrl = messaging.personalizedImage ? await testImageUrl(businessId, firstName) : void 0;
   const result = await deliver({
     admin,

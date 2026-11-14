@@ -30,7 +30,12 @@ Deno.serve(async (req) => {
     phone = digits.length === 10 ? `${b.country_code}${digits}` : digits
   }
   const messaging = (b.messaging ?? {}) as Messaging
-  const firstName = (user.user_metadata?.full_name as string | undefined)?.split(' ')[0] || 'there'
+  // Same name as the Messaging preview: Owner First Name, else the signed-in user's name, else the business name
+  const firstName =
+    messaging.ownerFirstName?.trim().split(/\s+/)[0] ||
+    (user.user_metadata?.full_name as string | undefined)?.trim().split(/\s+/)[0] ||
+    messaging.businessName?.trim() ||
+    b.name
   const imageUrl = messaging.personalizedImage ? await testImageUrl(businessId, firstName) : undefined
 
   const result = await deliver({
