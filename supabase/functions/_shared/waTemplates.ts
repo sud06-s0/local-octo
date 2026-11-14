@@ -1,6 +1,7 @@
 // supabase/functions/_shared/waTemplates.ts
 // Turns a client's Custom Message into a WhatsApp template, submits it to Meta and tracks approval.
-// Only needs the WABA ID + token. Photo (image-header) templates are created by hand in WhatsApp Manager.
+// Only needs the WABA ID + token. Photo (image-header) templates are submitted too: the app ID needed for
+// Meta's sample-photo upload is read from the access token itself, so nobody has to enter it.
 
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 
@@ -9,6 +10,16 @@ export type ParamKey = 'first_name' | 'review_link'
 
 const env = (k: string) => Deno.env.get(k) ?? ''
 const EXAMPLES: Record<ParamKey, string> = { first_name: 'Priya', review_link: 'https://g.page/r/example/review' }
+const SAMPLE_PHOTO_URL = () => env('DEFAULT_REVIEW_IMAGE_URL') || 'https://local-octo.vercel.app/default-personal.jpg'
+
+/** The 4 standard templates: {{1}} first name, {{2}} business name, {{3}} review link (same order as send.ts). */
+export const STANDARD_TEMPLATES: Array<{ kind: TemplateKind; col: string; key: string; def: string; body: string }> = [
+  { kind: 'initial', col: 'whatsapp_template_initial', key: 'WHATSAPP_TEMPLATE_INITIAL', def: 'review_request', body: 'Hi {{1}}, thanks for choosing {{2}}! Would you mind taking a moment to leave us a Google review? {{3}} Thank you!' },
+  { kind: 'initial_image', col: 'whatsapp_template_initial_image', key: 'WHATSAPP_TEMPLATE_INITIAL_IMAGE', def: 'review_request_image', body: 'Hi {{1}}, thanks for choosing {{2}}! Would you mind taking a moment to leave us a Google review? {{3}} Thank you!' },
+  { kind: 'followup', col: 'whatsapp_template_followup', key: 'WHATSAPP_TEMPLATE_FOLLOWUP', def: 'review_followup', body: 'Hi {{1}}, just a quick reminder from {{2}} — your feedback means a lot to us! {{3}} Thank you!' },
+  { kind: 'followup_image', col: 'whatsapp_template_followup_image', key: 'WHATSAPP_TEMPLATE_FOLLOWUP_IMAGE', def: 'review_followup_image', body: 'Hi {{1}}, just a quick reminder from {{2}} — your feedback means a lot to us! {{3}} Thank you!' },
+]
+export const STANDARD_EXAMPLE = ['Priya', 'Sharma Dental Clinic', 'https://g.page/r/example/review']
 
 export interface MetaConfig {
   wabaId: string
@@ -86,9 +97,54 @@ async function graph(cfg: MetaConfig, path: string, init: RequestInit = {}) {
   return body
 }
 
-/** Creates a text-only template (no App ID needed). */
-export async function createTemplate(cfg: MetaConfig, name: string, body: string, example: string[]): Promise<{ id: string; status: string }> {
+/** The Meta app the access token belongs to (needed only for the sample-photo upload). */
+async function appIdFromToken(cfg: MetaConfig): Promise<string> {
+  if (env('WHATSAPP_APP_ID')) return env('WHATSAPP_APP_ID')
+  try {
+    const app = await graph(cfg, 'app?fields=id')
+    if (app?.id) return String(app.id)
+  } catch {
+    // fall through to debug_token
+  }
+  const dbg = await graph(cfg, `debug_token?input_token=${encodeURIComponent(cfg.token)}`)
+  const id = dbg?.data?.app_id
+  if (!id) throw new Error('Could not read the Meta app from the access token')
+  return String(id)
+}
+
+/**
+ * Uploads the sample photo Meta wants to see on an image-header template and returns its handle.
+ * Meta's resumable upload: POST /{app-id}/uploads → session id, then POST the bytes to the session.
+ */
+export async function uploadSamplePhoto(cfg: MetaConfig): Promise<string> {
+  const appId = await appIdFromToken(cfg)
+  const img = await fetch(SAMPLE_PHOTO_URL())
+  if (!img.ok) throw new Error(`Could not load the sample photo (${img.status})`)
+  const bytes = new Uint8Array(await img.arrayBuffer())
+  const type = img.headers.get('content-type')?.split(';')[0]?.trim() || 'image/jpeg'
+  const ext = type === 'image/png' ? 'png' : 'jpg'
+  const session = await graph(cfg, `${appId}/uploads?file_name=sample.${ext}&file_length=${bytes.length}&file_type=${encodeURIComponent(type)}`, { method: 'POST' })
+  if (!session?.id) throw new Error('Meta did not start the photo upload')
+  const res = await fetch(`https://graph.facebook.com/${cfg.version}/${session.id}`, {
+    method: 'POST',
+    headers: { Authorization: `OAuth ${cfg.token}`, file_offset: '0' },
+    body: bytes,
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok || !body?.h) throw new Error(body?.error?.error_user_msg || body?.error?.message || `Photo upload failed (HTTP ${res.status})`)
+  return String(body.h)
+}
+
+/** Creates a template. Pass headerHandle (from uploadSamplePhoto) for an Image-header template. */
+export async function createTemplate(
+  cfg: MetaConfig,
+  name: string,
+  body: string,
+  example: string[],
+  headerHandle?: string,
+): Promise<{ id: string; status: string }> {
   const components: unknown[] = []
+  if (headerHandle) components.push({ type: 'HEADER', format: 'IMAGE', example: { header_handle: [headerHandle] } })
   components.push({ type: 'BODY', text: body, ...(example.length ? { example: { body_text: [example] } } : {}) })
   const res = await graph(cfg, `${cfg.wabaId}/message_templates`, {
     method: 'POST',

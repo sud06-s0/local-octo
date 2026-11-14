@@ -39,6 +39,7 @@ interface AppStore {
   submitWhatsAppTemplates: (kinds: Array<'initial' | 'followup'>) => Promise<string[]>
   refreshWhatsAppTemplates: () => Promise<string[]>
   checkStandardTemplates: () => Promise<WaStandardTemplate[]>
+  submitStandardTemplates: () => Promise<WaStandardTemplate[]>
   switchBusiness: (id: string) => void
   createBusiness: (input: { name: string; address?: string; reviewLink?: string; mapsUrl?: string; placeId?: string }) => Promise<void>
   searchGoogle: (query: string) => Promise<GooglePlaceResult[]>
@@ -501,8 +502,8 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
           createdAt: now,
         })
         const rows: WaTemplate[] = []
-        if (kinds.includes('initial')) rows.push(make('initial', m.customMessage), make('initial_image', m.customMessage, 'not_created'))
-        if (kinds.includes('followup')) rows.push(make('followup', m.customFollowUp), make('followup_image', m.customFollowUp, 'not_created'))
+        if (kinds.includes('initial')) rows.push(make('initial', m.customMessage), make('initial_image', m.customMessage))
+        if (kinds.includes('followup')) rows.push(make('followup', m.customFollowUp), make('followup_image', m.customFollowUp))
         setWaTemplates((t) => [...rows, ...t])
         return []
       }
@@ -536,6 +537,15 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     return res.standard
   }, [activeId])
 
+  const submitStandardTemplates = useCallback(async (): Promise<WaStandardTemplate[]> => {
+    if (!isLive) {
+      const list = await checkStandardTemplates()
+      return list.map((t) => (t.status === 'not_created' || t.status === 'failed' ? { ...t, status: 'pending', reason: null } : t))
+    }
+    const res = await invokeFn<{ standard: WaStandardTemplate[] }>('wa-template', { businessId: activeId, action: 'submit_standard' })
+    return res.standard
+  }, [activeId, checkStandardTemplates])
+
   const refresh = useCallback(async () => {
     if (isLive && activeId) await load(activeId)
   }, [activeId, load])
@@ -559,6 +569,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       submitWhatsAppTemplates,
       refreshWhatsAppTemplates,
       checkStandardTemplates,
+      submitStandardTemplates,
       switchBusiness,
       createBusiness,
       searchGoogle,
@@ -579,7 +590,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       refresh,
       resetDemo,
     }),
-    [loading, state, businesses, activeId, keys, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, switchBusiness, createBusiness, searchGoogle, importFromGoogle, addContacts, updateContact, deleteContact, updateSettings, setReviewReply, addSocialPost, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, regenerateApiKey, refresh, resetDemo],
+    [loading, state, businesses, activeId, keys, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, submitStandardTemplates, switchBusiness, createBusiness, searchGoogle, importFromGoogle, addContacts, updateContact, deleteContact, updateSettings, setReviewReply, addSocialPost, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, regenerateApiKey, refresh, resetDemo],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

@@ -1,13 +1,25 @@
 // supabase/functions/wa-template/index.ts
-// Custom Messages on WhatsApp. Body: { businessId, action: 'submit' | 'refresh' | 'standard', kinds?: ('initial' | 'followup')[] }
-//  - submit:  text versions are submitted to Meta automatically (WABA ID + token only, no App ID).
-//             The photo version is listed as 'not_created' with the exact name + text to create in WhatsApp Manager.
-//  - refresh: "Check WhatsApp" — looks every template up by name in the WhatsApp Business Account and updates its status.
-//  - standard: approval status of the 4 standard templates (review_request, review_request_image, review_followup, review_followup_image).
+// WhatsApp templates. Body: { businessId, action, kinds? }
+//  - submit:          Custom Message / Custom Follow-up → submitted to Meta as text AND photo (Image header) templates.
+//  - refresh:         "Check WhatsApp" — looks every custom template up by name and updates its status.
+//  - standard:        approval status of the 4 standard templates (review_request, review_request_image, review_followup, review_followup_image).
+//  - submit_standard: submits whichever of the 4 standard templates don't exist yet, then returns their status.
+// Only the WABA ID + access token are needed. The app ID for the sample-photo upload is read from the token.
 
 import { adminClient, getUser, isMember } from '../_shared/supabase.ts'
 import { json, preflight } from '../_shared/http.ts'
-import { buildTemplateBody, createTemplate, findTemplateByName, metaConfig, templateName, type TemplateKind } from '../_shared/waTemplates.ts'
+import {
+  buildTemplateBody,
+  createTemplate,
+  findTemplateByName,
+  metaConfig,
+  STANDARD_EXAMPLE,
+  STANDARD_TEMPLATES,
+  templateName,
+  uploadSamplePhoto,
+  type MetaConfig,
+  type TemplateKind,
+} from '../_shared/waTemplates.ts'
 
 interface Messaging {
   businessName?: string
@@ -17,6 +29,13 @@ interface Messaging {
 }
 
 const COLS = 'id, kind, name, language, body, status, reason, created_at, updated_at'
+const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
+
+/** One sample-photo upload per request, shared by every photo template submitted in it. */
+function photoHandle(cfg: MetaConfig) {
+  let p: Promise<string> | null = null
+  return () => (p ??= uploadSamplePhoto(cfg))
+}
 
 Deno.serve(async (req) => {
   const pre = preflight(req)
@@ -29,7 +48,7 @@ Deno.serve(async (req) => {
 
   const { businessId, action = 'refresh', kinds } = (await req.json().catch(() => ({}))) as {
     businessId?: string
-    action?: 'submit' | 'refresh' | 'standard'
+    action?: 'submit' | 'refresh' | 'standard' | 'submit_standard'
     kinds?: Array<'initial' | 'followup'>
   }
   if (!businessId) return json({ error: 'businessId is required' }, 400)
@@ -38,25 +57,25 @@ Deno.serve(async (req) => {
   const cfg = await metaConfig(admin, businessId)
   if (!cfg.wabaId || !cfg.token) return json({ error: 'WhatsApp is not connected yet (WHATSAPP_WABA_ID / WHATSAPP_ACCESS_TOKEN missing)' }, 400)
 
+  const getPhoto = photoHandle(cfg)
   const warnings: string[] = []
 
-  if (action === 'standard') {
+  if (action === 'standard' || action === 'submit_standard') {
     const { data: ch } = await admin.from('business_channels').select('*').eq('business_id', businessId).maybeSingle()
     const env = (k: string) => Deno.env.get(k) ?? ''
-    const list: Array<{ kind: TemplateKind; col: string; key: string; def: string }> = [
-      { kind: 'initial', col: 'whatsapp_template_initial', key: 'WHATSAPP_TEMPLATE_INITIAL', def: 'review_request' },
-      { kind: 'initial_image', col: 'whatsapp_template_initial_image', key: 'WHATSAPP_TEMPLATE_INITIAL_IMAGE', def: 'review_request_image' },
-      { kind: 'followup', col: 'whatsapp_template_followup', key: 'WHATSAPP_TEMPLATE_FOLLOWUP', def: 'review_followup' },
-      { kind: 'followup_image', col: 'whatsapp_template_followup_image', key: 'WHATSAPP_TEMPLATE_FOLLOWUP_IMAGE', def: 'review_followup_image' },
-    ]
     const standard = []
-    for (const t of list) {
+    for (const t of STANDARD_TEMPLATES) {
       const name = (ch?.[t.col] as string) || env(t.key) || t.def
       try {
-        const found = await findTemplateByName(cfg, name)
+        let found = await findTemplateByName(cfg, name)
+        if (!found && action === 'submit_standard') {
+          const header = t.kind.endsWith('_image') ? await getPhoto() : undefined
+          const created = await createTemplate(cfg, name, t.body, STANDARD_EXAMPLE, header)
+          found = { id: created.id, status: created.status, reason: null, language: cfg.lang }
+        }
         standard.push({ kind: t.kind, name, status: found ? found.status : 'not_created', reason: found?.reason ?? null })
       } catch (e) {
-        standard.push({ kind: t.kind, name, status: 'failed', reason: e instanceof Error ? e.message : String(e) })
+        standard.push({ kind: t.kind, name, status: 'failed', reason: errText(e) })
       }
     }
     return json({ ok: true, standard })
@@ -76,20 +95,20 @@ Deno.serve(async (req) => {
     for (const job of jobs) {
       const built = buildTemplateBody(job.source, vars)
       const base = { business_id: businessId, language: cfg.lang, body: built.body, params: built.params }
-
-      // Text version: submitted automatically
-      const name = templateName(businessId, job.kind)
-      try {
-        if (!built.params.includes('review_link')) throw new Error('The message must include the Review Link')
-        const created = await createTemplate(cfg, name, built.body, built.example)
-        await admin.from('whatsapp_templates').insert({ ...base, kind: job.kind, name, status: created.status, meta_template_id: created.id })
-      } catch (e) {
-        await admin.from('whatsapp_templates').insert({ ...base, kind: job.kind, name, status: 'failed', reason: e instanceof Error ? e.message : String(e) })
-      }
-
-      // Photo version: created by hand in WhatsApp Manager (same text + Image header), tracked here by name
       const photoKind: TemplateKind = job.kind === 'initial' ? 'initial_image' : 'followup_image'
-      await admin.from('whatsapp_templates').insert({ ...base, kind: photoKind, name: templateName(businessId, photoKind), status: 'not_created' })
+
+      // Text version and photo version (same text + Image header), both submitted to Meta
+      for (const kind of [job.kind, photoKind]) {
+        const name = templateName(businessId, kind)
+        try {
+          if (!built.params.includes('review_link')) throw new Error('The message must include the Review Link')
+          const header = kind === photoKind ? await getPhoto() : undefined
+          const created = await createTemplate(cfg, name, built.body, built.example, header)
+          await admin.from('whatsapp_templates').insert({ ...base, kind, name, status: created.status, meta_template_id: created.id })
+        } catch (e) {
+          await admin.from('whatsapp_templates').insert({ ...base, kind, name, status: 'failed', reason: errText(e) })
+        }
+      }
     }
   }
 
@@ -106,7 +125,7 @@ Deno.serve(async (req) => {
         await admin.from('whatsapp_templates').update({ status: found.status, reason: found.reason, meta_template_id: found.id, language: found.language }).eq('id', t.id)
       }
     } catch (e) {
-      warnings.push(e instanceof Error ? e.message : String(e))
+      warnings.push(errText(e))
     }
   }
 

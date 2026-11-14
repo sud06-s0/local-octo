@@ -121,13 +121,13 @@ Each run sends what is due, only between **9 AM and 7 PM in each business's time
 1. developers.facebook.com → create a **Business** app → add **WhatsApp**. Add and verify your business phone number.
 2. Business Settings → **System users** → create one, give it the app and WhatsApp account, and generate a **permanent token** with `whatsapp_business_messaging` and `whatsapp_business_management`. Use it as `WHATSAPP_ACCESS_TOKEN`.
 3. Copy the **Phone number ID**, not the number itself, into `WHATSAPP_PHONE_NUMBER_ID`.
-4. WhatsApp Manager → **Message templates**: create two templates, language English (`en`):
+4. Messaging page → **WhatsApp templates** → **Submit to WhatsApp** submits these 4 standard templates to Meta (language `en`, category Marketing), including the photo versions. No App ID to enter: it is read from the access token. The panel then shows Waiting for approval, Approved or Rejected.
    Meta rejects a template whose body **starts or ends with a variable**, so each body ends with fixed text after `{{3}}`.
    - `review_request`: `Hi {{1}}, thanks for choosing {{2}}! Would you mind taking a moment to leave us a Google review? {{3}} Thank you!`
-   - `review_request_image`: **Header = Image** (upload any sample photo when creating it), body the same as `review_request`. This one is used when the business has uploaded a photo and turned on **Personalized Image**. The customer then gets the photo with their name on it, with the text underneath, in one message.
+   - `review_request_image`: **Header = Image** (the demo photo is sent to Meta as the sample), body the same as `review_request`. This one is used when the business has uploaded a photo and turned on **Personalized Image**. The customer then gets the photo with their name on it, with the text underneath, in one message.
    - `review_followup`: `Hi {{1}}, just a quick reminder from {{2}} — your feedback means a lot to us! {{3}} Thank you!`
    - `review_followup_image`: **Header = Image**, body the same as `review_followup`.
-   The **Messaging page → WhatsApp templates** panel shows whether each of these 4 is approved, and gives the exact name and body for any that are missing.
+   The **Messaging page → WhatsApp templates** panel shows whether each of these 4 is approved. Templates already made by hand in WhatsApp Manager with these names are picked up, not submitted again.
    Meta usually puts these in the **Marketing** category, which is charged per message.
 5. App → WhatsApp → **Configuration → Webhook**:
    - Callback URL: `https://REF.supabase.co/functions/v1/whatsapp-webhook`
@@ -176,11 +176,11 @@ Setup: Google Cloud Console → enable **Places API (New)** → Credentials → 
 For **all** reviews and posting replies to Google, the next step is the **Google Business Profile API** ("Connect with Google" sign-in). It needs Google's approval, so apply early.
 
 ## Custom Messages on WhatsApp
-WhatsApp only lets a business start a chat with a template Meta has approved. **Approval happens in WhatsApp Manager. The app only checks the status.** Only `WHATSAPP_WABA_ID` and the access token are needed; no App ID.
+WhatsApp only lets a business start a chat with a template Meta has approved. The app submits templates to Meta and tracks approval. Only `WHATSAPP_WABA_ID` and the access token are needed. The App ID that Meta's sample-photo upload uses is read from the token automatically.
 
 When a client saves a **Custom Message** or **Custom Follow-up** (Messaging page):
 - **Text versions** (first message, follow-up) are submitted to Meta automatically. `{first_name}` and `{review_link}` become `{{1}}`, `{{2}}`; `{business_name}` and `{owner_name}` are written in as fixed text. "Hi" or "Thank you!" is added if the text would start or end with a variable, because Meta rejects that.
-- **Photo version** (first message with photo): the app shows an exact **template name** and **body** with copy buttons. Create it once in **WhatsApp Manager → Message templates → Create** with category Marketing, the same language, Header = **Image** (any sample photo), and that name and body.
+- **Photo versions** (same text, Header = **Image**) are submitted automatically too, with the demo photo as Meta's sample.
 - **Check WhatsApp** looks every template up by name in your WhatsApp account and shows **Approved · ready to send**, **Waiting for approval** or **Rejected (reason)**. With the webhook subscribed to `message_template_status_update`, this also updates by itself.
 - Only approved templates are used. Until then the standard templates are sent, so nothing stops.
 

@@ -58,6 +58,14 @@ function preflight(req) {
 // supabase/functions/_shared/waTemplates.ts
 var env = (k) => Deno.env.get(k) ?? "";
 var EXAMPLES = { first_name: "Priya", review_link: "https://g.page/r/example/review" };
+var SAMPLE_PHOTO_URL = () => env("DEFAULT_REVIEW_IMAGE_URL") || "https://local-octo.vercel.app/default-personal.jpg";
+var STANDARD_TEMPLATES = [
+  { kind: "initial", col: "whatsapp_template_initial", key: "WHATSAPP_TEMPLATE_INITIAL", def: "review_request", body: "Hi {{1}}, thanks for choosing {{2}}! Would you mind taking a moment to leave us a Google review? {{3}} Thank you!" },
+  { kind: "initial_image", col: "whatsapp_template_initial_image", key: "WHATSAPP_TEMPLATE_INITIAL_IMAGE", def: "review_request_image", body: "Hi {{1}}, thanks for choosing {{2}}! Would you mind taking a moment to leave us a Google review? {{3}} Thank you!" },
+  { kind: "followup", col: "whatsapp_template_followup", key: "WHATSAPP_TEMPLATE_FOLLOWUP", def: "review_followup", body: "Hi {{1}}, just a quick reminder from {{2}} \u2014 your feedback means a lot to us! {{3}} Thank you!" },
+  { kind: "followup_image", col: "whatsapp_template_followup_image", key: "WHATSAPP_TEMPLATE_FOLLOWUP_IMAGE", def: "review_followup_image", body: "Hi {{1}}, just a quick reminder from {{2}} \u2014 your feedback means a lot to us! {{3}} Thank you!" }
+];
+var STANDARD_EXAMPLE = ["Priya", "Sharma Dental Clinic", "https://g.page/r/example/review"];
 async function metaConfig(admin, businessId) {
   const { data: row } = await admin.from("business_channels").select("*").eq("business_id", businessId).maybeSingle();
   return {
@@ -108,8 +116,39 @@ async function graph(cfg, path, init = {}) {
   }
   return body;
 }
-async function createTemplate(cfg, name, body, example) {
+async function appIdFromToken(cfg) {
+  if (env("WHATSAPP_APP_ID")) return env("WHATSAPP_APP_ID");
+  try {
+    const app = await graph(cfg, "app?fields=id");
+    if (app?.id) return String(app.id);
+  } catch {
+  }
+  const dbg = await graph(cfg, `debug_token?input_token=${encodeURIComponent(cfg.token)}`);
+  const id = dbg?.data?.app_id;
+  if (!id) throw new Error("Could not read the Meta app from the access token");
+  return String(id);
+}
+async function uploadSamplePhoto(cfg) {
+  const appId = await appIdFromToken(cfg);
+  const img = await fetch(SAMPLE_PHOTO_URL());
+  if (!img.ok) throw new Error(`Could not load the sample photo (${img.status})`);
+  const bytes = new Uint8Array(await img.arrayBuffer());
+  const type = img.headers.get("content-type")?.split(";")[0]?.trim() || "image/jpeg";
+  const ext = type === "image/png" ? "png" : "jpg";
+  const session = await graph(cfg, `${appId}/uploads?file_name=sample.${ext}&file_length=${bytes.length}&file_type=${encodeURIComponent(type)}`, { method: "POST" });
+  if (!session?.id) throw new Error("Meta did not start the photo upload");
+  const res = await fetch(`https://graph.facebook.com/${cfg.version}/${session.id}`, {
+    method: "POST",
+    headers: { Authorization: `OAuth ${cfg.token}`, file_offset: "0" },
+    body: bytes
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || !body?.h) throw new Error(body?.error?.error_user_msg || body?.error?.message || `Photo upload failed (HTTP ${res.status})`);
+  return String(body.h);
+}
+async function createTemplate(cfg, name, body, example, headerHandle) {
   const components = [];
+  if (headerHandle) components.push({ type: "HEADER", format: "IMAGE", example: { header_handle: [headerHandle] } });
   components.push({ type: "BODY", text: body, ...example.length ? { example: { body_text: [example] } } : {} });
   const res = await graph(cfg, `${cfg.wabaId}/message_templates`, {
     method: "POST",
@@ -128,6 +167,11 @@ async function findTemplateByName(cfg, name) {
 
 // supabase/functions/wa-template/index.ts
 var COLS = "id, kind, name, language, body, status, reason, created_at, updated_at";
+var errText = (e) => e instanceof Error ? e.message : String(e);
+function photoHandle(cfg) {
+  let p = null;
+  return () => p ??= uploadSamplePhoto(cfg);
+}
 Deno.serve(async (req) => {
   const pre = preflight(req);
   if (pre) return pre;
@@ -140,24 +184,24 @@ Deno.serve(async (req) => {
   if (!await isMember(admin, user.id, businessId)) return json({ error: "Not allowed" }, 403);
   const cfg = await metaConfig(admin, businessId);
   if (!cfg.wabaId || !cfg.token) return json({ error: "WhatsApp is not connected yet (WHATSAPP_WABA_ID / WHATSAPP_ACCESS_TOKEN missing)" }, 400);
+  const getPhoto = photoHandle(cfg);
   const warnings = [];
-  if (action === "standard") {
+  if (action === "standard" || action === "submit_standard") {
     const { data: ch } = await admin.from("business_channels").select("*").eq("business_id", businessId).maybeSingle();
     const env2 = (k) => Deno.env.get(k) ?? "";
-    const list = [
-      { kind: "initial", col: "whatsapp_template_initial", key: "WHATSAPP_TEMPLATE_INITIAL", def: "review_request" },
-      { kind: "initial_image", col: "whatsapp_template_initial_image", key: "WHATSAPP_TEMPLATE_INITIAL_IMAGE", def: "review_request_image" },
-      { kind: "followup", col: "whatsapp_template_followup", key: "WHATSAPP_TEMPLATE_FOLLOWUP", def: "review_followup" },
-      { kind: "followup_image", col: "whatsapp_template_followup_image", key: "WHATSAPP_TEMPLATE_FOLLOWUP_IMAGE", def: "review_followup_image" }
-    ];
     const standard = [];
-    for (const t of list) {
+    for (const t of STANDARD_TEMPLATES) {
       const name = ch?.[t.col] || env2(t.key) || t.def;
       try {
-        const found = await findTemplateByName(cfg, name);
+        let found = await findTemplateByName(cfg, name);
+        if (!found && action === "submit_standard") {
+          const header = t.kind.endsWith("_image") ? await getPhoto() : void 0;
+          const created = await createTemplate(cfg, name, t.body, STANDARD_EXAMPLE, header);
+          found = { id: created.id, status: created.status, reason: null, language: cfg.lang };
+        }
         standard.push({ kind: t.kind, name, status: found ? found.status : "not_created", reason: found?.reason ?? null });
       } catch (e) {
-        standard.push({ kind: t.kind, name, status: "failed", reason: e instanceof Error ? e.message : String(e) });
+        standard.push({ kind: t.kind, name, status: "failed", reason: errText(e) });
       }
     }
     return json({ ok: true, standard });
@@ -174,16 +218,18 @@ Deno.serve(async (req) => {
     for (const job of jobs) {
       const built = buildTemplateBody(job.source, vars);
       const base = { business_id: businessId, language: cfg.lang, body: built.body, params: built.params };
-      const name = templateName(businessId, job.kind);
-      try {
-        if (!built.params.includes("review_link")) throw new Error("The message must include the Review Link");
-        const created = await createTemplate(cfg, name, built.body, built.example);
-        await admin.from("whatsapp_templates").insert({ ...base, kind: job.kind, name, status: created.status, meta_template_id: created.id });
-      } catch (e) {
-        await admin.from("whatsapp_templates").insert({ ...base, kind: job.kind, name, status: "failed", reason: e instanceof Error ? e.message : String(e) });
-      }
       const photoKind = job.kind === "initial" ? "initial_image" : "followup_image";
-      await admin.from("whatsapp_templates").insert({ ...base, kind: photoKind, name: templateName(businessId, photoKind), status: "not_created" });
+      for (const kind of [job.kind, photoKind]) {
+        const name = templateName(businessId, kind);
+        try {
+          if (!built.params.includes("review_link")) throw new Error("The message must include the Review Link");
+          const header = kind === photoKind ? await getPhoto() : void 0;
+          const created = await createTemplate(cfg, name, built.body, built.example, header);
+          await admin.from("whatsapp_templates").insert({ ...base, kind, name, status: created.status, meta_template_id: created.id });
+        } catch (e) {
+          await admin.from("whatsapp_templates").insert({ ...base, kind, name, status: "failed", reason: errText(e) });
+        }
+      }
     }
   }
   const { data: open } = await admin.from("whatsapp_templates").select("id, name").eq("business_id", businessId).in("status", ["not_created", "pending", "paused"]);
@@ -194,7 +240,7 @@ Deno.serve(async (req) => {
         await admin.from("whatsapp_templates").update({ status: found.status, reason: found.reason, meta_template_id: found.id, language: found.language }).eq("id", t.id);
       }
     } catch (e) {
-      warnings.push(e instanceof Error ? e.message : String(e));
+      warnings.push(errText(e));
     }
   }
   const { data: rows } = await admin.from("whatsapp_templates").select(COLS).eq("business_id", businessId).order("created_at", { ascending: false }).limit(30);

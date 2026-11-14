@@ -1,13 +1,13 @@
 // src/pages/Messaging.tsx
 import { forwardRef, useEffect, useRef, useState } from 'react'
-import { Bell, CircleCheck, Clock, Calendar, Copy, ExternalLink, ImagePlus, MessageCircle, MessageSquare, RefreshCw, Sparkles, TrendingUp, Trash2, CircleStop } from 'lucide-react'
+import { Bell, CircleCheck, Clock, Calendar,  ImagePlus, MessageCircle, MessageSquare, RefreshCw, Sparkles, TrendingUp, Trash2, CircleStop } from 'lucide-react'
 import { Badge, Button, Card, Input, Label, PageHeader, Segmented, Textarea, Toggle } from '../components/ui/primitives'
 import { IncomingBubble, OutgoingBubble, PhoneMockup } from '../components/ui/PhoneMockup'
 import { Modal } from '../components/ui/Modal'
 import { useStore } from '../store/AppStore'
 import { useToast } from '../components/ui/Toast'
 import { brand } from '../config/brand'
-import { cn, copyText, fillTemplate, isEmail, isPhone, timeAgo } from '../lib/utils'
+import { cn, fillTemplate, isEmail, isPhone, timeAgo } from '../lib/utils'
 import type { WaStandardTemplate, WaTemplate, WaTemplateKind, WaTemplateStatus } from '../types'
 
 const SAMPLE = 'Jessica'
@@ -66,24 +66,26 @@ function PreviewImage({ src }: { src: string }) {
   )
 }
 
-/** Status of the 4 standard templates created in WhatsApp Manager. */
+/** The 4 standard templates: submitted to Meta from here, with their approval status. */
 function StandardTemplates() {
-  const { mode, checkStandardTemplates } = useStore()
+  const { mode, checkStandardTemplates, submitStandardTemplates } = useStore()
   const [list, setList] = useState<WaStandardTemplate[] | null>(null)
-  const [busy, setBusy] = useState(false)
+  const [busy, setBusy] = useState<'' | 'check' | 'submit'>('')
   const [error, setError] = useState('')
 
-  const check = async () => {
-    setBusy(true)
+  const run = async (what: 'check' | 'submit') => {
+    setBusy(what)
     setError('')
     try {
-      setList(await checkStandardTemplates())
+      setList(await (what === 'submit' ? submitStandardTemplates() : checkStandardTemplates()))
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not check WhatsApp')
+      setError(e instanceof Error ? e.message : 'Could not reach WhatsApp')
     } finally {
-      setBusy(false)
+      setBusy('')
     }
   }
+  const check = () => run('check')
+  const missing = list?.some((t) => t.status === 'not_created' || t.status === 'failed')
 
   useEffect(() => {
     check()
@@ -97,11 +99,18 @@ function StandardTemplates() {
           <p className="flex items-center gap-2 text-[17px] font-semibold">
             <MessageCircle className="size-5 text-[#25D366]" /> WhatsApp templates
           </p>
-          <p className="mt-0.5 text-sm text-muted">Standard messages, approved in WhatsApp Manager. Used for Smart Messaging and until a Custom Message is approved.</p>
+          <p className="mt-0.5 text-sm text-muted">Standard messages, sent to WhatsApp for approval. Used for Smart Messaging and until a Custom Message is approved.</p>
         </div>
-        <Button size="sm" variant="outline" icon={RefreshCw} disabled={busy} onClick={check}>
-          {busy ? 'Checking…' : 'Check WhatsApp'}
-        </Button>
+        <div className="flex gap-2">
+          {missing && (
+            <Button size="sm" disabled={!!busy} onClick={() => run('submit')}>
+              {busy === 'submit' ? 'Submitting…' : 'Submit to WhatsApp'}
+            </Button>
+          )}
+          <Button size="sm" variant="outline" icon={RefreshCw} disabled={!!busy} onClick={check}>
+            {busy === 'check' ? 'Checking…' : 'Check WhatsApp'}
+          </Button>
+        </div>
       </div>
       {error && <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">{error}</p>}
       {list && (
@@ -114,10 +123,11 @@ function StandardTemplates() {
                 </span>
                 <Badge tone={STATUS_STYLE[t.status].tone}>{STATUS_STYLE[t.status].label}</Badge>
               </div>
+              <p className="mt-1.5 text-xs leading-relaxed text-muted">
+                {t.kind.endsWith('_image') && <span className="font-medium text-ink/70">[Photo] </span>}
+                {STANDARD_BODY[t.kind]}
+              </p>
               {t.reason && <p className="mt-1.5 text-xs text-red-600">{t.reason}</p>}
-              {t.status === 'not_created' && (
-                <ManualSteps t={{ id: t.kind, kind: t.kind, name: t.name, language: 'en', body: STANDARD_BODY[t.kind], status: 'not_created', reason: null, createdAt: '' }} image={t.kind.endsWith('_image')} />
-              )}
             </li>
           ))}
         </ul>
@@ -127,55 +137,13 @@ function StandardTemplates() {
   )
 }
 const STATUS_STYLE: Record<WaTemplateStatus, { label: string; tone: 'green' | 'amber' | 'red' | 'gray' }> = {
-  not_created: { label: 'Create it in WhatsApp Manager', tone: 'gray' },
+  not_created: { label: 'Not submitted yet', tone: 'gray' },
   pending: { label: 'Waiting for WhatsApp approval', tone: 'amber' },
   approved: { label: 'Approved · ready to send', tone: 'green' },
   rejected: { label: 'Rejected', tone: 'red' },
   failed: { label: 'Not submitted', tone: 'red' },
   paused: { label: 'Paused by WhatsApp', tone: 'amber' },
   disabled: { label: 'Disabled by WhatsApp', tone: 'red' },
-}
-
-function CopyField({ label, value }: { label: string; value: string }) {
-  const toast = useToast()
-  return (
-    <div>
-      <p className="text-[11px] font-medium uppercase tracking-wide text-muted">{label}</p>
-      <div className="mt-1 flex items-start gap-2">
-        <code className="flex-1 whitespace-pre-line break-all rounded-md bg-canvas px-2 py-1.5 text-xs text-ink">{value}</code>
-        <button
-          type="button"
-          onClick={async () => toast((await copyText(value)) ? `${label} copied` : 'Could not copy', 'success')}
-          className="rounded-md p-1.5 text-muted hover:bg-canvas hover:text-ink"
-          aria-label={`Copy ${label}`}
-        >
-          <Copy className="size-3.5" />
-        </button>
-      </div>
-    </div>
-  )
-}
-
-/** Exact steps to create a template by hand in WhatsApp Manager. */
-function ManualSteps({ t, image = true }: { t: WaTemplate; image?: boolean }) {
-  return (
-    <div className="mt-2.5 space-y-2.5 rounded-lg border border-dashed border-line p-3">
-      <p className="text-xs text-ink/85">
-        In <b>WhatsApp Manager → Message templates → Create</b>: category <b>Marketing</b>, language <b>{t.language}</b>,{' '}
-        {image ? <>header <b>Image</b> (any sample photo),</> : <>no header,</>} and this exact name and body. Then click <b>Check WhatsApp</b>.
-      </p>
-      <CopyField label="Template name" value={t.name} />
-      <CopyField label="Body" value={t.body} />
-      <a
-        href="https://business.facebook.com/wa/manage/message-templates/"
-        target="_blank"
-        rel="noreferrer"
-        className="inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline"
-      >
-        Open WhatsApp Manager <ExternalLink className="size-3" />
-      </a>
-    </div>
-  )
 }
 
 /** Latest WhatsApp template per kind, with approval status. */
@@ -230,10 +198,10 @@ function WhatsAppApproval({
             </div>
             {t && (
               <>
-                {t.status === 'not_created' ? <ManualSteps t={t} /> : <p className="mt-1.5 whitespace-pre-line text-xs leading-relaxed text-muted">{t.body}</p>}
+                <p className="mt-1.5 whitespace-pre-line text-xs leading-relaxed text-muted">{t.body}</p>
                 {t.reason && <p className={cn('mt-1.5 text-xs', t.status === 'approved' ? 'text-muted' : 'text-red-600')}>{t.reason}</p>}
                 <p className="mt-1 text-[11px] text-muted/80">
-                  {t.status === 'not_created' ? 'Added' : 'Submitted'} {timeAgo(t.createdAt)} · {t.name}
+                  Submitted {timeAgo(t.createdAt)} · {t.name}
                 </p>
               </>
             )}
