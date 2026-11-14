@@ -55,12 +55,12 @@ const STANDARD_BODY: Record<WaTemplateKind, string> = {
 }
 
 /** Photo with the sample customer's name, as customers receive it */
-function PreviewImage({ src }: { src: string }) {
+function PreviewImage({ src, name }: { src: string; name: string }) {
   return (
     <div className="ml-auto w-[86%] overflow-hidden rounded-2xl">
       <div className="relative aspect-[4/3] bg-gradient-to-br from-brand-500 to-brand-800">
         <img src={src} alt="Personalized" className="size-full object-cover" />
-        <span className="absolute bottom-2.5 left-1/2 -translate-x-1/2 rounded-md bg-white px-2.5 py-0.5 text-lg font-bold text-ink shadow">{SAMPLE}!</span>
+        <span className="absolute bottom-2.5 left-1/2 -translate-x-1/2 rounded-md bg-white px-2.5 py-0.5 text-lg font-bold text-ink shadow">{name}!</span>
       </div>
     </div>
   )
@@ -303,14 +303,16 @@ export default function Messaging() {
   }
   const customRef = useRef<HTMLTextAreaElement>(null)
 
-  const vars = { first_name: SAMPLE, business_name: m.businessName, owner_name: m.ownerFirstName }
+  // Preview shows the Owner First Name once it's filled in, so the owner sees the message as a customer would
+  const sample = (m.ownerFirstName ?? '').trim() || SAMPLE
+  const vars = { first_name: sample, business_name: m.businessName, owner_name: m.ownerFirstName }
   const initialText =
     m.mode === 'smart'
-      ? `Hey ${SAMPLE}, we hope you enjoyed your experience with ${m.businessName}! Would you mind taking a moment to leave a review? Here's the link: {review_link}`
+      ? `Hey ${sample}, we hope you enjoyed your experience with ${m.businessName}! Would you mind taking a moment to leave a review? Here's the link: {review_link}`
       : fillTemplate(m.customMessage, vars)
   const followText =
     m.mode === 'smart'
-      ? `Hey ${SAMPLE}, just wanted to quickly follow up. We'd really appreciate your feedback! {review_link}`
+      ? `Hey ${sample}, just wanted to quickly follow up. We'd really appreciate your feedback! {review_link}`
       : fillTemplate(m.customFollowUp, vars)
 
   const onImage = async (file: File) => {
@@ -349,7 +351,7 @@ export default function Messaging() {
         <div className="lg:sticky lg:top-8 lg:self-start">
           <PhoneMockup>
             {/* The business's own photo, or the built-in demo photo until they upload one */}
-            {m.personalizedImage && <PreviewImage src={m.imageDataUrl || DEFAULT_IMAGE} />}
+            {m.personalizedImage && <PreviewImage src={m.imageDataUrl || DEFAULT_IMAGE} name={sample} />}
             <OutgoingBubble time="9:41 AM">
               <Rendered text={initialText} />
             </OutgoingBubble>
@@ -498,7 +500,7 @@ export default function Messaging() {
         {/* Phone preview: sticky and its own height, so a tall settings column can't stretch it */}
         <div className="lg:sticky lg:top-8 lg:self-start">
           <PhoneMockup>
-            {m.personalizedImage && <PreviewImage src={m.imageDataUrl || DEFAULT_IMAGE} />}
+            {m.personalizedImage && <PreviewImage src={m.imageDataUrl || DEFAULT_IMAGE} name={sample} />}
             <OutgoingBubble time="2:30 PM">
               <Rendered text={followText} />
             </OutgoingBubble>
