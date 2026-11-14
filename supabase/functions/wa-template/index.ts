@@ -28,7 +28,7 @@ interface Messaging {
   customFollowUp?: string
 }
 
-const COLS = 'id, kind, name, language, body, status, reason, created_at, updated_at'
+const COLS = 'id, kind, name, language, body, status, reason, category, created_at, updated_at'
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 /** One sample-photo upload per request, shared by every photo template submitted in it. */
@@ -71,11 +71,11 @@ Deno.serve(async (req) => {
         if (!found && action === 'submit_standard') {
           const header = t.kind.endsWith('_image') ? await getPhoto() : undefined
           const created = await createTemplate(cfg, name, t.body, STANDARD_EXAMPLE, header)
-          found = { id: created.id, status: created.status, reason: null, language: cfg.lang }
+          found = { id: created.id, status: created.status, reason: null, language: cfg.lang, category: created.category }
         }
-        standard.push({ kind: t.kind, name, status: found ? found.status : 'not_created', reason: found?.reason ?? null })
+        standard.push({ kind: t.kind, name, status: found ? found.status : 'not_created', reason: found?.reason ?? null, category: found?.category ?? null })
       } catch (e) {
-        standard.push({ kind: t.kind, name, status: 'failed', reason: errText(e) })
+        standard.push({ kind: t.kind, name, status: 'failed', reason: errText(e), category: null })
       }
     }
     return json({ ok: true, standard })
@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
           if (!built.params.includes('review_link')) throw new Error('The message must include the Review Link')
           const header = kind === photoKind ? await getPhoto() : undefined
           const created = await createTemplate(cfg, name, built.body, built.example, header)
-          await admin.from('whatsapp_templates').insert({ ...base, kind, name, status: created.status, meta_template_id: created.id })
+          await admin.from('whatsapp_templates').insert({ ...base, kind, name, status: created.status, category: created.category, meta_template_id: created.id })
         } catch (e) {
           await admin.from('whatsapp_templates').insert({ ...base, kind, name, status: 'failed', reason: errText(e) })
         }
@@ -117,12 +117,12 @@ Deno.serve(async (req) => {
     .from('whatsapp_templates')
     .select('id, name')
     .eq('business_id', businessId)
-    .in('status', ['not_created', 'pending', 'paused'])
+    .or('status.in.(not_created,pending,paused),and(status.eq.approved,category.is.null)')
   for (const t of open ?? []) {
     try {
       const found = await findTemplateByName(cfg, t.name)
       if (found) {
-        await admin.from('whatsapp_templates').update({ status: found.status, reason: found.reason, meta_template_id: found.id, language: found.language }).eq('id', t.id)
+        await admin.from('whatsapp_templates').update({ status: found.status, reason: found.reason, meta_template_id: found.id, language: found.language, category: found.category }).eq('id', t.id)
       }
     } catch (e) {
       warnings.push(errText(e))

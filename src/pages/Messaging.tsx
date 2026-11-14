@@ -121,7 +121,10 @@ function StandardTemplates() {
                 <span className="text-sm font-medium">
                   {KIND_LABEL[t.kind]} <span className="font-mono text-xs text-muted">· {t.name}</span>
                 </span>
-                <Badge tone={STATUS_STYLE[t.status].tone}>{STATUS_STYLE[t.status].label}</Badge>
+                <span className="flex flex-wrap gap-1.5">
+                  <CategoryBadge category={t.category} />
+                  <Badge tone={STATUS_STYLE[t.status].tone}>{STATUS_STYLE[t.status].label}</Badge>
+                </span>
               </div>
               <p className="mt-1.5 text-xs leading-relaxed text-muted">
                 {t.kind.endsWith('_image') && <span className="font-medium text-ink/70">[Photo] </span>}
@@ -136,6 +139,17 @@ function StandardTemplates() {
     </Card>
   )
 }
+/** Marketing / Utility label, as Meta categorised the template (affects the price per message). */
+function CategoryBadge({ category }: { category: string | null }) {
+  if (!category) return null
+  const c = category.toLowerCase()
+  return (
+    <Badge tone={c === 'utility' ? 'green' : 'gray'}>
+      {c === 'utility' ? 'Utility' : c === 'authentication' ? 'Authentication' : 'Marketing'}
+    </Badge>
+  )
+}
+
 const STATUS_STYLE: Record<WaTemplateStatus, { label: string; tone: 'green' | 'amber' | 'red' | 'gray' }> = {
   not_created: { label: 'Not submitted yet', tone: 'gray' },
   pending: { label: 'Waiting for WhatsApp approval', tone: 'amber' },
@@ -191,7 +205,10 @@ function WhatsAppApproval({
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-sm font-medium">{KIND_LABEL[kind]}</span>
               {t ? (
-                <Badge tone={STATUS_STYLE[t.status].tone}>{STATUS_STYLE[t.status].label}</Badge>
+                <span className="flex flex-wrap gap-1.5">
+                  <CategoryBadge category={t.category} />
+                  <Badge tone={STATUS_STYLE[t.status].tone}>{STATUS_STYLE[t.status].label}</Badge>
+                </span>
               ) : (
                 <Badge tone="gray">Not submitted yet</Badge>
               )}

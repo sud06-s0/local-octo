@@ -69,6 +69,8 @@ export interface WaTemplate {
   body: string
   status: WaTemplateStatus
   reason: string | null
+  /** Category Meta gave it: marketing, utility or authentication */
+  category: string | null
   createdAt: string
 }
 
@@ -78,6 +80,7 @@ export interface WaStandardTemplate {
   name: string
   status: WaTemplateStatus
   reason: string | null
+  category: string | null
 }
 
 /** A Google search result for "Find your business on Google" */

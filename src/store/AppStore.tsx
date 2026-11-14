@@ -101,6 +101,7 @@ const toWaTemplate = (r: Row): WaTemplate => ({
   body: r.body,
   status: r.status,
   reason: r.reason ?? null,
+  category: r.category ?? null,
   createdAt: r.created_at,
 })
 
@@ -233,7 +234,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         c.from('reviews').select('*').eq('business_id', bid).order('review_created_at', { ascending: false }).limit(500),
         c.from('notifications').select('*').eq('business_id', bid).order('created_at', { ascending: false }).limit(100),
         c.from('social_posts').select('*').eq('business_id', bid).order('created_at', { ascending: false }).limit(50),
-        c.from('whatsapp_templates').select('id, kind, name, language, body, status, reason, created_at').eq('business_id', bid).order('created_at', { ascending: false }).limit(30),
+        c.from('whatsapp_templates').select('*').eq('business_id', bid).order('created_at', { ascending: false }).limit(30),
       ])
       // whatsapp_templates comes from the second migration; don't fail the whole load if it isn't run yet
       setWaTemplates(templates.error ? [] : (templates.data ?? []).map(toWaTemplate))
@@ -499,6 +500,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
           body,
           status,
           reason: null,
+          category: 'marketing',
           createdAt: now,
         })
         const rows: WaTemplate[] = []
@@ -527,10 +529,10 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const checkStandardTemplates = useCallback(async (): Promise<WaStandardTemplate[]> => {
     if (!isLive) {
       return [
-        { kind: 'initial', name: 'review_request', status: 'approved', reason: null },
-        { kind: 'initial_image', name: 'review_request_image', status: 'approved', reason: null },
-        { kind: 'followup', name: 'review_followup', status: 'pending', reason: null },
-        { kind: 'followup_image', name: 'review_followup_image', status: 'not_created', reason: null },
+        { kind: 'initial', name: 'review_request', status: 'approved', reason: null, category: 'marketing' },
+        { kind: 'initial_image', name: 'review_request_image', status: 'approved', reason: null, category: 'marketing' },
+        { kind: 'followup', name: 'review_followup', status: 'pending', reason: null, category: 'marketing' },
+        { kind: 'followup_image', name: 'review_followup_image', status: 'not_created', reason: null, category: null },
       ]
     }
     const res = await invokeFn<{ standard: WaStandardTemplate[] }>('wa-template', { businessId: activeId, action: 'standard' })
@@ -540,7 +542,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const submitStandardTemplates = useCallback(async (): Promise<WaStandardTemplate[]> => {
     if (!isLive) {
       const list = await checkStandardTemplates()
-      return list.map((t) => (t.status === 'not_created' || t.status === 'failed' ? { ...t, status: 'pending', reason: null } : t))
+      return list.map((t) => (t.status === 'not_created' || t.status === 'failed' ? { ...t, status: 'pending', reason: null, category: 'marketing' } : t))
     }
     const res = await invokeFn<{ standard: WaStandardTemplate[] }>('wa-template', { businessId: activeId, action: 'submit_standard' })
     return res.standard

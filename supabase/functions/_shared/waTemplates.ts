@@ -142,7 +142,7 @@ export async function createTemplate(
   body: string,
   example: string[],
   headerHandle?: string,
-): Promise<{ id: string; status: string }> {
+): Promise<{ id: string; status: string; category: string | null }> {
   const components: unknown[] = []
   if (headerHandle) components.push({ type: 'HEADER', format: 'IMAGE', example: { header_handle: [headerHandle] } })
   components.push({ type: 'BODY', text: body, ...(example.length ? { example: { body_text: [example] } } : {}) })
@@ -151,20 +151,20 @@ export async function createTemplate(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, language: cfg.lang, category: 'MARKETING', components }),
   })
-  return { id: String(res.id), status: mapStatus(res.status) }
+  return { id: String(res.id), status: mapStatus(res.status), category: res.category ? String(res.category).toLowerCase() : 'marketing' }
 }
 
 /** Looks a template up by exact name in the WhatsApp Business Account (works for API- and hand-made ones). */
 export async function findTemplateByName(
   cfg: MetaConfig,
   name: string,
-): Promise<{ id: string; status: string; reason: string | null; language: string } | null> {
-  const res = await graph(cfg, `${cfg.wabaId}/message_templates?name=${encodeURIComponent(name)}&fields=id,name,status,rejected_reason,language&limit=50`)
+): Promise<{ id: string; status: string; reason: string | null; language: string; category: string | null } | null> {
+  const res = await graph(cfg, `${cfg.wabaId}/message_templates?name=${encodeURIComponent(name)}&fields=id,name,status,rejected_reason,language,category&limit=50`)
   const hit = (res.data ?? []).find((t: { name: string; language: string }) => t.name === name && (!cfg.lang || t.language === cfg.lang))
     ?? (res.data ?? []).find((t: { name: string }) => t.name === name)
   if (!hit) return null
   const reason = hit.rejected_reason && hit.rejected_reason !== 'NONE' ? String(hit.rejected_reason) : null
-  return { id: String(hit.id), status: mapStatus(hit.status), reason, language: hit.language }
+  return { id: String(hit.id), status: mapStatus(hit.status), reason, language: hit.language, category: hit.category ? String(hit.category).toLowerCase() : null }
 }
 
 export interface ApprovedTemplate {

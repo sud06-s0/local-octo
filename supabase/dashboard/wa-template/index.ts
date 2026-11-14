@@ -1,8 +1,5 @@
 // supabase/dashboard/wa-template/index.ts
-// Self-contained copy of supabase/functions/wa-template for pasting into the Supabase dashboard editor.
-// Function name in Supabase must be exactly: wa-template   ·   Turn OFF "Verify JWT" for this function.
-// @ts-nocheck  (bundled JavaScript — the typed source lives in supabase/functions)
-
+// @ts-nocheck
 // supabase/functions/_shared/supabase.ts
 import { createClient } from "npm:@supabase/supabase-js@2";
 function secretKey() {
@@ -155,18 +152,18 @@ async function createTemplate(cfg, name, body, example, headerHandle) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, language: cfg.lang, category: "MARKETING", components })
   });
-  return { id: String(res.id), status: mapStatus(res.status) };
+  return { id: String(res.id), status: mapStatus(res.status), category: res.category ? String(res.category).toLowerCase() : "marketing" };
 }
 async function findTemplateByName(cfg, name) {
-  const res = await graph(cfg, `${cfg.wabaId}/message_templates?name=${encodeURIComponent(name)}&fields=id,name,status,rejected_reason,language&limit=50`);
+  const res = await graph(cfg, `${cfg.wabaId}/message_templates?name=${encodeURIComponent(name)}&fields=id,name,status,rejected_reason,language,category&limit=50`);
   const hit = (res.data ?? []).find((t) => t.name === name && (!cfg.lang || t.language === cfg.lang)) ?? (res.data ?? []).find((t) => t.name === name);
   if (!hit) return null;
   const reason = hit.rejected_reason && hit.rejected_reason !== "NONE" ? String(hit.rejected_reason) : null;
-  return { id: String(hit.id), status: mapStatus(hit.status), reason, language: hit.language };
+  return { id: String(hit.id), status: mapStatus(hit.status), reason, language: hit.language, category: hit.category ? String(hit.category).toLowerCase() : null };
 }
 
 // supabase/functions/wa-template/index.ts
-var COLS = "id, kind, name, language, body, status, reason, created_at, updated_at";
+var COLS = "id, kind, name, language, body, status, reason, category, created_at, updated_at";
 var errText = (e) => e instanceof Error ? e.message : String(e);
 function photoHandle(cfg) {
   let p = null;
@@ -197,11 +194,11 @@ Deno.serve(async (req) => {
         if (!found && action === "submit_standard") {
           const header = t.kind.endsWith("_image") ? await getPhoto() : void 0;
           const created = await createTemplate(cfg, name, t.body, STANDARD_EXAMPLE, header);
-          found = { id: created.id, status: created.status, reason: null, language: cfg.lang };
+          found = { id: created.id, status: created.status, reason: null, language: cfg.lang, category: created.category };
         }
-        standard.push({ kind: t.kind, name, status: found ? found.status : "not_created", reason: found?.reason ?? null });
+        standard.push({ kind: t.kind, name, status: found ? found.status : "not_created", reason: found?.reason ?? null, category: found?.category ?? null });
       } catch (e) {
-        standard.push({ kind: t.kind, name, status: "failed", reason: errText(e) });
+        standard.push({ kind: t.kind, name, status: "failed", reason: errText(e), category: null });
       }
     }
     return json({ ok: true, standard });
@@ -225,19 +222,19 @@ Deno.serve(async (req) => {
           if (!built.params.includes("review_link")) throw new Error("The message must include the Review Link");
           const header = kind === photoKind ? await getPhoto() : void 0;
           const created = await createTemplate(cfg, name, built.body, built.example, header);
-          await admin.from("whatsapp_templates").insert({ ...base, kind, name, status: created.status, meta_template_id: created.id });
+          await admin.from("whatsapp_templates").insert({ ...base, kind, name, status: created.status, category: created.category, meta_template_id: created.id });
         } catch (e) {
           await admin.from("whatsapp_templates").insert({ ...base, kind, name, status: "failed", reason: errText(e) });
         }
       }
     }
   }
-  const { data: open } = await admin.from("whatsapp_templates").select("id, name").eq("business_id", businessId).in("status", ["not_created", "pending", "paused"]);
+  const { data: open } = await admin.from("whatsapp_templates").select("id, name").eq("business_id", businessId).or("status.in.(not_created,pending,paused),and(status.eq.approved,category.is.null)");
   for (const t of open ?? []) {
     try {
       const found = await findTemplateByName(cfg, t.name);
       if (found) {
-        await admin.from("whatsapp_templates").update({ status: found.status, reason: found.reason, meta_template_id: found.id, language: found.language }).eq("id", t.id);
+        await admin.from("whatsapp_templates").update({ status: found.status, reason: found.reason, meta_template_id: found.id, language: found.language, category: found.category }).eq("id", t.id);
       }
     } catch (e) {
       warnings.push(errText(e));

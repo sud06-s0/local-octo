@@ -16,7 +16,7 @@ Follow the steps in order. Commands run from the project folder (`local-octo-app
 ## 2. Create the database
 **Option A, no CLI:** open **SQL Editor → New query**, paste all of
 `supabase/migrations/20261112000001_init.sql`, and click **Run**. Then do the same with
-`supabase/migrations/20261113000001_whatsapp_templates.sql`, `20261113000002_wa_manual_templates.sql`, `20261113000003_personal_image_default.sql`, `20261113000004_followup_image.sql` and `20261113000005_google_places.sql`, in that order.
+`supabase/migrations/20261113000001_whatsapp_templates.sql`, `20261113000002_wa_manual_templates.sql`, `20261113000003_personal_image_default.sql`, `20261113000004_followup_image.sql`, `20261113000005_google_places.sql` and `20261114000001_template_category.sql`, in that order.
 
 **Option B, CLI:**
 ```bash
