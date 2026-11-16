@@ -24,7 +24,7 @@ const groups: Array<{ title: string; items: Array<{ id: string; name: string; de
   {
     title: 'Messaging',
     items: [
-      { id: 'whatsapp', name: 'WhatsApp Business', desc: 'Send review requests on WhatsApp (Meta Cloud API)', icon: <IconTile bg="bg-[#25D366]"><MessageCircle className="size-5 text-white" /></IconTile> },
+      { id: 'whatsapp', name: 'WhatsApp Business', desc: 'Send review requests on WhatsApp (Meta Cloud API)', icon: <IconTile bg="bg-brand-700"><MessageCircle className="size-5 text-white" /></IconTile> },
       { id: 'email', name: 'Email', desc: 'Send requests from your own domain', icon: <IconTile><Mail className="size-5 text-brand-700" /></IconTile> },
       { id: 'sms', name: 'SMS (DLT)', desc: 'TRAI DLT-registered SMS via MSG91', icon: <IconTile><Smartphone className="size-5 text-brand-700" /></IconTile> },
     ],
@@ -32,18 +32,18 @@ const groups: Array<{ title: string; items: Array<{ id: string; name: string; de
   {
     title: 'CRM & Automation',
     items: [
-      { id: 'zapier', name: 'Zapier', desc: 'Add contacts from 6,000+ apps', icon: <Letter text="Z" bg="#ff4f00" /> },
-      { id: 'pabbly', name: 'Pabbly Connect', desc: 'Automate contact sync from your tools', icon: <Letter text="P" bg="#1d4ed8" /> },
+      { id: 'zapier', name: 'Zapier', desc: 'Add contacts from 6,000+ apps', icon: <Letter text="Z" bg="#9a4dff" /> },
+      { id: 'pabbly', name: 'Pabbly Connect', desc: 'Automate contact sync from your tools', icon: <Letter text="P" bg="#7b2ff2" /> },
       { id: 'webhooks', name: 'Webhooks', desc: 'Push contacts in from any system', icon: <IconTile><Webhook className="size-5 text-brand-700" /></IconTile> },
-      { id: 'jobber', name: 'Jobber', desc: 'Send a request when a job is completed', icon: <Letter text="J" bg="#0b3d2e" /> },
-      { id: 'housecall', name: 'Housecall Pro', desc: 'Send a request when a job is completed', icon: <Letter text="H" bg="#0b6cff" /> },
+      { id: 'jobber', name: 'Jobber', desc: 'Send a request when a job is completed', icon: <Letter text="J" bg="#5a1fb0" /> },
+      { id: 'housecall', name: 'Housecall Pro', desc: 'Send a request when a job is completed', icon: <Letter text="H" bg="#b06cff" /> },
     ],
   },
   {
     title: 'Payments',
     items: [
-      { id: 'quickbooks', name: 'QuickBooks Online', desc: 'Send a request when an invoice is paid', icon: <Letter text="QB" bg="#2ca01c" /> },
-      { id: 'square', name: 'Square', desc: 'Send a request after a payment', icon: <Letter text="■" bg="#111" /> },
+      { id: 'quickbooks', name: 'QuickBooks Online', desc: 'Send a request when an invoice is paid', icon: <Letter text="QB" bg="#8233ea" /> },
+      { id: 'square', name: 'Square', desc: 'Send a request after a payment', icon: <Letter text="■" bg="#3d1a7a" /> },
     ],
   },
   {

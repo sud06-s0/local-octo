@@ -20,7 +20,7 @@ function SiteThumb({ name, headline, accent }: { name: string; headline: string;
           <span className="h-1.5 w-8 rounded bg-brand-500" />
         </span>
       </div>
-      <div className="flex h-[calc(100%-29px)] gap-3 p-4" style={{ background: `linear-gradient(120deg, ${accent} 0%, ${accent}cc 60%, ${accent}88 100%)` }}>
+      <div className="flex h-[calc(100%-29px)] gap-3 p-4" style={{ background: accent }}>
         <div className="flex-1">
           <span className="mb-2 inline-block h-1.5 w-16 rounded bg-brand-300/80" />
           <p className="text-[15px] font-bold leading-tight text-white">{headline}</p>
@@ -61,8 +61,7 @@ export default function Websites() {
       </p>
 
       {/* Hero video / visual */}
-      <div className="relative mt-8 overflow-hidden rounded-2xl bg-gradient-to-br from-brand-900 via-brand-700 to-brand-500 shadow-sm">
-        <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 20% 20%, #fff 0, transparent 40%), radial-gradient(circle at 80% 70%, #b9dfc3 0, transparent 35%)' }} />
+      <div className="relative mt-8 overflow-hidden rounded-2xl bg-brand-800 shadow-sm">
         <div className="relative grid gap-6 p-6 sm:p-10 md:grid-cols-[1.1fr_1fr] md:items-center">
           <div>
             <p className="text-[22px] font-semibold text-white sm:text-[26px]">Websites Built to Rank and Convert Reviews</p>
@@ -73,7 +72,7 @@ export default function Websites() {
             </ul>
           </div>
           <div className="relative">
-            <SiteThumb name="Your Business" headline="Top-rated service in your city" accent="#0e1546" />
+            <SiteThumb name="Your Business" headline="Top-rated service in your city" accent="#5a1fb0" />
             {brand.websitesVideoUrl && (
               <button
                 onClick={() => setVideoOpen(true)}

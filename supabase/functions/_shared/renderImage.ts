@@ -19,8 +19,8 @@ function font(): Uint8Array {
 export async function renderReviewImage(photoUrl: string | null, firstName: string): Promise<Uint8Array> {
   photoUrl = photoUrl || defaultPhotoUrl()
 
-  // Background: the business photo (or demo photo), cover-cropped to 800x600; brand green only if it can't be loaded
-  let canvas = new Image(W, H).fill(Image.rgbaToColor(23, 103, 46, 255))
+  // Background: the business photo (or demo photo), cover-cropped to 800x600; brand purple only if it can't be loaded
+  let canvas = new Image(W, H).fill(Image.rgbaToColor(154, 77, 255, 255))
   if (photoUrl && /^https?:\/\//i.test(photoUrl)) {
     try {
       const res = await fetch(photoUrl)

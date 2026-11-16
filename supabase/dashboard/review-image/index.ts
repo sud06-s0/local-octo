@@ -60,7 +60,7 @@ function font() {
 }
 async function renderReviewImage(photoUrl, firstName) {
   photoUrl = photoUrl || defaultPhotoUrl();
-  let canvas = new Image(W, H).fill(Image.rgbaToColor(23, 103, 46, 255));
+  let canvas = new Image(W, H).fill(Image.rgbaToColor(154, 77, 255, 255));
   if (photoUrl && /^https?:\/\//i.test(photoUrl)) {
     try {
       const res = await fetch(photoUrl);

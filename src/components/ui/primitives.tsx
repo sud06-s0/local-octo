@@ -178,7 +178,7 @@ export function Stars({ rating, size = 16, color = 'var(--color-star)', classNam
       {[1, 2, 3, 4, 5].map((i) => (
         <Star
           key={i}
-          style={{ width: size, height: size, color: i <= Math.round(rating) ? color : '#d9dddb' }}
+          style={{ width: size, height: size, color: i <= Math.round(rating) ? color : '#dcd8e6' }}
           fill="currentColor"
           strokeWidth={0}
         />
@@ -254,7 +254,7 @@ export function Segmented<T extends string>({
   className?: string
 }) {
   return (
-    <div className={cn('inline-flex w-full rounded-lg bg-[#eef0f6] p-1 sm:w-auto', className)} role="tablist">
+    <div className={cn('inline-flex w-full rounded-lg bg-[#f1edf9] p-1 sm:w-auto', className)} role="tablist">
       {options.map((o) => {
         const active = o.value === value
         const Icon = o.icon

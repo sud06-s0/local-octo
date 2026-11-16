@@ -49,7 +49,7 @@ const PRESETS: Array<Omit<PostTemplate, 'id'>> = [
   { name: 'Ocean blue', kind: 'preset', textColor: '#ffffff', background: 'linear-gradient(135deg, #0a2fb8 0%, #0a63e0 55%, #1bb3f5 100%)' },
   { name: 'Mountain dusk', kind: 'preset', textColor: '#ffffff', background: 'linear-gradient(180deg, #ffc1b6 0%, #c98bd8 30%, #5a63c9 60%, #1b237a 100%)' },
   { name: 'Mint stripes', kind: 'preset', textColor: '#1d2320', background: 'repeating-linear-gradient(135deg, #b9eadc 0 6px, #ffffff 6px 14px)' },
-  { name: 'Brand blue', kind: 'preset', textColor: '#ffffff', background: 'linear-gradient(135deg, #3d3fd8 0%, #7c3aed 50%, #d946ef 100%)' },
+  { name: 'Brand purple', kind: 'preset', textColor: '#ffffff', background: '#9a4dff' },
   { name: 'Charcoal', kind: 'preset', textColor: '#ffffff', background: 'linear-gradient(160deg, #1d2320 0%, #3a423e 100%)' },
   { name: 'Lavender', kind: 'preset', textColor: '#1d2320', background: 'linear-gradient(160deg, #e9ddff 0%, #f6efff 60%, #ffffff 100%)' },
   { name: 'Golden hour', kind: 'preset', textColor: '#1d2320', background: 'linear-gradient(160deg, #ffe08a 0%, #ffd0a1 50%, #ffb38a 100%)' },
@@ -135,7 +135,7 @@ function CreateTemplate({ onBack, onSave, review, business }: { onBack: () => vo
       <h1 className="mt-6 text-center text-[28px] font-semibold tracking-tight">Create Template</h1>
       <p className="mt-2 text-center text-[16px] text-muted">Choose from our templates or upload your own custom design</p>
 
-      <div className="mt-8 flex rounded-lg bg-[#eef0f6] p-1">
+      <div className="mt-8 flex rounded-lg bg-[#f1edf9] p-1">
         {([
           ['select', 'Select Template', Palette],
           ['upload', 'Upload Custom', Upload],

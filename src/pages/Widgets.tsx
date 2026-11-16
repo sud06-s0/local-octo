@@ -38,7 +38,7 @@ function ColorSettings({ value, onChange }: { value: WidgetColors; onChange: (v:
 
 function EditorShell({ title, desc, preview, footer }: { title: string; desc: string; preview: ReactNode; footer?: ReactNode }) {
   return (
-    <div className="h-full bg-gradient-to-br from-brand-700 via-brand-500 to-brand-300 p-6 text-white sm:p-10">
+    <div className="h-full bg-brand-700 p-6 text-white sm:p-10">
       <h2 className="text-[26px] font-semibold tracking-tight sm:text-[32px]">{title}</h2>
       <p className="mt-2 max-w-md text-[16px] text-white/90">{desc}</p>
       <div className="mt-8">{preview}</div>
@@ -73,7 +73,7 @@ export default function Widgets() {
     <div className="mx-auto max-w-[1030px] space-y-8">
       {/* Send instructions */}
       <Card className="overflow-hidden rounded-2xl">
-        <div className="bg-gradient-to-r from-brand-700 via-brand-500 to-brand-300 px-6 py-6 text-white sm:px-8">
+        <div className="bg-brand-700 px-6 py-6 text-white sm:px-8">
           <h2 className="text-[24px] font-semibold tracking-tight">Send Installation Instructions</h2>
           <p className="mt-1 text-[15px] text-white/90">Email widget installation instructions to whoever manages your website</p>
         </div>
@@ -184,7 +184,7 @@ export default function Widgets() {
                     <p className="text-[18px] font-semibold">What our customers are saying on Google!</p>
                     <p className="text-sm opacity-80">Just a few of our <b>{total}</b> reviews</p>
                   </div>
-                  <a href={state.settings.business.mapsUrl} target="_blank" rel="noreferrer" className="rounded-full bg-[#1a73e8] px-4 py-2 text-center text-sm font-medium text-white">
+                  <a href={state.settings.business.mapsUrl} target="_blank" rel="noreferrer" className="rounded-full bg-brand-700 px-4 py-2 text-center text-sm font-medium text-white">
                     View on Google Maps
                   </a>
                 </div>
@@ -277,7 +277,7 @@ export default function Widgets() {
               </li>
               <li>Save and publish. Reviews update automatically.</li>
             </ol>
-            <pre className="overflow-x-auto rounded-xl bg-[#10241a] p-4 text-[13px] leading-relaxed text-brand-100">{snippet(guide)}</pre>
+            <pre className="overflow-x-auto rounded-xl bg-[#21153a] p-4 text-[13px] leading-relaxed text-brand-100">{snippet(guide)}</pre>
             <Button icon={Copy} onClick={async () => toast((await copyText(snippet(guide))) ? 'Code copied' : 'Could not copy', 'success')}>
               Copy Code
             </Button>

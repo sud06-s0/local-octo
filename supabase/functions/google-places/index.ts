@@ -7,7 +7,7 @@ import { adminClient, getUser, isMember } from '../_shared/supabase.ts'
 import { json, preflight } from '../_shared/http.ts'
 
 const API = 'https://places.googleapis.com/v1'
-const COLORS = ['#2f8c4a', '#c2410c', '#7c3aed', '#0369a1', '#be185d', '#0f766e', '#a16207', '#4338ca']
+const COLORS = ['#9a4dff', '#7b2ff2', '#b06cff', '#5a1fb0', '#8233ea', '#3d1a7a', '#a866ff', '#6b3fa0']
 
 interface GoogleReview {
   name?: string // places/{place}/reviews/{review}

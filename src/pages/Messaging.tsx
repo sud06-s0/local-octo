@@ -58,7 +58,7 @@ const STANDARD_BODY: Record<WaTemplateKind, string> = {
 function PreviewImage({ src, name }: { src: string; name: string }) {
   return (
     <div className="ml-auto w-[86%] overflow-hidden rounded-2xl">
-      <div className="relative aspect-[4/3] bg-gradient-to-br from-brand-500 to-brand-800">
+      <div className="relative aspect-[4/3] bg-brand-600">
         <img src={src} alt="Personalized" className="size-full object-cover" />
         <span className="absolute bottom-2.5 left-1/2 -translate-x-1/2 rounded-md bg-white px-2.5 py-0.5 text-lg font-bold text-ink shadow">{name}!</span>
       </div>
@@ -97,7 +97,7 @@ function StandardTemplates() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="flex items-center gap-2 text-[17px] font-semibold">
-            <MessageCircle className="size-5 text-[#25D366]" /> WhatsApp templates
+            <MessageCircle className="size-5 text-brand-700" /> WhatsApp templates
           </p>
           <p className="mt-0.5 text-sm text-muted">Standard messages, sent to WhatsApp for approval. Used for Smart Messaging and until a Custom Message is approved.</p>
         </div>
@@ -179,7 +179,7 @@ function WhatsAppApproval({
     <div className="mt-5 rounded-xl border border-line bg-canvas/60 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="flex items-center gap-2 text-[15px] font-semibold">
-          <MessageCircle className="size-4 text-[#25D366]" /> WhatsApp approval
+          <MessageCircle className="size-4 text-brand-700" /> WhatsApp approval
         </p>
         <div className="flex gap-2">
           {anyOpen && (

@@ -16,25 +16,25 @@ const contacts: Contact[] = [
 
 const reviews: Review[] = [
   {
-    id: 'r1', author: 'Meera Joshi', avatarColor: '#2f8c4a', rating: 5,
+    id: 'r1', author: 'Meera Joshi', avatarColor: '#9a4dff', rating: 5,
     text: '',
     createdAt: daysAgo(1460), url: '#',
     reply: { source: 'google', at: daysAgo(29), text: 'Thank you, Meera, for the 5-star rating and for choosing Local Octo. We really appreciate your support and look forward to helping your business grow online.' },
   },
   {
-    id: 'r2', author: 'Karan Malhotra', avatarColor: '#c2410c', rating: 5,
+    id: 'r2', author: 'Karan Malhotra', avatarColor: '#7b2ff2', rating: 5,
     text: '',
     createdAt: daysAgo(2190), url: '#',
     reply: { source: 'google', at: daysAgo(29), text: 'Thank you, Karan, for the 5-star rating! We truly appreciate your support and look forward to helping you again with your marketing needs.' },
   },
   {
-    id: 'r3', author: 'Sana Qureshi', avatarColor: '#7c3aed', rating: 5,
+    id: 'r3', author: 'Sana Qureshi', avatarColor: '#b06cff', rating: 5,
     text: '',
     createdAt: daysAgo(2555), url: '#',
     reply: { source: 'google', at: daysAgo(29), text: 'Thank you, Sana, for the 5-star rating! We are glad you had a great experience with Local Octo.' },
   },
   {
-    id: 'r4', author: 'Deepak Rao', avatarColor: '#0369a1', rating: 5,
+    id: 'r4', author: 'Deepak Rao', avatarColor: '#5a1fb0', rating: 5,
     text: 'I wanted to grow my business online and Local Octo made it simple. The team explained everything clearly, set up our Google profile and helped us collect reviews from happy customers. Very practical approach. Highly recommended!',
     createdAt: daysAgo(2920), url: '#',
     reply: { source: 'google', at: daysAgo(29), text: 'Deepak, thank you for the wonderful feedback. We are glad the setup was simple and the results were practical. Wishing your business continued growth!' },
@@ -135,12 +135,12 @@ export const initialState: AppState = {
 
 /** Placeholder portfolio for the Websites page — replace with real Local Octo projects. */
 export const portfolio = [
-  { name: 'BrightNest Cleaning', category: 'House cleaning', city: 'Bengaluru', headline: 'Your home, spotless. Your weekends back.', accent: '#1e3a8a', result: 'Sample result — add real stats' },
-  { name: 'Summit Roofing Co.', category: 'Roofing', city: 'Mysuru', headline: 'Roofs built to last 20+ monsoons', accent: '#0f766e', result: '' },
-  { name: 'PawPatrol Yard Care', category: 'Pet waste removal', city: 'Pune', headline: 'A cleaner yard with a single click.', accent: '#14532d', result: '' },
-  { name: 'Oakline Flooring', category: 'Flooring', city: 'Chennai', headline: 'Top-rated hardwood flooring', accent: '#44403c', result: '' },
-  { name: 'CoolAir Services', category: 'HVAC', city: 'Hyderabad', headline: 'AC repair in 60 minutes or less', accent: '#0369a1', result: '' },
-  { name: 'Haul Away Junk', category: 'Junk removal', city: 'Mumbai', headline: 'Quit staring at that junk.', accent: '#3f6212', result: '' },
+  { name: 'BrightNest Cleaning', category: 'House cleaning', city: 'Bengaluru', headline: 'Your home, spotless. Your weekends back.', accent: '#5a1fb0', result: 'Sample result — add real stats' },
+  { name: 'Summit Roofing Co.', category: 'Roofing', city: 'Mysuru', headline: 'Roofs built to last 20+ monsoons', accent: '#7b2ff2', result: '' },
+  { name: 'PawPatrol Yard Care', category: 'Pet waste removal', city: 'Pune', headline: 'A cleaner yard with a single click.', accent: '#3d1a7a', result: '' },
+  { name: 'Oakline Flooring', category: 'Flooring', city: 'Chennai', headline: 'Top-rated hardwood flooring', accent: '#6b3fa0', result: '' },
+  { name: 'CoolAir Services', category: 'HVAC', city: 'Hyderabad', headline: 'AC repair in 60 minutes or less', accent: '#8233ea', result: '' },
+  { name: 'Haul Away Junk', category: 'Junk removal', city: 'Mumbai', headline: 'Quit staring at that junk.', accent: '#4b2a8a', result: '' },
 ]
 
 export const websitePlans = [

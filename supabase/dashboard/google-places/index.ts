@@ -57,7 +57,7 @@ function preflight(req) {
 
 // supabase/functions/google-places/index.ts
 var API = "https://places.googleapis.com/v1";
-var COLORS = ["#2f8c4a", "#c2410c", "#7c3aed", "#0369a1", "#be185d", "#0f766e", "#a16207", "#4338ca"];
+var COLORS = ["#9a4dff", "#7b2ff2", "#b06cff", "#5a1fb0", "#8233ea", "#3d1a7a", "#a866ff", "#6b3fa0"];
 async function places(path, init) {
   const key = Deno.env.get("GOOGLE_PLACES_API_KEY");
   if (!key) throw new Error("GOOGLE_PLACES_API_KEY is not set in Supabase secrets");
