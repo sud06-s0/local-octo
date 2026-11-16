@@ -146,8 +146,14 @@ export default function Dashboard() {
                 <AreaChart data={chartData} margin={{ left: -20, right: 8, top: 8 }}>
                   <defs>
                     <linearGradient id="loArea" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#4a4ce4" stopOpacity={0.25} />
-                      <stop offset="100%" stopColor="#4a4ce4" stopOpacity={0} />
+                      <stop offset="0%" stopColor="#d946ef" stopOpacity={0.25} />
+                      <stop offset="100%" stopColor="#d946ef" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="loStroke" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#3d3fd8" />
+                      <stop offset="25%" stopColor="#7c3aed" />
+                      <stop offset="55%" stopColor="#d946ef" />
+                      <stop offset="100%" stopColor="#d946ef" />
                     </linearGradient>
                   </defs>
                   <CartesianGrid stroke="#eef0f6" vertical={false} />
@@ -157,7 +163,7 @@ export default function Dashboard() {
                     contentStyle={{ borderRadius: 10, border: '1px solid #e4e7e6', fontSize: 13 }}
                     formatter={(v) => [v, 'Total reviews']}
                   />
-                  <Area type="monotone" dataKey="count" stroke="#3d3fd8" strokeWidth={2.5} fill="url(#loArea)" />
+                  <Area type="monotone" dataKey="count" stroke="url(#loStroke)" strokeWidth={2.5} fill="url(#loArea)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
