@@ -18,7 +18,7 @@ export default function Onboarding() {
       <div className="mx-auto max-w-lg">
         <div className="mb-8 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="flex size-10 items-center justify-center rounded-lg bg-brand-700 font-medium text-white">{brand.shortName}</span>
+            <img src={brand.logoUrl} alt="" className="size-10 object-contain" />
             <span className="text-lg font-semibold">{brand.appName}</span>
           </div>
           <Button variant="ghost" size="sm" icon={LogOut} onClick={signOut}>Sign out</Button>

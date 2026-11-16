@@ -35,7 +35,7 @@ export function AppLayout() {
         <button onClick={() => setDrawer(true)} className="-ml-1 rounded-lg p-2 hover:bg-canvas" aria-label="Open menu">
           <Menu className="size-5" />
         </button>
-        <span className="flex size-8 items-center justify-center rounded-lg bg-brand-700 text-xs font-medium text-white">{brand.shortName}</span>
+        <img src={brand.logoUrl} alt="" className="size-8 object-contain" />
         <span className="font-semibold">{brand.appName}</span>
       </header>
 

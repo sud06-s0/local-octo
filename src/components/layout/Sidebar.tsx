@@ -30,9 +30,7 @@ export function Sidebar({ onNavigate, onReferral }: { onNavigate?: () => void; o
         <Dropdown
           trigger={() => (
             <button className="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left hover:bg-black/[0.03]">
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-brand-700 text-sm font-medium text-white">
-                {brand.shortName}
-              </span>
+              <img src={brand.logoUrl} alt={brand.appName} className="size-10 shrink-0 object-contain" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[16px] font-semibold text-ink">{business.name}</span>
                 <span className="block text-sm text-muted">Business</span>
