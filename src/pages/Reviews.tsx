@@ -326,7 +326,7 @@ export default function Reviews() {
       </div>
 
       <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex gap-1 overflow-x-auto rounded-lg bg-[#eef0ef] p-1 scrollbar-none">
+        <div className="flex gap-1 overflow-x-auto rounded-lg bg-[#eef0f6] p-1 scrollbar-none">
           <button
             onClick={() => setRating(null)}
             className={cn('whitespace-nowrap rounded-md px-3 py-1.5 text-[15px]', rating === null ? 'bg-white font-medium shadow-sm' : 'text-ink/80')}

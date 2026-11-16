@@ -5,21 +5,21 @@
 @theme {
   --font-sans: "Fira Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 
-  --color-brand-50: #eef7f0;
-  --color-brand-100: #dcefe1;
-  --color-brand-200: #b9dfc3;
-  --color-brand-300: #8bc89c;
-  --color-brand-400: #55a86c;
-  --color-brand-500: #2f8c4a;
-  --color-brand-600: #1f7a3a;
-  --color-brand-700: #17672e;
-  --color-brand-800: #135426;
-  --color-brand-900: #10431f;
+  --color-brand-50: #f3f3fe;
+  --color-brand-100: #ececfd;
+  --color-brand-200: #c7c8fa;
+  --color-brand-300: #a5a6ff;
+  --color-brand-400: #7c7ff5;
+  --color-brand-500: #5b5df0;
+  --color-brand-600: #4a4ce4;
+  --color-brand-700: #3d3fd8;
+  --color-brand-800: #2e30b0;
+  --color-brand-900: #1b1f6b;
 
-  --color-canvas: #f8f9f9;
-  --color-line: #e4e7e6;
-  --color-ink: #1d2320;
-  --color-muted: #5d6762;
+  --color-canvas: #f6f7fb;
+  --color-line: #e4e7f2;
+  --color-ink: #11163a;
+  --color-muted: #545b82;
   --color-star: #fbbf24;
 }
 
@@ -43,7 +43,7 @@ body {
   background: linear-gradient(
     to right,
     var(--color-brand-700) var(--fill, 0%),
-    #e8ebea var(--fill, 0%)
+    #e4e7f2 var(--fill, 0%)
   );
   outline: none;
   cursor: pointer;

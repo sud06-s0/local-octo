@@ -146,18 +146,18 @@ export default function Dashboard() {
                 <AreaChart data={chartData} margin={{ left: -20, right: 8, top: 8 }}>
                   <defs>
                     <linearGradient id="loArea" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#1f7a3a" stopOpacity={0.25} />
-                      <stop offset="100%" stopColor="#1f7a3a" stopOpacity={0} />
+                      <stop offset="0%" stopColor="#4a4ce4" stopOpacity={0.25} />
+                      <stop offset="100%" stopColor="#4a4ce4" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid stroke="#eef0ef" vertical={false} />
-                  <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#5d6762' }} tickLine={false} axisLine={false} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: '#5d6762' }} tickLine={false} axisLine={false} />
+                  <CartesianGrid stroke="#eef0f6" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#545b82' }} tickLine={false} axisLine={false} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: '#545b82' }} tickLine={false} axisLine={false} />
                   <Tooltip
                     contentStyle={{ borderRadius: 10, border: '1px solid #e4e7e6', fontSize: 13 }}
                     formatter={(v) => [v, 'Total reviews']}
                   />
-                  <Area type="monotone" dataKey="count" stroke="#17672e" strokeWidth={2.5} fill="url(#loArea)" />
+                  <Area type="monotone" dataKey="count" stroke="#3d3fd8" strokeWidth={2.5} fill="url(#loArea)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>

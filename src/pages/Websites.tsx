@@ -73,7 +73,7 @@ export default function Websites() {
             </ul>
           </div>
           <div className="relative">
-            <SiteThumb name="Your Business" headline="Top-rated service in your city" accent="#10431f" />
+            <SiteThumb name="Your Business" headline="Top-rated service in your city" accent="#0e1546" />
             {brand.websitesVideoUrl && (
               <button
                 onClick={() => setVideoOpen(true)}

@@ -254,7 +254,7 @@ export function Segmented<T extends string>({
   className?: string
 }) {
   return (
-    <div className={cn('inline-flex w-full rounded-lg bg-[#eef0ef] p-1 sm:w-auto', className)} role="tablist">
+    <div className={cn('inline-flex w-full rounded-lg bg-[#eef0f6] p-1 sm:w-auto', className)} role="tablist">
       {options.map((o) => {
         const active = o.value === value
         const Icon = o.icon
