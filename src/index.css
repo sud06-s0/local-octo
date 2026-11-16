@@ -50,6 +50,7 @@ body {
   background-image: var(--brand-grad-hover);
 }
 .disabled\:bg-brand-600\/50:disabled {
+  background-color: transparent;
   background-image: var(--brand-grad-disabled);
 }
 
