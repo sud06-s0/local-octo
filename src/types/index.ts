@@ -92,6 +92,25 @@ export interface GooglePlaceResult {
   reviewCount: number
 }
 
+/** Google Business Profile connection (OAuth) for the active business. */
+export interface GoogleConnection {
+  connected: boolean
+  email: string
+  locationTitle: string
+  needsLocation: boolean
+  lastSyncAt: string | null
+}
+
+export interface GbpLocation {
+  accountName: string
+  locationName: string
+  title: string
+  address: string
+  placeId: string | null
+  reviewUrl: string | null
+  mapsUrl: string | null
+}
+
 export type IntegrationStatus = 'connected' | 'available' | 'coming_soon'
 
 export interface WidgetColors {

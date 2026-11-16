@@ -3,7 +3,7 @@
 // isolated); demo mode (no env vars) uses sample data saved in localStorage.
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { AppNotification, AppState, Contact, GooglePlaceResult, NewContact, Review, ReviewReply, Settings, SocialPost, WaStandardTemplate, WaTemplate, WaTemplateKind } from '../types'
+import type { AppNotification, AppState, Contact, GbpLocation, GoogleConnection, GooglePlaceResult, NewContact, Review, ReviewReply, Settings, SocialPost, WaStandardTemplate, WaTemplate, WaTemplateKind } from '../types'
 import { initialState } from '../data/mockData'
 import { storage, uid } from '../lib/utils'
 import { db, invokeFn, isLive } from '../lib/supabase'
@@ -44,6 +44,17 @@ interface AppStore {
   createBusiness: (input: { name: string; address?: string; reviewLink?: string; mapsUrl?: string; placeId?: string }) => Promise<void>
   searchGoogle: (query: string) => Promise<GooglePlaceResult[]>
   importFromGoogle: (placeId: string) => Promise<{ added: number; imported: number }>
+  /** Google Business Profile (OAuth): null until checked */
+  google: GoogleConnection | null
+  refreshGoogle: () => Promise<GoogleConnection | null>
+  connectGoogle: () => Promise<void>
+  googleLocations: () => Promise<GbpLocation[]>
+  selectGoogleLocation: (location: GbpLocation) => Promise<void>
+  syncGoogleReviews: () => Promise<{ synced: number; added: number }>
+  disconnectGoogle: () => Promise<void>
+  /** Posts on Google when connected; otherwise saves the reply here. Returns where it went. */
+  postReviewReply: (review: Review, text: string) => Promise<'google' | 'saved'>
+  deleteReviewReply: (review: Review) => Promise<void>
   addContacts: (items: NewContact[], source?: 'manual' | 'csv') => Promise<AddResult>
   updateContact: (id: string, patch: Partial<Contact>) => void
   deleteContact: (id: string) => void
@@ -551,6 +562,109 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     return res.standard
   }, [activeId, checkStandardTemplates])
 
+  /* ---------- Google Business Profile (OAuth) ---------- */
+  const [google, setGoogle] = useState<GoogleConnection | null>(null)
+  const demoGoogle = useRef<GoogleConnection>({ connected: false, email: '', locationTitle: '', needsLocation: false, lastSyncAt: null })
+
+  const refreshGoogle = useCallback(async () => {
+    if (!isLive) {
+      setGoogle({ ...demoGoogle.current })
+      return { ...demoGoogle.current }
+    }
+    if (!activeId) return null
+    try {
+      const res = await invokeFn<GoogleConnection>('google-business', { businessId: activeId, action: 'status' })
+      setGoogle(res)
+      return res
+    } catch {
+      setGoogle(null) // function not deployed yet: treat as not connected
+      return null
+    }
+  }, [activeId])
+
+  useEffect(() => {
+    setGoogle(null)
+    void refreshGoogle()
+  }, [refreshGoogle])
+
+  const connectGoogle = useCallback(async () => {
+    if (!isLive) {
+      demoGoogle.current = { connected: true, email: 'owner@gmail.com', locationTitle: state.settings.business.name, needsLocation: false, lastSyncAt: null }
+      setGoogle({ ...demoGoogle.current })
+      return
+    }
+    const returnUrl = window.location.href.split('?')[0].split('#')[0] + window.location.hash.split('?')[0]
+    const { url } = await invokeFn<{ url: string }>('google-business', { businessId: activeId, action: 'auth_url', returnUrl })
+    window.location.assign(url)
+  }, [activeId, state.settings.business.name])
+
+  const googleLocations = useCallback(async () => {
+    if (!isLive) return []
+    const res = await invokeFn<{ locations: GbpLocation[] }>('google-business', { businessId: activeId, action: 'locations' })
+    return res.locations
+  }, [activeId])
+
+  const selectGoogleLocation = useCallback(
+    async (location: GbpLocation) => {
+      if (!isLive) return
+      await invokeFn('google-business', { businessId: activeId, action: 'select_location', location })
+      await refreshGoogle()
+      if (activeId) await load(activeId)
+    },
+    [activeId, load, refreshGoogle],
+  )
+
+  const syncGoogleReviews = useCallback(async () => {
+    if (!isLive) {
+      demoGoogle.current = { ...demoGoogle.current, lastSyncAt: new Date().toISOString() }
+      setGoogle({ ...demoGoogle.current })
+      return { synced: state.reviews.length, added: 0 }
+    }
+    try {
+      const res = await invokeFn<{ synced: number; added: number }>('google-business', { businessId: activeId, action: 'sync' })
+      if (activeId) await load(activeId)
+      return res
+    } finally {
+      await refreshGoogle()
+    }
+  }, [activeId, load, refreshGoogle, state.reviews.length])
+
+  const disconnectGoogle = useCallback(async () => {
+    if (!isLive) {
+      demoGoogle.current = { connected: false, email: '', locationTitle: '', needsLocation: false, lastSyncAt: null }
+      setGoogle({ ...demoGoogle.current })
+      return
+    }
+    await invokeFn('google-business', { businessId: activeId, action: 'disconnect' })
+    await refreshGoogle()
+  }, [activeId, refreshGoogle])
+
+  const postReviewReply = useCallback(
+    async (review: Review, text: string): Promise<'google' | 'saved'> => {
+      const at = new Date().toISOString()
+      if (isLive && google?.connected && !google.needsLocation) {
+        await invokeFn('google-business', { businessId: activeId, action: 'reply', reviewId: review.id, comment: text })
+        setState((s) => ({ ...s, reviews: s.reviews.map((r) => (r.id === review.id ? { ...r, reply: { text, source: 'app', at } } : r)) }))
+        return 'google'
+      }
+      setReviewReply(review.id, { text, source: 'app', at })
+      return isLive ? 'saved' : 'google'
+    },
+    [activeId, google, setReviewReply],
+  )
+
+  const deleteReviewReply = useCallback(
+    async (review: Review) => {
+      if (isLive && google?.connected && !google.needsLocation && review.reply?.source !== 'draft') {
+        await invokeFn('google-business', { businessId: activeId, action: 'delete_reply', reviewId: review.id })
+        setState((s) => ({ ...s, reviews: s.reviews.map((r) => (r.id === review.id ? { ...r, reply: undefined } : r)) }))
+        return
+      }
+      setReviewReply(review.id, undefined)
+    },
+    [activeId, google, setReviewReply],
+  )
+
   const refresh = useCallback(async () => {
     if (isLive && activeId) await load(activeId)
   }, [activeId, load])
@@ -579,6 +693,15 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       createBusiness,
       searchGoogle,
       importFromGoogle,
+      google,
+      refreshGoogle,
+      connectGoogle,
+      googleLocations,
+      selectGoogleLocation,
+      syncGoogleReviews,
+      disconnectGoogle,
+      postReviewReply,
+      deleteReviewReply,
       addContacts,
       updateContact,
       deleteContact,
@@ -595,7 +718,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       refresh,
       resetDemo,
     }),
-    [loading, state, businesses, activeId, keys, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, submitStandardTemplates, switchBusiness, createBusiness, searchGoogle, importFromGoogle, addContacts, updateContact, deleteContact, updateSettings, setReviewReply, addSocialPost, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, regenerateApiKey, refresh, resetDemo],
+    [loading, state, businesses, activeId, keys, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, submitStandardTemplates, switchBusiness, createBusiness, searchGoogle, importFromGoogle, google, refreshGoogle, connectGoogle, googleLocations, selectGoogleLocation, syncGoogleReviews, disconnectGoogle, postReviewReply, deleteReviewReply, addContacts, updateContact, deleteContact, updateSettings, setReviewReply, addSocialPost, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, regenerateApiKey, refresh, resetDemo],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

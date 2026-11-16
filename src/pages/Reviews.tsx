@@ -15,19 +15,26 @@ type Sort = 'newest' | 'oldest' | 'highest' | 'lowest'
 const PAGE_SIZE = 10
 
 function ReviewCard({ review }: { review: Review }) {
-  const { mode, setReviewReply, addSocialPost, draftReply } = useStore()
+  const { setReviewReply, addSocialPost, draftReply, postReviewReply, deleteReviewReply } = useStore()
+  const [sending, setSending] = useState(false)
   const toast = useToast()
   const [editing, setEditing] = useState(false)
   const [drafting, setDrafting] = useState(false)
   const [text, setText] = useState(review.reply?.text ?? '')
   const reply = review.reply
 
-  const post = (t: string) => {
+  const post = async (t: string) => {
     if (!t.trim()) return
-    setReviewReply(review.id, { text: t.trim(), source: 'app', at: new Date().toISOString() })
-    setEditing(false)
-    // Posting to Google needs the Google Business Profile API (pending approval) — until then the reply is saved here.
-    toast(mode === 'live' ? 'Reply saved — it goes live on Google once Google Business Profile is connected' : 'Reply posted to Google')
+    setSending(true)
+    try {
+      const where = await postReviewReply(review, t.trim())
+      setEditing(false)
+      toast(where === 'google' ? 'Reply posted to Google' : 'Reply saved. Connect Google Business Profile in Integrations to post it on Google')
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not post the reply', 'error')
+    } finally {
+      setSending(false)
+    }
   }
 
   const startDraft = async () => {
@@ -98,7 +105,7 @@ function ReviewCard({ review }: { review: Review }) {
           )}
           <Textarea rows={3} value={text} onChange={(e) => setText(e.target.value)} placeholder="Write a reply…" />
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button size="sm" icon={Send} disabled={!text.trim()} onClick={() => post(text)}>
+            <Button size="sm" icon={Send} disabled={!text.trim() || sending} onClick={() => post(text)}>
               {reply?.source === 'draft' ? 'Approve & Post' : 'Post Reply'}
             </Button>
             {reply?.source === 'draft' && (
@@ -140,9 +147,13 @@ function ReviewCard({ review }: { review: Review }) {
                 variant="ghost"
                 size="sm"
                 icon={Trash2}
-                onClick={() => {
-                  setReviewReply(review.id, undefined)
-                  toast('Reply removed from Google')
+                onClick={async () => {
+                  try {
+                    await deleteReviewReply(review)
+                    toast('Reply removed')
+                  } catch (e) {
+                    toast(e instanceof Error ? e.message : 'Could not remove the reply', 'error')
+                  }
                 }}
               >
                 Delete
@@ -156,14 +167,16 @@ function ReviewCard({ review }: { review: Review }) {
 }
 
 export default function Reviews() {
-  const { state, updateSettings, importFromGoogle } = useStore()
+  const { state, updateSettings, importFromGoogle, google, syncGoogleReviews } = useStore()
   const toast = useToast()
   const [syncing, setSyncing] = useState(false)
   const biz = state.settings.business
+  const gbpReady = !!google?.connected && !google.needsLocation
   const syncGoogle = async () => {
     setSyncing(true)
     try {
-      const r = await importFromGoogle(biz.placeId)
+      // Connected Business Profile → every review; otherwise the Places API's latest 5
+      const r = gbpReady ? await syncGoogleReviews() : await importFromGoogle(biz.placeId)
       toast(r.added ? `${r.added} new review${r.added > 1 ? 's' : ''} from Google` : 'Up to date with Google')
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Google sync failed', 'error')
@@ -221,7 +234,7 @@ export default function Reviews() {
           <h1 className="text-[26px] font-semibold tracking-tight">Reviews</h1>
           <p className="mt-1 text-[16px] text-muted">What Google actually shows, and where every reply stands.</p>
         </div>
-        {biz.placeId && (
+        {(biz.placeId || gbpReady) && (
           <div className="flex items-center gap-3">
             {biz.googleSyncedAt && <span className="text-xs text-muted">Synced {timeAgo(biz.googleSyncedAt)}</span>}
             <Button variant="outline" icon={RefreshCw} disabled={syncing} onClick={syncGoogle}>
@@ -230,12 +243,12 @@ export default function Reviews() {
           </div>
         )}
       </div>
-      {!biz.placeId && (
+      {!gbpReady && (
         <div className="mt-5 flex flex-wrap items-center gap-3 rounded-xl border border-line bg-white p-4">
           <GoogleG className="size-6" />
-          <p className="flex-1 text-[15px] text-ink/85">Link your Google Business Profile to import your rating and latest reviews.</p>
-          <Link to="/dashboard" className="text-sm font-medium text-brand-700 hover:underline">
-            Link on Dashboard →
+          <p className="flex-1 text-[15px] text-ink/85">Connect your Google Business Profile to get all your reviews and post replies straight to Google.</p>
+          <Link to="/integrations" className="text-sm font-medium text-brand-700 hover:underline">
+            Connect in Integrations →
           </Link>
         </div>
       )}

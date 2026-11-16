@@ -33,3 +33,9 @@ verify_jwt = false
 
 [functions.google-places]
 verify_jwt = false
+
+[functions.google-oauth]
+verify_jwt = false
+
+[functions.google-business]
+verify_jwt = false

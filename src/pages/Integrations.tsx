@@ -6,6 +6,7 @@ import { FacebookMark, GoogleG, InstagramMark } from '../components/ui/BrandIcon
 import { useStore } from '../store/AppStore'
 import { useToast } from '../components/ui/Toast'
 import { contactsWebhookUrl } from '../lib/supabase'
+import { GoogleConnectCard } from '../components/GoogleConnectCard'
 import { copyText } from '../lib/utils'
 import type { IntegrationStatus } from '../types'
 
@@ -89,6 +90,7 @@ export default function Integrations() {
             <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-muted">{g.title}</h2>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {g.items.map((it) => {
+                if (it.id === 'google') return <GoogleConnectCard key={it.id} />
                 const s = status[it.id] ?? 'available'
                 return (
                   <Card key={it.id} className="flex flex-col p-5">

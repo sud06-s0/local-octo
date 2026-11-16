@@ -205,3 +205,18 @@ Where it goes:
 - **Auto-posting to Facebook and Instagram:** posts are recorded as *scheduled*, but publishing needs Meta app review for `pages_manage_posts` and `instagram_content_publish`.
 - **Integrations page Connect buttons** for Jobber, Housecall Pro and the rest only save a status flag. The webhook and API key are real.
 - **Billing and plan limits** (Cashfree, 50/100/300 requests a month) and **team invites** are not built.
+
+## Google Business Profile API (all reviews + replies on Google)
+
+Needs Google's approval for the project (done). In Google Cloud (same project):
+1. Enable: My Business Account Management API, My Business Business Information API, Google My Business API, Business Profile Performance API.
+2. Google Auth Platform → Data Access: scope `https://www.googleapis.com/auth/business.manage`. Audience: External; add test users (max 100 while in Testing).
+3. Clients → Web application, redirect URI `https://<project-ref>.supabase.co/functions/v1/google-oauth`.
+
+In Supabase:
+- SQL: run `supabase/migrations/20261116000001_google_business.sql`.
+- Secrets: `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`.
+- Functions (Verify JWT off): `google-oauth`, `google-business` (paste from `supabase/dashboard/<name>/index.ts`).
+
+In the app: Integrations → Google Business Profile → **Connect with Google** → pick the business → reviews sync.
+Replies on the Reviews page then post straight to Google (Delete removes them on Google too).
