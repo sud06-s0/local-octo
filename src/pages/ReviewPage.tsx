@@ -43,6 +43,7 @@ export default function ReviewPage() {
 
   const [info, setInfo] = useState<{ businessName: string; firstName: string } | null>(null)
   const [error, setError] = useState('')
+  const [invalid, setInvalid] = useState(false)
   const [rating, setRating] = useState<number | null>(null)
   const [text, setText] = useState('')
   const [photo, setPhoto] = useState('')
@@ -58,7 +59,10 @@ export default function ReviewPage() {
     }
     call<{ businessName: string; firstName: string }>(undefined, `?${t ? `t=${t}` : `b=${b}`}`)
       .then(setInfo)
-      .catch((e) => setError(e.message))
+      .catch((e) => {
+        setError(e.message)
+        setInvalid(true)
+      })
   }, [t, b])
 
   const submit = async (r: number) => {
@@ -95,15 +99,18 @@ export default function ReviewPage() {
     <div className="min-h-screen bg-canvas px-4 py-8 sm:py-14">
       <div className="mx-auto max-w-xl overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-line">
         <div className="bg-brand-700 px-6 py-6 text-center text-white">
-          <p className="text-[22px] font-semibold">{info?.businessName ?? ' '}</p>
+          {info ? (
+            <p className="text-[22px] font-semibold">{info.businessName}</p>
+          ) : (
+            <span className="mx-auto block h-7 w-44 animate-pulse rounded-md bg-white/25" />
+          )}
           <p className="mt-1 text-sm text-brand-100">{info?.firstName ? `Hi ${info.firstName}, ` : ''}how was your experience?</p>
         </div>
 
         <div className="p-5 sm:p-7">
-          {!info && !error && <p className="py-10 text-center text-muted"><Loader2 className="mx-auto size-6 animate-spin" /></p>}
-          {error && !info && <p className="py-10 text-center text-muted">{error}</p>}
+          {invalid && <p className="py-10 text-center text-muted">{error}</p>}
 
-          {info && done === 'thanks' && (
+          {done === 'thanks' && (
             <div className="py-10 text-center">
               <p className="text-5xl">🙏</p>
               <p className="mt-4 text-xl font-semibold">Thank you for your feedback!</p>
@@ -111,7 +118,7 @@ export default function ReviewPage() {
             </div>
           )}
 
-          {info && done === 'google' && (
+          {done === 'google' && (
             <div className="py-10 text-center">
               <Loader2 className="mx-auto size-6 animate-spin text-brand-700" />
               <p className="mt-4 font-semibold">Opening Google…</p>
@@ -119,7 +126,7 @@ export default function ReviewPage() {
             </div>
           )}
 
-          {info && !done && (
+          {!invalid && !done && (
             <>
               <div className="grid grid-cols-4 gap-2 sm:gap-3">
                 {FACES.map((f) => (
