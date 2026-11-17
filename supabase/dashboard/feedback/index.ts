@@ -70,14 +70,14 @@ Deno.serve(async (req) => {
   const rating = Number(input.rating);
   if (!LABEL[rating]) return json({ error: "Pick one of the faces" }, 400);
   const positive = rating >= 4;
-  const text = String(input.text ?? "").trim().slice(0, positive ? 4e3 : 2e3);
+  const text = String(input.text ?? "").trim().slice(0, 4e3);
   const clean = (v, max) => String(v ?? "").trim().slice(0, max);
   const customerName = target.contactId ? "" : clean(input.name, 120);
   const customerEmail = target.contactId ? "" : clean(input.email, 200);
   const customerPhone = target.contactId ? "" : clean(input.phone, 30);
   if (customerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) return json({ error: "Please check the email address" }, 400);
   let photoUrl = null;
-  if (positive && input.photo) {
+  if (input.photo) {
     const m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(input.photo);
     if (!m) return json({ error: "Photo must be a JPG, PNG or WebP image" }, 400);
     const bytes = Uint8Array.from(atob(m[2]), (c) => c.charCodeAt(0));

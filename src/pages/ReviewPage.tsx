@@ -1,7 +1,7 @@
 // src/pages/ReviewPage.tsx
 // Public review page (no login): local-octo.vercel.app/review?t=<contact token> or ?b=<business public key>.
-// Four big faces: Happy (5) and Good (4) get text + photo and a "Post on Google" button;
-// Bad (2) and Worse (1) show a private feedback form (what to improve) that goes only to the business.
+// Four big faces, each with the same review form (text + photo). Happy (5) and Good (4): "Post on Google";
+// Bad (2) and Worse (1): "Submit review" saves it in the app only (Reviews → Customer Feedback); Google never opens.
 
 import { useEffect, useRef, useState } from 'react'
 import { ImagePlus, Loader2, X } from 'lucide-react'
@@ -76,7 +76,7 @@ export default function ReviewPage() {
       const res = API.startsWith('http')
         ? await call<{ reviewLink: string | null }>({
             method: 'POST',
-            body: JSON.stringify({ t, b, rating: r, text, photo: positive ? photo : '', ...(positive ? {} : contact) }),
+            body: JSON.stringify({ t, b, rating: r, text, photo, ...(positive ? {} : contact) }),
           })
         : { reviewLink: null }
       if (positive && res.reviewLink) {
@@ -93,8 +93,6 @@ export default function ReviewPage() {
   }
 
   const pick = (r: number) => {
-    // Switching between the happy and unhappy side starts the text fresh
-    if (rating !== null && (rating >= 4) !== (r >= 4)) setText('')
     setRating(r)
   }
 
@@ -118,8 +116,8 @@ export default function ReviewPage() {
           {done === 'thanks' && (
             <div className="py-10 text-center">
               <p className="text-5xl">🙏</p>
-              <p className="mt-4 text-xl font-semibold">Thank you for your feedback!</p>
-              <p className="mt-1 text-muted">{rating !== null && rating < 4 ? `${info?.businessName ?? 'The team'} will look into it and may get in touch.` : 'We really appreciate you taking the time.'}</p>
+              <p className="mt-4 text-xl font-semibold">Thank you for your review!</p>
+              <p className="mt-1 text-muted">{`${info?.businessName ?? 'We'} really appreciate${info?.businessName ? 's' : ''} you taking the time.`}</p>
             </div>
           )}
 
@@ -151,7 +149,7 @@ export default function ReviewPage() {
                 ))}
               </div>
 
-              {positive && (
+              {rating !== null && (
                 <div className="mt-6">
                   <label htmlFor="review-text" className="text-sm font-medium">Write your review</label>
                   <textarea
@@ -160,7 +158,7 @@ export default function ReviewPage() {
                     value={text}
                     maxLength={4000}
                     onChange={(e) => setText(e.target.value)}
-                    placeholder="Tell others what you liked…"
+                    placeholder={positive ? 'Tell others what you liked…' : 'Tell us about your experience…'}
                     className="mt-1.5 w-full rounded-lg border border-line px-3 py-2.5 text-[15px] outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100"
                   />
 
@@ -188,32 +186,8 @@ export default function ReviewPage() {
                     </button>
                   )}
 
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => submit(rating!)}
-                    className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-700 text-[16px] font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
-                  >
-                    {busy && <Loader2 className="size-4 animate-spin" />} Post on Google
-                  </button>
-                  <p className="mt-2 text-center text-xs text-muted">Google opens with your review copied. Paste it there and add your photo.</p>
-                </div>
-              )}
-
-              {rating !== null && !positive && (
-                <div className="mt-6">
-                  <p className="text-[16px] font-semibold">We're sorry to hear that</p>
-                  <p className="mt-0.5 text-sm text-muted">Tell us what went wrong. This goes only to {info?.businessName ?? 'the business'}, not to Google.</p>
-                  <label htmlFor="feedback-text" className="mt-4 block text-sm font-medium">What could we do better?</label>
-                  <textarea
-                    id="feedback-text"
-                    rows={4}
-                    value={text}
-                    maxLength={2000}
-                    onChange={(e) => setText(e.target.value)}
-                    placeholder="Your feedback helps us improve…"
-                    className="mt-1.5 w-full rounded-lg border border-line px-3 py-2.5 text-[15px] outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100"
-                  />
+                  {!positive && (
+                    <>
                   {!info?.knownContact && (
                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
                       <input
@@ -242,17 +216,21 @@ export default function ReviewPage() {
                         onChange={(e) => setContact({ ...contact, phone: e.target.value })}
                         className="w-full rounded-lg border border-line px-3 py-2.5 text-[15px] outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100"
                       />
-                      <p className="text-xs text-muted sm:col-span-2">Optional, so they can get back to you.</p>
+                      <p className="text-xs text-muted sm:col-span-2">Optional</p>
                     </div>
                   )}
+                    </>
+                  )}
+
                   <button
                     type="button"
-                    disabled={busy || !text.trim()}
-                    onClick={() => submit(rating)}
+                    disabled={busy}
+                    onClick={() => submit(rating!)}
                     className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-700 text-[16px] font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
                   >
-                    {busy && <Loader2 className="size-4 animate-spin" />} Send feedback
+                    {busy && <Loader2 className="size-4 animate-spin" />} {positive ? 'Post on Google' : 'Submit review'}
                   </button>
+                  {positive && <p className="mt-2 text-center text-xs text-muted">Google opens with your review copied. Paste it there and add your photo.</p>}
                 </div>
               )}
 
