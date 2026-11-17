@@ -1,8 +1,5 @@
 // supabase/dashboard/send-test/index.ts
-// Self-contained copy of supabase/functions/send-test for pasting into the Supabase dashboard editor.
-// Function name in Supabase must be exactly: send-test   ·   Turn OFF "Verify JWT" for this function.
-// @ts-nocheck  (bundled JavaScript — the typed source lives in supabase/functions)
-
+// @ts-nocheck
 // supabase/functions/_shared/supabase.ts
 import { createClient } from "npm:@supabase/supabase-js@2";
 function secretKey() {
@@ -42,17 +39,6 @@ function functionsUrl() {
   return `${Deno.env.get("SUPABASE_URL")}/functions/v1`;
 }
 
-// supabase/functions/_shared/waTemplates.ts
-async function approvedTemplates(admin, businessId) {
-  const { data } = await admin.from("whatsapp_templates").select("kind, name, language, params").eq("business_id", businessId).eq("status", "approved").order("created_at", { ascending: false });
-  const out = {};
-  for (const r of data ?? []) {
-    const kind = r.kind;
-    if (!out[kind]) out[kind] = { name: r.name, language: r.language, params: r.params ?? [] };
-  }
-  return out;
-}
-
 // supabase/functions/_shared/send.ts
 var env = (k) => Deno.env.get(k) ?? "";
 async function loadChannels(admin, businessId) {
@@ -72,7 +58,6 @@ async function loadChannels(admin, businessId) {
       initial: pick("whatsapp_template_initial", "WHATSAPP_TEMPLATE_INITIAL", "review_request"),
       initialImage: pick("whatsapp_template_initial_image", "WHATSAPP_TEMPLATE_INITIAL_IMAGE", "review_request_image"),
       followUp: pick("whatsapp_template_followup", "WHATSAPP_TEMPLATE_FOLLOWUP", "review_followup"),
-      followUpImage: pick("whatsapp_template_followup_image", "WHATSAPP_TEMPLATE_FOLLOWUP_IMAGE", "review_followup_image"),
       lang: pick("whatsapp_template_lang", "WHATSAPP_TEMPLATE_LANG", "en"),
       version: env("WHATSAPP_API_VERSION") || "v23.0"
     } : null,
@@ -159,25 +144,13 @@ async function deliver(input) {
   const attempts = [];
   if (input.phone && ch.whatsapp) {
     const wa = ch.whatsapp;
-    let template = isFollow ? input.imageUrl ? wa.followUpImage : wa.followUp : input.imageUrl ? wa.initialImage : wa.initial;
-    let params = [input.firstName, input.businessName, input.link];
-    let header = input.imageUrl;
-    let lang;
-    if (input.messaging.mode === "custom") {
-      const custom = await approvedTemplates(input.admin, input.businessId);
-      const values = { first_name: input.firstName, review_link: input.link };
-      const pick = isFollow ? input.imageUrl ? custom.followup_image : custom.followup : input.imageUrl ? custom.initial_image : custom.initial;
-      if (pick) {
-        template = pick.name;
-        lang = pick.language;
-        params = pick.params.map((p) => values[p] ?? "");
-        header = input.imageUrl;
-      }
-    }
+    const template = isFollow ? wa.followUp : input.imageUrl ? wa.initialImage : wa.initial;
+    const params = [input.firstName, input.businessName, input.link];
+    const header = isFollow ? void 0 : input.imageUrl;
     attempts.push({
       channel: "whatsapp",
       recipient: input.phone,
-      run: () => sendWhatsApp(wa, input.phone, template, params, header, lang)
+      run: () => sendWhatsApp(wa, input.phone, template, params, header)
     });
   }
   if (input.phone && ch.sms) {

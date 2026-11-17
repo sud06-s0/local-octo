@@ -58,7 +58,6 @@ function preflight(req) {
 
 // supabase/functions/_shared/waTemplates.ts
 var env = (k) => Deno.env.get(k) ?? "";
-var EXAMPLES = { first_name: "Priya", review_link: "https://g.page/r/example/review" };
 var SAMPLE_PHOTO_URL = () => env("DEFAULT_REVIEW_IMAGE_URL") || "https://local-octo.vercel.app/default-personal.jpg";
 var STANDARD_TEMPLATES = [
   { kind: "initial", col: "whatsapp_template_initial", key: "WHATSAPP_TEMPLATE_INITIAL", def: "review_request", body: "Hi {{1}}, thanks for choosing {{2}}! Would you mind taking a moment to leave us a Google review? {{3}} Thank you!" },
@@ -74,21 +73,6 @@ async function metaConfig(admin, businessId) {
     version: env("WHATSAPP_API_VERSION") || "v23.0",
     lang: row?.whatsapp_template_lang || env("WHATSAPP_TEMPLATE_LANG") || "en"
   };
-}
-function buildTemplateBody(source, vars) {
-  let text = source.replace(/\{business_name\}/g, vars.businessName).replace(/\{owner_name\}/g, vars.ownerName || vars.businessName).replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
-  const params = [];
-  text = text.replace(/\{(first_name|review_link)\}/g, (_m, key) => {
-    params.push(key);
-    return `{{${params.length}}}`;
-  });
-  if (/^\{\{\d+\}\}/.test(text)) text = `Hi ${text}`;
-  if (/\{\{\d+\}\}[\s.!?,]*$/.test(text)) text = `${text} Thank you!`;
-  text = text.replace(/(\{\{\d+\}\})\s*(\{\{\d+\}\})/g, "$1 - $2");
-  return { body: text, params, example: params.map((p) => EXAMPLES[p]) };
-}
-function templateName(businessId, kind) {
-  return `lo_${businessId.replace(/-/g, "").slice(0, 10)}_${kind}_${Date.now().toString(36)}`;
 }
 function mapStatus(meta) {
   switch ((meta ?? "").toUpperCase()) {
@@ -166,8 +150,6 @@ async function findTemplateByName(cfg, name) {
 }
 
 // supabase/functions/wa-template/index.ts
-var cleanName = (v) => (v ?? "").toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "").slice(0, 60);
-var COLS = "id, kind, name, language, body, status, reason, category, created_at, updated_at";
 var errText = (e) => e instanceof Error ? e.message : String(e);
 function photoHandle(cfg) {
   let p = null;
@@ -180,73 +162,31 @@ Deno.serve(async (req) => {
   const admin = adminClient();
   const user = await getUser(req, admin);
   if (!user) return json({ error: "Sign in required" }, 401);
-  const { businessId, action = "refresh", kinds } = await req.json().catch(() => ({}));
+  const { businessId, action = "standard" } = await req.json().catch(() => ({}));
   if (!businessId) return json({ error: "businessId is required" }, 400);
   if (!await isMember(admin, user.id, businessId)) return json({ error: "Not allowed" }, 403);
   const cfg = await metaConfig(admin, businessId);
   if (!cfg.wabaId || !cfg.token) return json({ error: "WhatsApp is not connected yet (WHATSAPP_WABA_ID / WHATSAPP_ACCESS_TOKEN missing)" }, 400);
-  if ((action === "submit" || action === "submit_standard") && !await isAgency(admin, user.id)) {
+  if (action === "submit_standard" && !await isAgency(admin, user.id)) {
     return json({ error: "Only your agency can submit WhatsApp templates" }, 403);
   }
   const getPhoto = photoHandle(cfg);
-  const warnings = [];
-  if (action === "standard" || action === "submit_standard") {
-    const { data: ch } = await admin.from("business_channels").select("*").eq("business_id", businessId).maybeSingle();
-    const env2 = (k) => Deno.env.get(k) ?? "";
-    const standard = [];
-    for (const t of STANDARD_TEMPLATES) {
-      const name = ch?.[t.col] || env2(t.key) || t.def;
-      try {
-        let found = await findTemplateByName(cfg, name);
-        if (!found && action === "submit_standard") {
-          const header = t.kind.endsWith("_image") ? await getPhoto() : void 0;
-          const created = await createTemplate(cfg, name, t.body, STANDARD_EXAMPLE, header);
-          found = { id: created.id, status: created.status, reason: null, language: cfg.lang, category: created.category };
-        }
-        standard.push({ kind: t.kind, name, status: found ? found.status : "not_created", reason: found?.reason ?? null, category: found?.category ?? null });
-      } catch (e) {
-        standard.push({ kind: t.kind, name, status: "failed", reason: errText(e), category: null });
-      }
-    }
-    return json({ ok: true, standard });
-  }
-  if (action === "submit") {
-    const { data: b } = await admin.from("businesses").select("name, messaging").eq("id", businessId).single();
-    if (!b) return json({ error: "Business not found" }, 404);
-    const m = b.messaging ?? {};
-    const vars = { businessName: m.businessName || b.name, ownerName: m.ownerFirstName || "" };
-    const want = new Set(kinds?.length ? kinds : ["initial", "followup"]);
-    const jobs = [];
-    if (want.has("initial") && m.customMessage) jobs.push({ kind: "initial", source: m.customMessage, name: cleanName(m.customTemplateName) });
-    if (want.has("followup") && m.customFollowUp) jobs.push({ kind: "followup", source: m.customFollowUp, name: cleanName(m.customFollowUpTemplateName) });
-    for (const job of jobs) {
-      const built = buildTemplateBody(job.source, vars);
-      const base = { business_id: businessId, language: cfg.lang, body: built.body, params: built.params };
-      const photoKind = job.kind === "initial" ? "initial_image" : null;
-      for (const kind of photoKind ? [job.kind, photoKind] : [job.kind]) {
-        const name = job.name ? `${job.name}${kind === photoKind ? "_photo" : ""}` : templateName(businessId, kind);
-        try {
-          if (!built.params.includes("review_link")) throw new Error("The message must include the Review Link");
-          const header = kind === photoKind ? await getPhoto() : void 0;
-          const created = await createTemplate(cfg, name, built.body, built.example, header);
-          await admin.from("whatsapp_templates").insert({ ...base, kind, name, status: created.status, category: created.category, meta_template_id: created.id });
-        } catch (e) {
-          await admin.from("whatsapp_templates").insert({ ...base, kind, name, status: "failed", reason: errText(e) });
-        }
-      }
-    }
-  }
-  const { data: open } = await admin.from("whatsapp_templates").select("id, name").eq("business_id", businessId).or("status.in.(not_created,pending,paused),and(status.eq.approved,category.is.null)");
-  for (const t of open ?? []) {
+  const { data: ch } = await admin.from("business_channels").select("*").eq("business_id", businessId).maybeSingle();
+  const env2 = (k) => Deno.env.get(k) ?? "";
+  const standard = [];
+  for (const t of STANDARD_TEMPLATES) {
+    const name = ch?.[t.col] || env2(t.key) || t.def;
     try {
-      const found = await findTemplateByName(cfg, t.name);
-      if (found) {
-        await admin.from("whatsapp_templates").update({ status: found.status, reason: found.reason, meta_template_id: found.id, language: found.language, category: found.category }).eq("id", t.id);
+      let found = await findTemplateByName(cfg, name);
+      if (!found && action === "submit_standard") {
+        const header = t.kind.endsWith("_image") ? await getPhoto() : void 0;
+        const created = await createTemplate(cfg, name, t.body, STANDARD_EXAMPLE, header);
+        found = { id: created.id, status: created.status, reason: null, language: cfg.lang, category: created.category };
       }
+      standard.push({ kind: t.kind, name, status: found ? found.status : "not_created", reason: found?.reason ?? null, category: found?.category ?? null });
     } catch (e) {
-      warnings.push(errText(e));
+      standard.push({ kind: t.kind, name, status: "failed", reason: errText(e), category: null });
     }
   }
-  const { data: rows } = await admin.from("whatsapp_templates").select(COLS).eq("business_id", businessId).order("created_at", { ascending: false }).limit(30);
-  return json({ ok: true, templates: rows ?? [], warnings: [...new Set(warnings)] });
+  return json({ ok: true, standard });
 });

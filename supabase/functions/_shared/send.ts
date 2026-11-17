@@ -3,7 +3,6 @@
 // Every provider needs PRE-APPROVED templates — see SETUP.md for the exact template text.
 
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
-import { approvedTemplates, type ParamKey } from './waTemplates.ts'
 
 type Kind = 'initial' | 'follow_up' | 'test'
 type Channel = 'whatsapp' | 'sms' | 'email'
@@ -26,7 +25,6 @@ interface Channels {
     initial: string
     initialImage: string
     followUp: string
-    followUpImage: string
     lang: string
     version: string
   }
@@ -64,7 +62,6 @@ export async function loadChannels(admin: SupabaseClient, businessId: string): P
             initial: pick('whatsapp_template_initial', 'WHATSAPP_TEMPLATE_INITIAL', 'review_request'),
             initialImage: pick('whatsapp_template_initial_image', 'WHATSAPP_TEMPLATE_INITIAL_IMAGE', 'review_request_image'),
             followUp: pick('whatsapp_template_followup', 'WHATSAPP_TEMPLATE_FOLLOWUP', 'review_followup'),
-            followUpImage: pick('whatsapp_template_followup_image', 'WHATSAPP_TEMPLATE_FOLLOWUP_IMAGE', 'review_followup_image'),
             lang: pick('whatsapp_template_lang', 'WHATSAPP_TEMPLATE_LANG', 'en'),
             version: env('WHATSAPP_API_VERSION') || 'v23.0',
           }
@@ -204,32 +201,16 @@ export async function deliver(input: DeliverInput): Promise<DeliverResult> {
   if (input.phone && ch.whatsapp) {
     const wa = ch.whatsapp
     // Default templates: {{1}} first name, {{2}} business name, {{3}} review link
-    let template = isFollow ? (input.imageUrl ? wa.followUpImage : wa.followUp) : input.imageUrl ? wa.initialImage : wa.initial
-    let params = [input.firstName, input.businessName, input.link]
-    let header = input.imageUrl
-    let lang: string | undefined
-
-    // Custom Message mode: use the business's own approved template when there is one
-    if (input.messaging.mode === 'custom') {
-      const custom = await approvedTemplates(input.admin, input.businessId)
-      const values: Record<ParamKey, string> = { first_name: input.firstName, review_link: input.link }
-      // With a photo, only the approved photo template is used, so the customer's name is always on a photo.
-      // Until it's approved, the standard photo template goes out instead.
-      const pick = isFollow
-        ? input.imageUrl ? custom.followup_image : custom.followup
-        : input.imageUrl ? custom.initial_image : custom.initial
-      if (pick) {
-        template = pick.name
-        lang = pick.language
-        params = pick.params.map((p) => values[p] ?? '')
-        header = input.imageUrl
-      }
-    }
+    // WhatsApp always sends the approved standard templates (the custom message is for SMS and email).
+    // First message: with the personalised photo when enabled. Follow-ups: text only.
+    const template = isFollow ? wa.followUp : input.imageUrl ? wa.initialImage : wa.initial
+    const params = [input.firstName, input.businessName, input.link]
+    const header = isFollow ? undefined : input.imageUrl
 
     attempts.push({
       channel: 'whatsapp',
       recipient: input.phone,
-      run: () => sendWhatsApp(wa, input.phone, template, params, header, lang),
+      run: () => sendWhatsApp(wa, input.phone, template, params, header),
     })
   }
   if (input.phone && ch.sms) {

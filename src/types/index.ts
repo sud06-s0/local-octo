@@ -52,19 +52,6 @@ export type WaTemplateKind = 'initial' | 'initial_image' | 'followup' | 'followu
 export type WaTemplateStatus = 'not_created' | 'pending' | 'approved' | 'rejected' | 'paused' | 'disabled' | 'failed'
 
 /** A business's Custom Message submitted to Meta as a WhatsApp template */
-export interface WaTemplate {
-  id: string
-  kind: WaTemplateKind
-  name: string
-  language: string
-  body: string
-  status: WaTemplateStatus
-  reason: string | null
-  /** Category Meta gave it: marketing, utility or authentication */
-  category: string | null
-  createdAt: string
-}
-
 /** Approval status of one of the 4 standard templates in WhatsApp Manager */
 export interface WaStandardTemplate {
   kind: WaTemplateKind
@@ -123,10 +110,6 @@ export interface Settings {
     imageDataUrl: string | null
     customMessage: string
     customFollowUp: string
-    /** WhatsApp template name for the Custom Message (photo version gets "_photo") */
-    customTemplateName: string
-    /** WhatsApp template name for the Custom Follow-up (photo version gets "_photo") */
-    customFollowUpTemplateName: string
     followUpsEnabled: boolean
   }
   scheduling: {
