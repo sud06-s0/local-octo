@@ -1,9 +1,10 @@
 // src/pages/Contacts.tsx
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
-import { Ban, CircleStop, Ellipsis, Filter, Search, Send, Trash2, UserPlus, Users } from 'lucide-react'
+import { Ban, CalendarClock, CircleStop, Ellipsis, Filter, Search, Send, Trash2, UserPlus, Users } from 'lucide-react'
 import { Badge, Button, Card, Checkbox, EmptyState, PageHeader, Segmented } from '../components/ui/primitives'
 import { AddContactsPanel } from './AddContacts'
+import { RequestSchedulingPanel } from './RequestScheduling'
 import { Dropdown, MenuItem } from '../components/layout/Dropdown'
 import { useStore } from '../store/AppStore'
 import { useToast } from '../components/ui/Toast'
@@ -22,8 +23,10 @@ type StatusFilter = 'all' | ContactStatus
 
 export default function Contacts() {
   const [params, setParams] = useSearchParams()
-  const tab = params.get('tab') === 'add' ? 'add' : 'list'
-  const setTab = (t: 'list' | 'add') => setParams(t === 'add' ? { tab: 'add' } : {}, { replace: true })
+  type Tab = 'list' | 'add' | 'schedule'
+  const tabParam = params.get('tab')
+  const tab: Tab = tabParam === 'add' || tabParam === 'schedule' ? tabParam : 'list'
+  const setTab = (t: Tab) => setParams(t === 'list' ? {} : { tab: t }, { replace: true })
   const { state, mode, updateContact, deleteContact } = useStore()
   const toast = useToast()
   const [query, setQuery] = useState('')
@@ -105,10 +108,11 @@ export default function Contacts() {
         options={[
           { value: 'list', label: 'All Contacts', icon: Users },
           { value: 'add', label: 'Add Contacts', icon: UserPlus },
+          { value: 'schedule', label: 'Schedule Requests', icon: CalendarClock },
         ]}
       />
 
-      {tab === 'add' ? <AddContactsPanel /> : renderList()}
+      {tab === 'add' ? <AddContactsPanel /> : tab === 'schedule' ? <RequestSchedulingPanel /> : renderList()}
     </div>
   )
 

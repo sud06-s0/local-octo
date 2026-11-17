@@ -102,8 +102,6 @@ export interface GbpLocation {
   mapsUrl: string | null
 }
 
-export type IntegrationStatus = 'connected' | 'available' | 'coming_soon'
-
 export interface Settings {
   business: {
     name: string
@@ -147,7 +145,6 @@ export interface Settings {
     weeklySummary: boolean
     lowRatingThreshold: 1 | 2 | 3
   }
-  integrations: Record<string, IntegrationStatus>
 }
 
 export interface AppState {

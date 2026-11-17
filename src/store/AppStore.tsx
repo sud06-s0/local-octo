@@ -14,7 +14,7 @@ import { useToast } from '../components/ui/Toast'
 const STORAGE_KEY = 'lo-app-state-v1'
 const ACTIVE_KEY = 'lo-active-business'
 const BUSINESS_COLS =
-  'id, name, address, place_id, phone, website, google_rating, google_review_count, google_synced_at, review_link, maps_url, timezone, country_code, public_key, api_key_prefix, messaging, scheduling, ai, notification_prefs, integrations'
+  'id, name, address, place_id, phone, website, google_rating, google_review_count, google_synced_at, review_link, maps_url, timezone, country_code, public_key, api_key_prefix, messaging, scheduling, ai, notification_prefs'
 
 export interface BusinessSummary {
   id: string
@@ -34,7 +34,6 @@ interface AppStore {
   businesses: BusinessSummary[]
   activeBusinessId: string | null
   publicKey: string
-  apiKeyPrefix: string
   waTemplates: WaTemplate[]
   submitWhatsAppTemplates: (kinds: Array<'initial' | 'followup'>) => Promise<string[]>
   refreshWhatsAppTemplates: () => Promise<string[]>
@@ -66,7 +65,6 @@ interface AppStore {
   draftReply: (review: Review) => Promise<string>
   uploadMessageImage: (file: File) => Promise<void>
   uploadBusinessAsset: (file: File, prefix: string) => Promise<string>
-  regenerateApiKey: () => Promise<string>
   refresh: () => Promise<void>
   resetDemo: () => void
 }
@@ -134,7 +132,6 @@ function toSettings(b: Row): Settings {
     scheduling: { ...d.scheduling, ...b.scheduling },
     ai: { ...d.ai, ...b.ai },
     notifications: { ...d.notifications, ...b.notification_prefs },
-    integrations: { ...d.integrations, ...b.integrations },
   }
 }
 
@@ -143,7 +140,6 @@ const SETTINGS_COLUMN: Record<Exclude<keyof Settings, 'business'>, string> = {
   scheduling: 'scheduling',
   ai: 'ai',
   notifications: 'notification_prefs',
-  integrations: 'integrations',
 }
 
 const CONTACT_COLUMN: Partial<Record<keyof Contact, string>> = {
@@ -175,13 +171,12 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         scheduling: { ...d.scheduling, ...s.scheduling },
         ai: { ...d.ai, ...s.ai },
         notifications: { ...d.notifications, ...s.notifications },
-        integrations: { ...d.integrations, ...s.integrations },
       },
     }
   })
   const [businesses, setBusinesses] = useState<BusinessSummary[]>(isLive ? [] : [{ id: 'demo', name: initialState.settings.business.name }])
   const [activeId, setActiveId] = useState<string | null>(isLive ? storage.get<string | null>(ACTIVE_KEY, null) : 'demo')
-  const [keys, setKeys] = useState({ publicKey: isLive ? '' : 'demo0public0key000000000', apiKeyPrefix: '' })
+  const [keys, setKeys] = useState({ publicKey: isLive ? '' : 'demo0public0key000000000' })
   const [loading, setLoading] = useState(isLive)
   const [waTemplates, setWaTemplates] = useState<WaTemplate[]>([])
   const stateRef = useRef(state)
@@ -247,7 +242,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
           notifications: (notifications.data ?? []).map(toNotification),
           settings: toSettings(b.data),
         })
-        setKeys({ publicKey: b.data.public_key, apiKeyPrefix: b.data.api_key_prefix ?? '' })
+        setKeys({ publicKey: b.data.public_key })
       }
       setLoading(false)
     },
@@ -459,15 +454,6 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     [activeId, check],
   )
 
-  const regenerateApiKey = useCallback(async () => {
-    if (!isLive) return 'lo_live_demo_key_only_works_when_connected'
-    const { data, error } = await db().rpc('regenerate_api_key', { p_business: activeId })
-    if (!check(error, 'Could not create key')) throw new Error(error?.message)
-    const k = data as string
-    setKeys((x) => ({ ...x, apiKeyPrefix: k.slice(0, 14) }))
-    return k
-  }, [activeId, check])
-
   const submitWhatsAppTemplates = useCallback(
     async (kinds: Array<'initial' | 'followup'>) => {
       if (!isLive) {
@@ -653,7 +639,6 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       businesses,
       activeBusinessId: activeId,
       publicKey: keys.publicKey,
-      apiKeyPrefix: keys.apiKeyPrefix,
       waTemplates,
       submitWhatsAppTemplates,
       refreshWhatsAppTemplates,
@@ -683,11 +668,10 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       draftReply,
       uploadMessageImage,
       uploadBusinessAsset,
-      regenerateApiKey,
       refresh,
       resetDemo,
     }),
-    [loading, state, businesses, activeId, keys, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, submitStandardTemplates, switchBusiness, createBusiness, searchGoogle, importFromGoogle, google, refreshGoogle, connectGoogle, googleLocations, selectGoogleLocation, syncGoogleReviews, disconnectGoogle, postReviewReply, deleteReviewReply, addContacts, updateContact, deleteContact, updateSettings, setReviewReply, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, regenerateApiKey, refresh, resetDemo],
+    [loading, state, businesses, activeId, keys, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, submitStandardTemplates, switchBusiness, createBusiness, searchGoogle, importFromGoogle, google, refreshGoogle, connectGoogle, googleLocations, selectGoogleLocation, syncGoogleReviews, disconnectGoogle, postReviewReply, deleteReviewReply, addContacts, updateContact, deleteContact, updateSettings, setReviewReply, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, refresh, resetDemo],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

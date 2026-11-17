@@ -1,6 +1,5 @@
 // src/lib/supabase.ts
 import { createClient, FunctionsHttpError, type SupabaseClient } from '@supabase/supabase-js'
-import { brand } from '../config/brand'
 
 const url = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() ?? ''
 const key = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined)?.trim() ?? ''
@@ -16,8 +15,6 @@ export function db(): SupabaseClient {
 }
 
 export const functionsBase = isLive ? `${url}/functions/v1` : ''
-
-export const contactsWebhookUrl = isLive ? `${functionsBase}/contacts-webhook` : `${brand.webhookBaseUrl}/contacts`
 
 /** Calls an Edge Function and turns its JSON error into a readable message. */
 export async function invokeFn<T>(name: string, body: Record<string, unknown>): Promise<T> {

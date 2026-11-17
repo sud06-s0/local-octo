@@ -12,7 +12,6 @@ import ReviewPage from './pages/ReviewPage'
 const Dashboard = lazyPage(() => import('./pages/Dashboard'))
 const Contacts = lazyPage(() => import('./pages/Contacts'))
 const Messaging = lazyPage(() => import('./pages/Messaging'))
-const RequestScheduling = lazyPage(() => import('./pages/RequestScheduling'))
 const Reviews = lazyPage(() => import('./pages/Reviews'))
 const Integrations = lazyPage(() => import('./pages/Integrations'))
 const Notifications = lazyPage(() => import('./pages/Notifications'))
@@ -48,7 +47,7 @@ function Gate() {
         <Route path="contacts" element={<Contacts />} />
         <Route path="add-contacts" element={<Navigate to="/contacts?tab=add" replace />} />
         <Route path="messaging" element={<Messaging />} />
-        <Route path="request-scheduling" element={<RequestScheduling />} />
+        <Route path="request-scheduling" element={<Navigate to="/contacts?tab=schedule" replace />} />
         <Route path="reviews" element={<Reviews />} />
         <Route path="integrations" element={<Integrations />} />
         <Route path="notifications" element={<Notifications />} />

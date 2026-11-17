@@ -87,11 +87,5 @@ export const initialState: AppState = {
       weeklySummary: true,
       lowRatingThreshold: 3,
     },
-    integrations: {
-      google: 'connected',
-      whatsapp: 'available',
-      email: 'connected',
-      sms: 'available',
-    },
   },
 }

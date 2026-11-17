@@ -1,4 +1,5 @@
 // src/pages/RequestScheduling.tsx
+// Shown as the "Schedule Requests" tab inside the Contacts page.
 import { Info, Pause, Play } from 'lucide-react'
 import { Button, Card, RangeSlider, UnderlineHeading } from '../components/ui/primitives'
 import { useStore } from '../store/AppStore'
@@ -9,7 +10,8 @@ import { cn } from '../lib/utils'
 const DELAYS = ['Right Away', '1 Hour Later', '3 Hours Later', '6 Hours Later', '1 Day Later', '2 Days Later', '3 Days Later', '7 Days Later']
 const MAX_FOLLOW_UPS = 3
 
-export default function RequestScheduling() {
+/** "Schedule Requests" tab on the Contacts page. */
+export function RequestSchedulingPanel() {
   const { state, updateSettings } = useStore()
   const toast = useToast()
   const s = state.settings.scheduling
@@ -100,7 +102,7 @@ export default function RequestScheduling() {
             <ul className="mt-3 list-disc space-y-2 pl-5 text-[15px] leading-relaxed text-ink/85 marker:text-ink/60">
               <li>Follow-ups are sent {brand.followUpGapDays} days after the previous message</li>
               <li>Contacts who click your review link won't receive follow-ups</li>
-              <li>You can stop follow-ups for individual contacts from the contacts page</li>
+              <li>You can stop follow-ups for individual contacts from the All Contacts tab</li>
             </ul>
           </div>
         </Card>
