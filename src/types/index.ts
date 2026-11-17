@@ -48,6 +48,19 @@ export interface AppNotification {
   read: boolean
 }
 
+export interface WaTemplate {
+  id: string
+  kind: WaTemplateKind
+  name: string
+  language: string
+  body: string
+  status: WaTemplateStatus
+  reason: string | null
+  /** Category Meta gave it: marketing, utility or authentication */
+  category: string | null
+  createdAt: string
+}
+
 export type WaTemplateKind = 'initial' | 'initial_image' | 'followup' | 'followup_image'
 export type WaTemplateStatus = 'not_created' | 'pending' | 'approved' | 'rejected' | 'paused' | 'disabled' | 'failed'
 
@@ -110,6 +123,13 @@ export interface Settings {
     imageDataUrl: string | null
     customMessage: string
     customFollowUp: string
+    /** WhatsApp: the standard templates, or the agency's own approved custom templates */
+    waMode: 'standard' | 'custom'
+    /** WhatsApp custom templates (agency writes and submits them for approval) */
+    waMessage: string
+    waFollowUp: string
+    waTemplateName: string
+    waFollowUpTemplateName: string
     followUpsEnabled: boolean
   }
   scheduling: {

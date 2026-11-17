@@ -3,6 +3,7 @@
 // Every provider needs PRE-APPROVED templates — see SETUP.md for the exact template text.
 
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
+import { approvedTemplates, type ParamKey } from './waTemplates.ts'
 
 type Kind = 'initial' | 'follow_up' | 'test'
 type Channel = 'whatsapp' | 'sms' | 'email'
@@ -15,6 +16,8 @@ export interface Messaging {
   businessName?: string
   customMessage?: string
   customFollowUp?: string
+  /** WhatsApp: 'standard' templates, or the agency's own approved 'custom' templates */
+  waMode?: 'standard' | 'custom'
   followUpsEnabled?: boolean
 }
 
@@ -200,17 +203,30 @@ export async function deliver(input: DeliverInput): Promise<DeliverResult> {
 
   if (input.phone && ch.whatsapp) {
     const wa = ch.whatsapp
-    // Default templates: {{1}} first name, {{2}} business name, {{3}} review link
-    // WhatsApp always sends the approved standard templates (the custom message is for SMS and email).
-    // First message: with the personalised photo when enabled. Follow-ups: text only.
-    const template = isFollow ? wa.followUp : input.imageUrl ? wa.initialImage : wa.initial
-    const params = [input.firstName, input.businessName, input.link]
-    const header = isFollow ? undefined : input.imageUrl
+    // Only approved templates go out on WhatsApp. Standard ones: {{1}} first name, {{2}} business name, {{3}} review link.
+    // First message carries the personalised photo when enabled; follow-ups are text only.
+    const photo = isFollow ? undefined : input.imageUrl
+    let template = isFollow ? wa.followUp : photo ? wa.initialImage : wa.initial
+    let params = [input.firstName, input.businessName, input.link]
+    const header = photo
+    let lang: string | undefined
+
+    // WhatsApp custom mode: the agency's own approved template, when there is one (otherwise the standard one)
+    if (input.messaging.waMode === 'custom') {
+      const custom = await approvedTemplates(input.admin, input.businessId)
+      const values: Record<ParamKey, string> = { first_name: input.firstName, review_link: input.link }
+      const pick = isFollow ? custom.followup : photo ? custom.initial_image : custom.initial
+      if (pick) {
+        template = pick.name
+        lang = pick.language
+        params = pick.params.map((p) => values[p] ?? '')
+      }
+    }
 
     attempts.push({
       channel: 'whatsapp',
       recipient: input.phone,
-      run: () => sendWhatsApp(wa, input.phone, template, params, header),
+      run: () => sendWhatsApp(wa, input.phone, template, params, header, lang),
     })
   }
   if (input.phone && ch.sms) {

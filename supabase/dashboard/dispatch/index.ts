@@ -25,6 +25,17 @@ function functionsUrl() {
   return `${Deno.env.get("SUPABASE_URL")}/functions/v1`;
 }
 
+// supabase/functions/_shared/waTemplates.ts
+async function approvedTemplates(admin, businessId) {
+  const { data } = await admin.from("whatsapp_templates").select("kind, name, language, params").eq("business_id", businessId).eq("status", "approved").order("created_at", { ascending: false });
+  const out = {};
+  for (const r of data ?? []) {
+    const kind = r.kind;
+    if (!out[kind]) out[kind] = { name: r.name, language: r.language, params: r.params ?? [] };
+  }
+  return out;
+}
+
 // supabase/functions/_shared/send.ts
 var env = (k) => Deno.env.get(k) ?? "";
 async function loadChannels(admin, businessId) {
@@ -130,13 +141,25 @@ async function deliver(input) {
   const attempts = [];
   if (input.phone && ch.whatsapp) {
     const wa = ch.whatsapp;
-    const template = isFollow ? wa.followUp : input.imageUrl ? wa.initialImage : wa.initial;
-    const params = [input.firstName, input.businessName, input.link];
-    const header = isFollow ? void 0 : input.imageUrl;
+    const photo = isFollow ? void 0 : input.imageUrl;
+    let template = isFollow ? wa.followUp : photo ? wa.initialImage : wa.initial;
+    let params = [input.firstName, input.businessName, input.link];
+    const header = photo;
+    let lang;
+    if (input.messaging.waMode === "custom") {
+      const custom = await approvedTemplates(input.admin, input.businessId);
+      const values = { first_name: input.firstName, review_link: input.link };
+      const pick = isFollow ? custom.followup : photo ? custom.initial_image : custom.initial;
+      if (pick) {
+        template = pick.name;
+        lang = pick.language;
+        params = pick.params.map((p) => values[p] ?? "");
+      }
+    }
     attempts.push({
       channel: "whatsapp",
       recipient: input.phone,
-      run: () => sendWhatsApp(wa, input.phone, template, params, header)
+      run: () => sendWhatsApp(wa, input.phone, template, params, header, lang)
     });
   }
   if (input.phone && ch.sms) {

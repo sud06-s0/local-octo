@@ -74,6 +74,11 @@ export const initialState: AppState = {
       customMessage:
         "Hey {first_name}, we hope you enjoyed your experience with {business_name}! Would you mind taking a moment to leave a review? Here's the link: {review_link}",
       customFollowUp: 'Hi {first_name}, just a quick reminder — your feedback means a lot to us! {review_link}',
+      waMode: 'standard',
+      waMessage: 'Hey {first_name}, we hope you enjoyed your experience with {business_name}! Would you mind taking a moment to leave a review? Here\'s the link: {review_link}',
+      waFollowUp: 'Hi {first_name}, just a quick reminder — your feedback means a lot to us! {review_link}',
+      waTemplateName: '',
+      waFollowUpTemplateName: '',
       followUpsEnabled: true,
     },
     scheduling: { active: true, initialDelayIndex: 0, followUps: 2 },
