@@ -10,6 +10,7 @@ export function Modal({
   children,
   footer,
   size = 'md',
+  top = false,
 }: {
   open: boolean
   onClose: () => void
@@ -17,6 +18,8 @@ export function Modal({
   children: ReactNode
   footer?: ReactNode
   size?: 'md' | 'lg'
+  /** Show above other open windows (e.g. a picker opened from inside a form) */
+  top?: boolean
 }) {
   useEffect(() => {
     if (!open) return
@@ -32,7 +35,7 @@ export function Modal({
 
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-[90] flex items-end justify-center sm:items-center sm:p-4" role="dialog" aria-modal aria-label={title}>
+    <div className={cn('fixed inset-0 flex items-end justify-center sm:items-center sm:p-4', top ? 'z-[95]' : 'z-[90]')} role="dialog" aria-modal aria-label={title}>
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div
         className={cn(

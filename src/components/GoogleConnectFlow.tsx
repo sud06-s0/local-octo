@@ -76,6 +76,7 @@ export function GoogleConnectFlow() {
 
   return (
     <Modal
+      top
       open={open}
       onClose={() => setOpen(false)}
       title="Choose your Google business"

@@ -1,5 +1,5 @@
 // src/pages/Dashboard.tsx
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { ChartColumn, Copy, ExternalLink, Mail, MapPin, MousePointerClick, Pencil, SquarePen, Star, UserPlus, type LucideIcon } from 'lucide-react'
 import { Button, Card, EmptyState, LabeledDivider, Stars, UnderlineHeading } from '../components/ui/primitives'
@@ -37,6 +37,12 @@ export default function Dashboard() {
   const [range, setRange] = useState<Range>('30d')
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [details, setDetails] = useState<BusinessDetails>(settings.business)
+  // Linking a Google business while the form is open fills its details: show them, so Save doesn't undo them
+  const b = settings.business
+  useEffect(() => {
+    if (detailsOpen) setDetails(b)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [b.placeId, b.reviewLink, b.mapsUrl, b.address, b.name])
 
   const stats = useMemo(
     () => ({
