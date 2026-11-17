@@ -3,7 +3,7 @@
 //  - status                         → { connected, email, locationTitle, needsLocation, lastSyncAt }
 //  - auth_url { returnUrl }         → { url } to send the user to Google
 //  - locations                      → every location the connected account manages
-//  - select_location { location }   → use that location (also fills place id / review link if empty)
+//  - select_location { location }   → use that location; its place id, review link, Maps link and address come from Google
 //  - sync                           → pulls all reviews + rating
 //  - reply { reviewId, comment }    → posts the reply on Google
 //  - delete_reply { reviewId }      → removes the reply on Google
@@ -11,7 +11,7 @@
 
 import { adminClient, getUser, isMember } from '../_shared/supabase.ts'
 import { json, preflight } from '../_shared/http.ts'
-import { accessTokenFor, authUrl, deleteReply, GoogleDisconnected, listLocations, postReply, revokeToken, syncReviews, type GbpLocation } from '../_shared/gbp.ts'
+import { accessTokenFor, authUrl, deleteReply, GoogleDisconnected, linkLocation, listLocations, postReply, revokeToken, syncReviews, type GbpLocation } from '../_shared/gbp.ts'
 
 Deno.serve(async (req) => {
   const pre = preflight(req)
@@ -70,18 +70,7 @@ Deno.serve(async (req) => {
         const match = (await listLocations(token)).find((x) => x.locationName === l.locationName && x.accountName === l.accountName)
         if (!match) return json({ error: 'That location is not on the connected Google account' }, 400)
 
-        await admin
-          .from('google_connections')
-          .update({ account_name: match.accountName, location_name: match.locationName, location_title: match.title })
-          .eq('business_id', businessId)
-
-        // Fill the Google details only where the business has none yet
-        const { data: b } = await admin.from('businesses').select('place_id, review_link, maps_url').eq('id', businessId).single()
-        const patch: Record<string, string> = {}
-        if (!b?.place_id && match.placeId) patch.place_id = match.placeId
-        if (!b?.review_link && (match.reviewUrl || match.placeId)) patch.review_link = match.reviewUrl ?? `https://search.google.com/local/writereview?placeid=${match.placeId}`
-        if (!b?.maps_url && match.mapsUrl) patch.maps_url = match.mapsUrl
-        if (Object.keys(patch).length) await admin.from('businesses').update(patch).eq('id', businessId)
+        await linkLocation(admin, businessId, match)
         return json({ ok: true, locationTitle: match.title })
       }
 

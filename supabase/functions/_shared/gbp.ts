@@ -172,6 +172,26 @@ export async function listLocations(token: string): Promise<GbpLocation[]> {
   return out
 }
 
+/**
+ * Links the business to one location of the signed-in Google account and takes its details from Google:
+ * place id, review link, Maps link and address (and the name, if the business has none).
+ */
+export async function linkLocation(admin: SupabaseClient, businessId: string, l: GbpLocation) {
+  await admin
+    .from('google_connections')
+    .update({ account_name: l.accountName, location_name: l.locationName, location_title: l.title })
+    .eq('business_id', businessId)
+  const { data: b } = await admin.from('businesses').select('name').eq('id', businessId).single()
+  const patch: Record<string, string> = {}
+  if (l.placeId) patch.place_id = l.placeId
+  if (l.reviewUrl || l.placeId) patch.review_link = l.reviewUrl ?? `https://search.google.com/local/writereview?placeid=${l.placeId}`
+  if (l.mapsUrl) patch.maps_url = l.mapsUrl
+  else if (l.placeId) patch.maps_url = `https://www.google.com/maps/place/?q=place_id:${l.placeId}`
+  if (l.address) patch.address = l.address
+  if (!b?.name?.trim() && l.title) patch.name = l.title
+  if (Object.keys(patch).length) await admin.from('businesses').update(patch).eq('id', businessId)
+}
+
 /** Pulls every review (up to 2,000) for the connected location into the reviews table. */
 export async function syncReviews(admin: SupabaseClient, businessId: string) {
   const { token, conn } = await accessTokenFor(admin, businessId)

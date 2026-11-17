@@ -7,6 +7,7 @@ import { GoogleG } from '../components/ui/BrandIcons'
 import { useStore } from '../store/AppStore'
 import { Modal } from '../components/ui/Modal'
 import { BusinessDetailsForm, businessDetailsValid, type BusinessDetails } from '../components/BusinessDetailsForm'
+import { GoogleLinkBox } from '../components/GoogleConnectCard'
 import { useToast } from '../components/ui/Toast'
 import { cn, copyText } from '../lib/utils'
 
@@ -30,7 +31,7 @@ function StatTile({ label, value, icon: Icon }: { label: string; value: number; 
 }
 
 export default function Dashboard() {
-  const { state, updateSettings, importFromGoogle, publicKey } = useStore()
+  const { state, updateSettings, publicKey } = useStore()
   const toast = useToast()
   const { reviews, contacts, settings } = state
   const [range, setRange] = useState<Range>('30d')
@@ -183,15 +184,6 @@ export default function Dashboard() {
                 })
                 setDetailsOpen(false)
                 toast('Business details saved')
-                // Newly linked to Google: import rating, phone, website and latest reviews
-                if (details.placeId && details.placeId !== settings.business.placeId) {
-                  try {
-                    const r = await importFromGoogle(details.placeId)
-                    if (r.imported) toast(`Imported ${r.imported} reviews from Google`)
-                  } catch (e) {
-                    toast(e instanceof Error ? e.message : 'Google import failed', 'error')
-                  }
-                }
               }}
             >
               Save
@@ -199,7 +191,7 @@ export default function Dashboard() {
           </>
         }
       >
-        <BusinessDetailsForm value={details} onChange={setDetails} />
+        <BusinessDetailsForm value={details} onChange={setDetails} top={<GoogleLinkBox />} />
       </Modal>
 
       {/* Google reviews summary */}

@@ -194,7 +194,7 @@ export function Sidebar({ onNavigate, onReferral }: { onNavigate?: () => void; o
               onClick={async () => {
                 setBusy(true)
                 try {
-                  await createBusiness({ name: draft.name.trim(), address: draft.address.trim(), reviewLink: draft.reviewLink.trim(), mapsUrl: draft.mapsUrl.trim(), placeId: draft.placeId })
+                  await createBusiness({ name: draft.name.trim(), address: draft.address.trim(), reviewLink: draft.reviewLink.trim(), mapsUrl: draft.mapsUrl.trim() })
                   setAddOpen(false)
                   toast(`${draft.name.trim()} created`)
                   onNavigate?.()

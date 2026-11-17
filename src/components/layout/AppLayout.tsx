@@ -4,6 +4,7 @@ import { Outlet, useLocation } from 'react-router'
 import { Copy, Gift, LifeBuoy, Mail, Menu, MessageCircle, X } from 'lucide-react'
 import { Sidebar } from './Sidebar'
 import { ErrorBoundary } from '../ErrorBoundary'
+import { GoogleConnectFlow } from '../GoogleConnectFlow'
 import { Modal } from '../ui/Modal'
 import { Button, Input } from '../ui/primitives'
 import { useToast } from '../ui/Toast'
@@ -52,6 +53,7 @@ export function AppLayout() {
         </div>
       )}
 
+      <GoogleConnectFlow />
       <main className="lg:pl-[272px]">
         <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <ErrorBoundary resetKey={pathname}>

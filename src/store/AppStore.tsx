@@ -3,7 +3,7 @@
 // isolated); demo mode (no env vars) uses sample data saved in localStorage.
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { AppNotification, AppState, Contact, CustomerFeedback, GbpLocation, GoogleConnection, GooglePlaceResult, NewContact, Review, ReviewReply, Settings, WaStandardTemplate, WaTemplate, WaTemplateKind } from '../types'
+import type { AppNotification, AppState, Contact, CustomerFeedback, GbpLocation, GoogleConnection, NewContact, Review, ReviewReply, Settings, WaStandardTemplate, WaTemplate, WaTemplateKind } from '../types'
 import { demoFeedback, initialState } from '../data/mockData'
 import { storage, uid } from '../lib/utils'
 import { db, invokeFn, isLive } from '../lib/supabase'
@@ -43,8 +43,7 @@ interface AppStore {
   checkStandardTemplates: () => Promise<WaStandardTemplate[]>
   submitStandardTemplates: () => Promise<WaStandardTemplate[]>
   switchBusiness: (id: string) => void
-  createBusiness: (input: { name: string; address?: string; reviewLink?: string; mapsUrl?: string; placeId?: string }) => Promise<void>
-  searchGoogle: (query: string) => Promise<GooglePlaceResult[]>
+  createBusiness: (input: { name: string; address?: string; reviewLink?: string; mapsUrl?: string }) => Promise<void>
   importFromGoogle: (placeId: string) => Promise<{ added: number; imported: number }>
   /** Google Business Profile (OAuth): null until checked */
   google: GoogleConnection | null
@@ -280,37 +279,16 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const switchBusiness = useCallback((id: string) => setActiveId(id), [])
 
   const createBusiness = useCallback(
-    async ({ name, address = '', reviewLink = '', mapsUrl = '', placeId = '' }: { name: string; address?: string; reviewLink?: string; mapsUrl?: string; placeId?: string }) => {
+    async ({ name, address = '', reviewLink = '', mapsUrl = '' }: { name: string; address?: string; reviewLink?: string; mapsUrl?: string }) => {
       if (!isLive) return toast('Locations are available once Supabase is connected')
       const { data: id, error } = await db().rpc('create_business', { p_name: name, p_address: address })
       if (!check(error, 'Could not create business')) throw new Error(error?.message)
       if (reviewLink || mapsUrl) await db().from('businesses').update({ review_link: reviewLink, maps_url: mapsUrl }).eq('id', id)
-      // Picked from Google: pull rating, phone, website and latest reviews too
-      if (placeId) {
-        try {
-          await invokeFn('google-places', { action: 'import', businessId: id, placeId })
-        } catch (e) {
-          toast(`Business created, but Google import failed: ${e instanceof Error ? e.message : 'unknown error'}`, 'error')
-        }
-      }
       await loadBusinesses()
       setActiveId(id as string)
     },
     [check, loadBusinesses, toast],
   )
-
-  const searchGoogle = useCallback(async (query: string): Promise<GooglePlaceResult[]> => {
-    if (!isLive) {
-      // Demo results so the search can be tried without a Google key
-      const q = query.trim()
-      return [
-        { placeId: 'demo_place_1', name: q || 'Local Octo', address: '2nd Floor, 25th Main Road, J. P. Nagar, Bengaluru', rating: 5, reviewCount: 4 },
-        { placeId: 'demo_place_2', name: `${q || 'Local Octo'} Studio`, address: 'Indiranagar, Bengaluru', rating: 4.7, reviewCount: 38 },
-      ]
-    }
-    const res = await invokeFn<{ results: GooglePlaceResult[] }>('google-places', { action: 'search', query })
-    return res.results
-  }, [])
 
   const importFromGoogle = useCallback(
     async (placeId: string) => {
@@ -668,7 +646,6 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       submitStandardTemplates,
       switchBusiness,
       createBusiness,
-      searchGoogle,
       importFromGoogle,
       google,
       refreshGoogle,
@@ -693,7 +670,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       refresh,
       resetDemo,
     }),
-    [loading, state, businesses, activeId, keys, feedback, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, submitStandardTemplates, switchBusiness, createBusiness, searchGoogle, importFromGoogle, google, refreshGoogle, connectGoogle, googleLocations, selectGoogleLocation, syncGoogleReviews, disconnectGoogle, postReviewReply, deleteReviewReply, addContacts, updateContact, deleteContact, updateSettings, setReviewReply, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, refresh, resetDemo],
+    [loading, state, businesses, activeId, keys, feedback, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, submitStandardTemplates, switchBusiness, createBusiness, importFromGoogle, google, refreshGoogle, connectGoogle, googleLocations, selectGoogleLocation, syncGoogleReviews, disconnectGoogle, postReviewReply, deleteReviewReply, addContacts, updateContact, deleteContact, updateSettings, setReviewReply, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, refresh, resetDemo],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

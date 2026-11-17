@@ -4,7 +4,7 @@
 // account has only one, and send the user back to the app with ?google=connected | choose | error.
 
 import { adminClient } from '../_shared/supabase.ts'
-import { exchangeCode, listLocations, verifyState } from '../_shared/gbp.ts'
+import { exchangeCode, linkLocation, listLocations, verifyState } from '../_shared/gbp.ts'
 
 function back(returnUrl: string, status: string, message = '') {
   let url: URL
@@ -47,11 +47,7 @@ Deno.serve(async (req) => {
     // One location → use it straight away. Several → the app asks which one.
     const locations = await listLocations(accessToken).catch(() => [])
     if (locations.length === 1) {
-      const l = locations[0]
-      await admin
-        .from('google_connections')
-        .update({ account_name: l.accountName, location_name: l.locationName, location_title: l.title })
-        .eq('business_id', state.b)
+      await linkLocation(admin, state.b, locations[0])
       return back(state.r, 'connected')
     }
     return back(state.r, locations.length ? 'choose' : 'error', locations.length ? '' : 'No Google Business Profile found on this Google account')

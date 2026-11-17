@@ -36,7 +36,7 @@ export default function Onboarding() {
             onClick={async () => {
               setBusy(true)
               try {
-                await createBusiness({ name: details.name.trim(), address: details.address.trim(), reviewLink: details.reviewLink.trim(), mapsUrl: details.mapsUrl.trim(), placeId: details.placeId })
+                await createBusiness({ name: details.name.trim(), address: details.address.trim(), reviewLink: details.reviewLink.trim(), mapsUrl: details.mapsUrl.trim() })
               } catch {
                 /* toast already shown */
               } finally {

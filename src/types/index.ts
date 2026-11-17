@@ -89,14 +89,6 @@ export interface WaStandardTemplate {
 }
 
 /** A Google search result for "Find your business on Google" */
-export interface GooglePlaceResult {
-  placeId: string
-  name: string
-  address: string
-  rating: number | null
-  reviewCount: number
-}
-
 /** Google Business Profile connection (OAuth) for the active business. */
 export interface GoogleConnection {
   connected: boolean

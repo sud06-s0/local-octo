@@ -1,8 +1,5 @@
 // supabase/dashboard/google-oauth/index.ts
-// Self-contained copy of supabase/functions/google-oauth for pasting into the Supabase dashboard editor.
-// Function name in Supabase must be exactly: google-oauth   ·   Turn OFF "Verify JWT" for this function.
-// @ts-nocheck  (bundled JavaScript — the typed source lives in supabase/functions)
-
+// @ts-nocheck
 // supabase/functions/_shared/supabase.ts
 import { createClient } from "npm:@supabase/supabase-js@2";
 function secretKey() {
@@ -114,6 +111,18 @@ async function listLocations(token) {
   } while (accPage);
   return out;
 }
+async function linkLocation(admin, businessId, l) {
+  await admin.from("google_connections").update({ account_name: l.accountName, location_name: l.locationName, location_title: l.title }).eq("business_id", businessId);
+  const { data: b } = await admin.from("businesses").select("name").eq("id", businessId).single();
+  const patch = {};
+  if (l.placeId) patch.place_id = l.placeId;
+  if (l.reviewUrl || l.placeId) patch.review_link = l.reviewUrl ?? `https://search.google.com/local/writereview?placeid=${l.placeId}`;
+  if (l.mapsUrl) patch.maps_url = l.mapsUrl;
+  else if (l.placeId) patch.maps_url = `https://www.google.com/maps/place/?q=place_id:${l.placeId}`;
+  if (l.address) patch.address = l.address;
+  if (!b?.name?.trim() && l.title) patch.name = l.title;
+  if (Object.keys(patch).length) await admin.from("businesses").update(patch).eq("id", businessId);
+}
 
 // supabase/functions/google-oauth/index.ts
 function back(returnUrl, status, message = "") {
@@ -151,8 +160,7 @@ Deno.serve(async (req) => {
     });
     const locations = await listLocations(accessToken).catch(() => []);
     if (locations.length === 1) {
-      const l = locations[0];
-      await admin.from("google_connections").update({ account_name: l.accountName, location_name: l.locationName, location_title: l.title }).eq("business_id", state.b);
+      await linkLocation(admin, state.b, locations[0]);
       return back(state.r, "connected");
     }
     return back(state.r, locations.length ? "choose" : "error", locations.length ? "" : "No Google Business Profile found on this Google account");
