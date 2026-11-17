@@ -1,8 +1,8 @@
 // src/components/FeedbackList.tsx
-// "Customer Feedback" tab on the Reviews page: answers from the review page.
-// Bad / Worse ones say what to improve; the business can email (or call) the customer back.
+// "Negative Reviews" tab on the Reviews page: Bad / Worse reviews sent through the review form.
+// The business can email (or call) the customer back.
 
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Mail, MessageSquareText, Phone } from 'lucide-react'
 import { Badge, Button, Card, EmptyState } from './ui/primitives'
 import { useStore } from '../store/AppStore'
@@ -16,22 +16,11 @@ const FACE: Record<CustomerFeedback['rating'], { emoji: string; label: string }>
   1: { emoji: '😠', label: 'Worse' },
 }
 
-type Filter = 'attention' | 'happy' | 'all'
-
 export function FeedbackList() {
   const { feedback, state } = useStore()
-  const [filter, setFilter] = useState<Filter>('attention')
   const business = state.settings.messaging.businessName || state.settings.business.name
-
-  const counts = {
-    attention: feedback.filter((f) => f.rating <= 2).length,
-    happy: feedback.filter((f) => f.rating >= 4).length,
-    all: feedback.length,
-  }
-  const list = useMemo(
-    () => feedback.filter((f) => (filter === 'all' ? true : filter === 'attention' ? f.rating <= 2 : f.rating >= 4)),
-    [feedback, filter],
-  )
+  // Negative reviews = what Bad / Worse customers sent through the review form
+  const list = useMemo(() => feedback.filter((f) => f.rating <= 2), [feedback])
 
   const mailto = (f: CustomerFeedback) => {
     const first = f.name.split(' ')[0] || 'there'
@@ -43,34 +32,12 @@ export function FeedbackList() {
   return (
     <div className="mt-6">
       <p className="text-[15px] text-muted">
-        Answers from your review page. Bad and Worse never go to Google; they come here so you can follow up and fix it.
+        Bad and Worse reviews from your review form. They never go to Google; they come here so you can follow up and fix it.
       </p>
-
-      <div className="mt-4 flex flex-wrap gap-2">
-        {(
-          [
-            ['attention', 'Needs attention'],
-            ['happy', 'Happy & Good'],
-            ['all', 'All'],
-          ] as const
-        ).map(([v, label]) => (
-          <button
-            key={v}
-            type="button"
-            onClick={() => setFilter(v)}
-            className={cn(
-              'rounded-full px-3.5 py-1.5 text-sm font-medium ring-1 transition',
-              filter === v ? 'bg-brand-700 text-white ring-brand-700' : 'bg-white text-ink ring-line hover:bg-canvas',
-            )}
-          >
-            {label} <span className={filter === v ? 'text-white/80' : 'text-muted'}>{counts[v]}</span>
-          </button>
-        ))}
-      </div>
 
       {!list.length ? (
         <Card className="mt-5">
-          <EmptyState icon={MessageSquareText} title="No feedback here yet" body="When customers answer on your review page, it shows up here." />
+          <EmptyState icon={MessageSquareText} title="No negative reviews" body="When a customer picks Bad or Worse on your review page, their review shows up here." />
         </Card>
       ) : (
         <div className="mt-5 space-y-4">

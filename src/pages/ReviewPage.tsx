@@ -2,7 +2,7 @@
 // Public review page (no login): local-octo.vercel.app/review?t=<contact token> or ?b=<business public key>.
 // Four big faces. Happy (5) and Good (4) open Google's review page straight away;
 // Bad (2) and Worse (1) get a review form (text + photo); "Submit review" saves it in the app only
-// (Reviews → Customer Feedback) and Google never opens.
+// (Reviews → Negative Reviews) and Google never opens.
 
 import { useEffect, useRef, useState } from 'react'
 import { ImagePlus, Loader2, X } from 'lucide-react'

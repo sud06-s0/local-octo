@@ -239,8 +239,8 @@ export default function Reviews() {
         value={view}
         onChange={(v) => setParams(v === 'feedback' ? { view: 'feedback' } : {}, { replace: true })}
         options={[
-          { value: 'google', label: 'Google Reviews', icon: Star },
-          { value: 'feedback', label: attention ? `Customer Feedback (${attention})` : 'Customer Feedback', icon: MessageSquareText },
+          { value: 'google', label: 'Positive Reviews', icon: Star },
+          { value: 'feedback', label: attention ? `Negative Reviews (${attention})` : 'Negative Reviews', icon: MessageSquareText },
         ]}
       />
 
