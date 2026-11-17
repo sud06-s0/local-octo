@@ -75,7 +75,7 @@ export default function Login() {
         <div>
           <p className="max-w-md text-[34px] font-bold leading-tight">More Google reviews. On autopilot.</p>
           <ul className="mt-8 space-y-3 text-[16px] text-white/90">
-            {['Review requests on WhatsApp, SMS and email', 'Smart follow-ups that stop when customers click', 'AI replies and review widgets for your website'].map((t) => (
+            {['Review requests on WhatsApp, SMS and email', 'Smart follow-ups that stop when customers click', 'AI replies to your Google reviews'].map((t) => (
               <li key={t} className="flex items-center gap-2"><CircleCheck className="size-5 text-brand-200" /> {t}</li>
             ))}
           </ul>

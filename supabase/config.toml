@@ -22,8 +22,6 @@ verify_jwt = false
 [functions.ai-reply]
 verify_jwt = false
 
-[functions.widget]
-verify_jwt = false
 
 [functions.review-image]
 verify_jwt = false

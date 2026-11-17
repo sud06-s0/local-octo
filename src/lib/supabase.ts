@@ -17,7 +17,6 @@ export function db(): SupabaseClient {
 
 export const functionsBase = isLive ? `${url}/functions/v1` : ''
 
-export const widgetScriptUrl = isLive ? `${functionsBase}/widget?format=js` : brand.widgetScriptUrl
 export const contactsWebhookUrl = isLive ? `${functionsBase}/contacts-webhook` : `${brand.webhookBaseUrl}/contacts`
 
 /** Calls an Edge Function and turns its JSON error into a readable message. */

@@ -48,15 +48,6 @@ export interface AppNotification {
   read: boolean
 }
 
-export interface SocialPost {
-  id: string
-  reviewId: string
-  network: 'facebook' | 'instagram'
-  format: 'feed' | 'story'
-  status: 'scheduled' | 'posted' | 'failed'
-  at: string
-}
-
 export type WaTemplateKind = 'initial' | 'initial_image' | 'followup' | 'followup_image'
 export type WaTemplateStatus = 'not_created' | 'pending' | 'approved' | 'rejected' | 'paused' | 'disabled' | 'failed'
 
@@ -113,24 +104,6 @@ export interface GbpLocation {
 
 export type IntegrationStatus = 'connected' | 'available' | 'coming_soon'
 
-export interface WidgetColors {
-  star: string
-  background: string
-  text: string
-}
-
-export type CaptionSource = 'review' | 'reply' | 'custom'
-export type DayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
-
-/** Background design for review posts: a preset (CSS background) or an uploaded image URL */
-export interface PostTemplate {
-  id: string
-  name: string
-  kind: 'preset' | 'upload'
-  background: string
-  textColor: string
-}
-
 export interface Settings {
   business: {
     name: string
@@ -167,20 +140,6 @@ export interface Settings {
     autoPostPositive: boolean
     nickname: string
   }
-  widgets: {
-    popup: WidgetColors & { position: 'left' | 'right' }
-    carousel: WidgetColors
-  }
-  social: {
-    facebookConnected: boolean
-    instagramConnected: boolean
-    autoPost: boolean
-    captionSource: CaptionSource
-    customCaption: string
-    schedule: Record<DayKey, { story: boolean; feed: boolean }>
-    templates: PostTemplate[]
-    activeTemplateId: string | null
-  }
   notifications: {
     emailNewReview: boolean
     emailLowRating: boolean
@@ -195,6 +154,5 @@ export interface AppState {
   contacts: Contact[]
   reviews: Review[]
   notifications: AppNotification[]
-  socialPosts: SocialPost[]
   settings: Settings
 }

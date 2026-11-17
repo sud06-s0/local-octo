@@ -2,7 +2,7 @@
 // SAMPLE DATA ONLY — every name, review and project below is invented for the UI.
 // Replace with Supabase queries when the backend is connected.
 
-import type { AppState, Contact, Review, AppNotification, SocialPost } from '../types'
+import type { AppState, Contact, Review, AppNotification } from '../types'
 import { daysAgo } from '../lib/utils'
 
 const contacts: Contact[] = [
@@ -48,16 +48,10 @@ const notifications: AppNotification[] = [
   { id: 'n4', type: 'system', title: 'Google profile connected', body: 'Your Google Business Profile is synced. 4 reviews imported.', at: daysAgo(29), read: true },
 ]
 
-const socialPosts: SocialPost[] = [
-  { id: 's1', reviewId: 'r4', network: 'facebook', format: 'feed', status: 'posted', at: daysAgo(4) },
-  { id: 's2', reviewId: 'r4', network: 'instagram', format: 'story', status: 'posted', at: daysAgo(4) },
-]
-
 export const initialState: AppState = {
   contacts,
   reviews,
   notifications,
-  socialPosts,
   settings: {
     business: {
       name: 'Local Octo',
@@ -86,28 +80,6 @@ export const initialState: AppState = {
     },
     scheduling: { active: true, initialDelayIndex: 0, followUps: 2 },
     ai: { autoPostPositive: true, nickname: '' },
-    widgets: {
-      popup: { position: 'left', star: '#FFC107', background: '#FFFFFF', text: '#000000' },
-      carousel: { star: '#FFC107', background: '#FFFFFF', text: '#333333' },
-    },
-    social: {
-      facebookConnected: false,
-      instagramConnected: false,
-      autoPost: false,
-      captionSource: 'review',
-      customCaption: '⭐ {rating}-star review from {reviewer_name}: "{review_text}" Thank you for choosing {business_name}!',
-      schedule: {
-        mon: { story: false, feed: false },
-        tue: { story: false, feed: false },
-        wed: { story: false, feed: false },
-        thu: { story: false, feed: false },
-        fri: { story: false, feed: false },
-        sat: { story: false, feed: false },
-        sun: { story: false, feed: false },
-      },
-      templates: [],
-      activeTemplateId: null,
-    },
     notifications: {
       emailNewReview: true,
       emailLowRating: true,
@@ -120,31 +92,6 @@ export const initialState: AppState = {
       whatsapp: 'available',
       email: 'connected',
       sms: 'available',
-      zapier: 'available',
-      pabbly: 'available',
-      webhooks: 'connected',
-      jobber: 'available',
-      housecall: 'available',
-      quickbooks: 'coming_soon',
-      square: 'coming_soon',
-      facebook: 'connected',
-      instagram: 'available',
     },
   },
 }
-
-/** Placeholder portfolio for the Websites page — replace with real Local Octo projects. */
-export const portfolio = [
-  { name: 'BrightNest Cleaning', category: 'House cleaning', city: 'Bengaluru', headline: 'Your home, spotless. Your weekends back.', accent: '#5a1fb0', result: 'Sample result — add real stats' },
-  { name: 'Summit Roofing Co.', category: 'Roofing', city: 'Mysuru', headline: 'Roofs built to last 20+ monsoons', accent: '#7b2ff2', result: '' },
-  { name: 'PawPatrol Yard Care', category: 'Pet waste removal', city: 'Pune', headline: 'A cleaner yard with a single click.', accent: '#3d1a7a', result: '' },
-  { name: 'Oakline Flooring', category: 'Flooring', city: 'Chennai', headline: 'Top-rated hardwood flooring', accent: '#6b3fa0', result: '' },
-  { name: 'CoolAir Services', category: 'HVAC', city: 'Hyderabad', headline: 'AC repair in 60 minutes or less', accent: '#8233ea', result: '' },
-  { name: 'Haul Away Junk', category: 'Junk removal', city: 'Mumbai', headline: 'Quit staring at that junk.', accent: '#4b2a8a', result: '' },
-]
-
-export const websitePlans = [
-  { name: 'Starter', pages: 15, upfront: '$2,995', monthly: '$149', features: ['15 pages', 'First draft in 14 days', 'Lead forms & click-to-call', 'SEO page per service & city', 'Hosting, SSL & security', 'Review widget included'] },
-  { name: 'Standard', pages: 20, upfront: '$3,500', monthly: '$179', popular: true, features: ['20 pages', 'First draft in 7 days', 'CRM lead delivery', 'SMS lead alerts', 'Everything in Starter'] },
-  { name: 'Scale', pages: 40, upfront: '$4,995', monthly: '$299', features: ['40 pages', 'Keyword-targeted local content', 'Priority support', 'Everything in Standard'] },
-]

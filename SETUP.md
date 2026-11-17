@@ -50,7 +50,6 @@ This deploys all 10 functions. `supabase/config.toml` turns the gateway JWT chec
 | `whatsapp-webhook` | Meta | verify token + app-secret signature |
 | `send-test` | app "Send Test Message" | signed-in user |
 | `ai-reply` | app "Draft with AI" | signed-in user |
-| `widget` | client websites | public key in URL |
 | `review-image` | WhatsApp / email (downloads the personalised photo) | contact token or signed URL |
 | `wa-template` | app: submits Custom Messages to Meta, "Check WhatsApp" status | signed-in user |
 | `google-places` | app: "Find your business on Google", Sync from Google | signed-in user |
@@ -169,7 +168,7 @@ update public.profiles set is_platform_admin = true where email = 'you@localocto
 - name, address, **review link** (`search.google.com/local/writereview?placeid=…`) and **Google Maps link** are filled in automatically;
 - on save, the `google-places` function imports **phone, website, Google rating, total review count** and the **latest reviews**. Google's Places API returns at most 5 reviews per request.
 - **Reviews → Sync from Google** pulls again any time. Replies saved in the app are kept.
-- The Dashboard rating card and the website widgets use Google's own rating and total count.
+- The Dashboard rating card uses Google's own rating and total count.
 
 Setup: Google Cloud Console → enable **Places API (New)** → Credentials → **Create API key**. Restrict it to Places API (New), then add it as the Supabase secret `GOOGLE_PLACES_API_KEY`. Billing must be on in Google Cloud; Place Details and Text Search have a free monthly allowance, then are charged per request.
 
@@ -200,7 +199,7 @@ Where it goes:
 - **Pulling Google reviews and posting replies to Google** needs Google Business Profile API access. Apply at the Google Business Profile API page; approval takes a few weeks. Until then:
   - The `reviews` table stays empty unless you insert rows by hand.
   - Replies written in the app are saved but not posted to Google.
-  - Example insert to test the Reviews page and widgets:
+  - Example insert to test the Reviews page:
     `insert into reviews (business_id, author, rating, text) values ('BUSINESS_ID', 'Test Customer', 5, 'Great service!');`
 - **Auto-posting to Facebook and Instagram:** posts are recorded as *scheduled*, but publishing needs Meta app review for `pages_manage_posts` and `instagram_content_publish`.
 - **Integrations page Connect buttons** for Jobber, Housecall Pro and the rest only save a status flag. The webhook and API key are real.
@@ -228,3 +227,8 @@ Replies on the Reviews page then post straight to Google (Delete removes them on
 - Client: works in the businesses it was given; sees only approved WhatsApp templates; cannot add businesses.
 - Make someone agency by hand: `update public.profiles set account_type = 'agency' where email = 'name@example.com';`
 - Functions to redeploy: `wa-template` (agency-only submit, follow-ups text only), `dispatch` (follow-ups text only).
+
+## Removed features (Widgets, Social Posting, Websites)
+
+Removed from the app and repo, including the `widget` Edge Function (delete it in Supabase → Edge Functions if it's deployed).
+Optional database clean-up: `supabase/migrations/20261117000003_remove_widgets_social.sql`.

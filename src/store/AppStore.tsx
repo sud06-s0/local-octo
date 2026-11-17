@@ -3,7 +3,7 @@
 // isolated); demo mode (no env vars) uses sample data saved in localStorage.
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { AppNotification, AppState, Contact, GbpLocation, GoogleConnection, GooglePlaceResult, NewContact, Review, ReviewReply, Settings, SocialPost, WaStandardTemplate, WaTemplate, WaTemplateKind } from '../types'
+import type { AppNotification, AppState, Contact, GbpLocation, GoogleConnection, GooglePlaceResult, NewContact, Review, ReviewReply, Settings, WaStandardTemplate, WaTemplate, WaTemplateKind } from '../types'
 import { initialState } from '../data/mockData'
 import { storage, uid } from '../lib/utils'
 import { db, invokeFn, isLive } from '../lib/supabase'
@@ -14,7 +14,7 @@ import { useToast } from '../components/ui/Toast'
 const STORAGE_KEY = 'lo-app-state-v1'
 const ACTIVE_KEY = 'lo-active-business'
 const BUSINESS_COLS =
-  'id, name, address, place_id, phone, website, google_rating, google_review_count, google_synced_at, review_link, maps_url, timezone, country_code, public_key, api_key_prefix, messaging, scheduling, ai, widgets, social, notification_prefs, integrations'
+  'id, name, address, place_id, phone, website, google_rating, google_review_count, google_synced_at, review_link, maps_url, timezone, country_code, public_key, api_key_prefix, messaging, scheduling, ai, notification_prefs, integrations'
 
 export interface BusinessSummary {
   id: string
@@ -60,7 +60,6 @@ interface AppStore {
   deleteContact: (id: string) => void
   updateSettings: <K extends keyof Settings>(key: K, patch: Partial<Settings[K]>) => Promise<void>
   setReviewReply: (id: string, reply: ReviewReply | undefined) => void
-  addSocialPost: (post: Omit<SocialPost, 'id'>) => void
   markNotificationRead: (id: string) => void
   markAllNotificationsRead: () => void
   sendTest: (to: string) => Promise<string>
@@ -116,8 +115,6 @@ const toWaTemplate = (r: Row): WaTemplate => ({
   createdAt: r.created_at,
 })
 
-const toPost = (r: Row): SocialPost => ({ id: r.id, reviewId: r.review_id, network: r.network, format: r.format, status: r.status, at: r.scheduled_at })
-
 function toSettings(b: Row): Settings {
   const d = initialState.settings
   return {
@@ -136,8 +133,6 @@ function toSettings(b: Row): Settings {
     messaging: { ...d.messaging, ...b.messaging },
     scheduling: { ...d.scheduling, ...b.scheduling },
     ai: { ...d.ai, ...b.ai },
-    widgets: { ...d.widgets, ...b.widgets },
-    social: { ...d.social, ...b.social },
     notifications: { ...d.notifications, ...b.notification_prefs },
     integrations: { ...d.integrations, ...b.integrations },
   }
@@ -147,8 +142,6 @@ const SETTINGS_COLUMN: Record<Exclude<keyof Settings, 'business'>, string> = {
   messaging: 'messaging',
   scheduling: 'scheduling',
   ai: 'ai',
-  widgets: 'widgets',
-  social: 'social',
   notifications: 'notification_prefs',
   integrations: 'integrations',
 }
@@ -162,7 +155,7 @@ const CONTACT_COLUMN: Partial<Record<keyof Contact, string>> = {
   nextSendAt: 'next_send_at',
 }
 
-const emptyState: AppState = { contacts: [], reviews: [], notifications: [], socialPosts: [], settings: initialState.settings }
+const emptyState: AppState = { contacts: [], reviews: [], notifications: [], settings: initialState.settings }
 
 export function AppStoreProvider({ children }: { children: ReactNode }) {
   const { session } = useAuth()
@@ -181,8 +174,6 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         messaging: { ...d.messaging, ...s.messaging },
         scheduling: { ...d.scheduling, ...s.scheduling },
         ai: { ...d.ai, ...s.ai },
-        widgets: { ...d.widgets, ...s.widgets },
-        social: { ...d.social, ...s.social },
         notifications: { ...d.notifications, ...s.notifications },
         integrations: { ...d.integrations, ...s.integrations },
       },
@@ -239,23 +230,21 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     async (bid: string) => {
       setLoading(true)
       const c = db()
-      const [b, contacts, reviews, notifications, posts, templates] = await Promise.all([
+      const [b, contacts, reviews, notifications, templates] = await Promise.all([
         c.from('businesses').select(BUSINESS_COLS).eq('id', bid).single(),
         c.from('contacts').select('*').eq('business_id', bid).order('created_at', { ascending: false }).limit(2000),
         c.from('reviews').select('*').eq('business_id', bid).order('review_created_at', { ascending: false }).limit(500),
         c.from('notifications').select('*').eq('business_id', bid).order('created_at', { ascending: false }).limit(100),
-        c.from('social_posts').select('*').eq('business_id', bid).order('created_at', { ascending: false }).limit(50),
         c.from('whatsapp_templates').select('*').eq('business_id', bid).order('created_at', { ascending: false }).limit(30),
       ])
       // whatsapp_templates comes from the second migration; don't fail the whole load if it isn't run yet
       setWaTemplates(templates.error ? [] : (templates.data ?? []).map(toWaTemplate))
-      const err = b.error || contacts.error || reviews.error || notifications.error || posts.error
+      const err = b.error || contacts.error || reviews.error || notifications.error
       if (check(err, 'Could not load data') && b.data) {
         setState({
           contacts: (contacts.data ?? []).map(toContact),
           reviews: (reviews.data ?? []).map(toReview),
           notifications: (notifications.data ?? []).map(toNotification),
-          socialPosts: (posts.data ?? []).map(toPost),
           settings: toSettings(b.data),
         })
         setKeys({ publicKey: b.data.public_key, apiKeyPrefix: b.data.api_key_prefix ?? '' })
@@ -396,24 +385,6 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         .then(({ error }) => check(error, 'Could not save reply'))
     },
     [check],
-  )
-
-  const addSocialPost = useCallback(
-    (post: Omit<SocialPost, 'id'>) => {
-      const local = { ...post, id: uid('s') }
-      setState((s) => ({ ...s, socialPosts: [local, ...s.socialPosts] }))
-      if (!isLive || !activeId) return
-      db()
-        .from('social_posts')
-        .insert({ business_id: activeId, review_id: post.reviewId, network: post.network, format: post.format, status: post.status, scheduled_at: post.at })
-        .select('id')
-        .single()
-        .then(({ data, error }) => {
-          if (check(error, 'Could not schedule post') && data)
-            setState((s) => ({ ...s, socialPosts: s.socialPosts.map((p) => (p.id === local.id ? { ...p, id: data.id } : p)) }))
-        })
-    },
-    [activeId, check],
   )
 
   const markNotificationRead = useCallback(
@@ -706,7 +677,6 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       deleteContact,
       updateSettings,
       setReviewReply,
-      addSocialPost,
       markNotificationRead,
       markAllNotificationsRead,
       sendTest,
@@ -717,7 +687,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       refresh,
       resetDemo,
     }),
-    [loading, state, businesses, activeId, keys, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, submitStandardTemplates, switchBusiness, createBusiness, searchGoogle, importFromGoogle, google, refreshGoogle, connectGoogle, googleLocations, selectGoogleLocation, syncGoogleReviews, disconnectGoogle, postReviewReply, deleteReviewReply, addContacts, updateContact, deleteContact, updateSettings, setReviewReply, addSocialPost, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, regenerateApiKey, refresh, resetDemo],
+    [loading, state, businesses, activeId, keys, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, submitStandardTemplates, switchBusiness, createBusiness, searchGoogle, importFromGoogle, google, refreshGoogle, connectGoogle, googleLocations, selectGoogleLocation, syncGoogleReviews, disconnectGoogle, postReviewReply, deleteReviewReply, addContacts, updateContact, deleteContact, updateSettings, setReviewReply, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, regenerateApiKey, refresh, resetDemo],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

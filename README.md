@@ -13,7 +13,7 @@ npm run build:preview  # hash-URL build that runs from any folder
 ```
 
 ## Where things live
-- `src/config/brand.ts` — white-label settings (name, support email, referral reward, widget URL). TODO values need confirming.
+- `src/config/brand.ts` — white-label settings (name, support email, referral reward). TODO values need confirming.
 - `src/index.css` — theme colours (`--color-brand-*`) and font
 - `src/data/mockData.ts` — SAMPLE data (contacts, reviews, portfolio, plans). Replace with Supabase.
 - `src/store/AppStore.tsx` — app state + actions; each action becomes a Supabase call later
@@ -31,5 +31,5 @@ npm run build:preview  # hash-URL build that runs from any folder
 - `functions/r` — review-link redirect + click tracking (stops follow-ups)
 - `functions/contacts-webhook` — add contacts from Zapier/Pabbly/CRMs with an API key
 - `functions/whatsapp-webhook` — Meta delivery statuses + STOP opt-outs
-- `functions/send-test`, `functions/ai-reply`, `functions/widget` (embed script for client websites)
+- `functions/send-test`, `functions/ai-reply`
 - `functions/_shared/send.ts` — WhatsApp Cloud API + MSG91 SMS/email senders
