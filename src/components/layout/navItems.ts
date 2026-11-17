@@ -1,12 +1,9 @@
 // src/components/layout/navItems.ts
 import {
   CalendarClock,
-  Globe,
   LayoutDashboard,
-  LayoutGrid,
   MessageSquare,
   Plug,
-  Share2,
   Star,
   Users,
   type LucideIcon,
@@ -25,8 +22,5 @@ export const navItems: NavItem[] = [
   { to: '/messaging', label: 'Messaging', icon: MessageSquare },
   { to: '/request-scheduling', label: 'Request Scheduling', icon: CalendarClock },
   { to: '/reviews', label: 'Reviews', icon: Star },
-  { to: '/widgets', label: 'Widgets', icon: LayoutGrid },
-  { to: '/social-posting', label: 'Social Posting', icon: Share2 },
-  { to: '/websites', label: 'Websites', icon: Globe, badge: 'New' },
   { to: '/integrations', label: 'Integrations', icon: Plug },
 ]

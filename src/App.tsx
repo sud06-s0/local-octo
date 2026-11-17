@@ -14,9 +14,6 @@ const Contacts = lazyPage(() => import('./pages/Contacts'))
 const Messaging = lazyPage(() => import('./pages/Messaging'))
 const RequestScheduling = lazyPage(() => import('./pages/RequestScheduling'))
 const Reviews = lazyPage(() => import('./pages/Reviews'))
-const Widgets = lazyPage(() => import('./pages/Widgets'))
-const SocialPosting = lazyPage(() => import('./pages/SocialPosting'))
-const Websites = lazyPage(() => import('./pages/Websites'))
 const Integrations = lazyPage(() => import('./pages/Integrations'))
 const Notifications = lazyPage(() => import('./pages/Notifications'))
 const NotFound = lazyPage(() => import('./pages/NotFound'))
@@ -53,9 +50,6 @@ function Gate() {
         <Route path="messaging" element={<Messaging />} />
         <Route path="request-scheduling" element={<RequestScheduling />} />
         <Route path="reviews" element={<Reviews />} />
-        <Route path="widgets" element={<Widgets />} />
-        <Route path="social-posting" element={<SocialPosting />} />
-        <Route path="websites" element={<Websites />} />
         <Route path="integrations" element={<Integrations />} />
         <Route path="notifications" element={<Notifications />} />
         <Route path="*" element={<NotFound />} />

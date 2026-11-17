@@ -1,8 +1,8 @@
 // src/pages/Integrations.tsx
 import { useState, type ReactNode } from 'react'
-import { Copy, Eye, EyeOff, KeyRound, Mail, MessageCircle, Smartphone, Webhook, Zap } from 'lucide-react'
+import { Copy, Eye, EyeOff, KeyRound, Mail, MessageCircle, Smartphone, Zap } from 'lucide-react'
 import { Badge, Button, Card, Input, PageHeader } from '../components/ui/primitives'
-import { FacebookMark, GoogleG, InstagramMark } from '../components/ui/BrandIcons'
+import { GoogleG } from '../components/ui/BrandIcons'
 import { useStore } from '../store/AppStore'
 import { useToast } from '../components/ui/Toast'
 import { contactsWebhookUrl } from '../lib/supabase'
@@ -10,9 +10,6 @@ import { GoogleConnectCard } from '../components/GoogleConnectCard'
 import { copyText } from '../lib/utils'
 import type { IntegrationStatus } from '../types'
 
-function Letter({ text, bg }: { text: string; bg: string }) {
-  return <span className="flex size-10 items-center justify-center rounded-lg text-sm font-bold text-white" style={{ background: bg }}>{text}</span>
-}
 function IconTile({ children, bg = 'bg-brand-50' }: { children: ReactNode; bg?: string }) {
   return <span className={`flex size-10 items-center justify-center rounded-lg ${bg}`}>{children}</span>
 }
@@ -28,30 +25,6 @@ const groups: Array<{ title: string; items: Array<{ id: string; name: string; de
       { id: 'whatsapp', name: 'WhatsApp Business', desc: 'Send review requests on WhatsApp (Meta Cloud API)', icon: <IconTile bg="bg-brand-700"><MessageCircle className="size-5 text-white" /></IconTile> },
       { id: 'email', name: 'Email', desc: 'Send requests from your own domain', icon: <IconTile><Mail className="size-5 text-brand-700" /></IconTile> },
       { id: 'sms', name: 'SMS (DLT)', desc: 'TRAI DLT-registered SMS via MSG91', icon: <IconTile><Smartphone className="size-5 text-brand-700" /></IconTile> },
-    ],
-  },
-  {
-    title: 'CRM & Automation',
-    items: [
-      { id: 'zapier', name: 'Zapier', desc: 'Add contacts from 6,000+ apps', icon: <Letter text="Z" bg="#9a4dff" /> },
-      { id: 'pabbly', name: 'Pabbly Connect', desc: 'Automate contact sync from your tools', icon: <Letter text="P" bg="#7b2ff2" /> },
-      { id: 'webhooks', name: 'Webhooks', desc: 'Push contacts in from any system', icon: <IconTile><Webhook className="size-5 text-brand-700" /></IconTile> },
-      { id: 'jobber', name: 'Jobber', desc: 'Send a request when a job is completed', icon: <Letter text="J" bg="#5a1fb0" /> },
-      { id: 'housecall', name: 'Housecall Pro', desc: 'Send a request when a job is completed', icon: <Letter text="H" bg="#b06cff" /> },
-    ],
-  },
-  {
-    title: 'Payments',
-    items: [
-      { id: 'quickbooks', name: 'QuickBooks Online', desc: 'Send a request when an invoice is paid', icon: <Letter text="QB" bg="#8233ea" /> },
-      { id: 'square', name: 'Square', desc: 'Send a request after a payment', icon: <Letter text="■" bg="#3d1a7a" /> },
-    ],
-  },
-  {
-    title: 'Social',
-    items: [
-      { id: 'facebook', name: 'Facebook', desc: 'Post your best reviews to your Page', icon: <FacebookMark className="size-10" /> },
-      { id: 'instagram', name: 'Instagram', desc: 'Share reviews as posts and stories', icon: <InstagramMark className="size-10" /> },
     ],
   },
 ]

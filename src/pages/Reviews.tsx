@@ -2,7 +2,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { GoogleG } from '../components/ui/BrandIcons'
-import { ChevronLeft, ChevronRight, Globe, Link2, MessageSquare, Pencil, RefreshCw, Search, Send, Share2, Sparkles, Star, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Globe, Link2, MessageSquare, Pencil, RefreshCw, Search, Send, Sparkles, Star, Trash2 } from 'lucide-react'
 import { Avatar, Badge, Button, Card, EmptyState, Input, Label, Stars, Textarea, Toggle } from '../components/ui/primitives'
 import { useStore } from '../store/AppStore'
 import { useToast } from '../components/ui/Toast'
@@ -15,7 +15,7 @@ type Sort = 'newest' | 'oldest' | 'highest' | 'lowest'
 const PAGE_SIZE = 10
 
 function ReviewCard({ review }: { review: Review }) {
-  const { setReviewReply, addSocialPost, draftReply, postReviewReply, deleteReviewReply } = useStore()
+  const { setReviewReply, draftReply, postReviewReply, deleteReviewReply } = useStore()
   const [sending, setSending] = useState(false)
   const toast = useToast()
   const [editing, setEditing] = useState(false)
@@ -70,19 +70,6 @@ function ReviewCard({ review }: { review: Review }) {
           >
             <Link2 className="size-4" /> <span className="hidden sm:inline">Link</span>
           </a>
-          {review.rating === 5 && review.text && (
-            <Button
-              variant="ghost"
-              size="sm"
-              icon={Share2}
-              onClick={() => {
-                addSocialPost({ reviewId: review.id, network: 'facebook', format: 'feed', status: 'scheduled', at: new Date().toISOString() })
-                toast('Added to your social posting queue')
-              }}
-            >
-              <span className="hidden sm:inline">Share</span>
-            </Button>
-          )}
         </div>
       </div>
 
