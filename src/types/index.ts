@@ -48,6 +48,20 @@ export interface AppNotification {
   read: boolean
 }
 
+/** An answer from the review page (local-octo.vercel.app/review). Bad / Worse ones carry what to improve. */
+export interface CustomerFeedback {
+  id: string
+  rating: 1 | 2 | 4 | 5
+  text: string
+  photoUrl: string | null
+  createdAt: string
+  name: string
+  email: string
+  phone: string
+  /** Came from a review-request link (a known contact) rather than the shared link */
+  fromContact: boolean
+}
+
 export interface WaTemplate {
   id: string
   kind: WaTemplateKind

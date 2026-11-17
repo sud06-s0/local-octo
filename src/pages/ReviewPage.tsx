@@ -1,7 +1,7 @@
 // src/pages/ReviewPage.tsx
 // Public review page (no login): local-octo.vercel.app/review?t=<contact token> or ?b=<business public key>.
 // Four big faces: Happy (5) and Good (4) get text + photo and a "Post on Google" button;
-// Bad (2) and Worse (1) only record the choice and never open Google.
+// Bad (2) and Worse (1) show a private feedback form (what to improve) that goes only to the business.
 
 import { useEffect, useRef, useState } from 'react'
 import { ImagePlus, Loader2, X } from 'lucide-react'
@@ -41,7 +41,8 @@ export default function ReviewPage() {
   const t = params.get('t') ?? ''
   const b = params.get('b') ?? ''
 
-  const [info, setInfo] = useState<{ businessName: string; firstName: string } | null>(null)
+  const [info, setInfo] = useState<{ businessName: string; firstName: string; knownContact?: boolean } | null>(null)
+  const [contact, setContact] = useState({ name: '', email: '', phone: '' })
   const [error, setError] = useState('')
   const [invalid, setInvalid] = useState(false)
   const [rating, setRating] = useState<number | null>(null)
@@ -54,10 +55,10 @@ export default function ReviewPage() {
   useEffect(() => {
     document.title = 'Leave a review'
     if (!API.startsWith('http')) {
-      setInfo({ businessName: 'Your Business', firstName: '' }) // demo build without Supabase
+      setInfo({ businessName: 'Your Business', firstName: '', knownContact: false }) // demo build without Supabase
       return
     }
-    call<{ businessName: string; firstName: string }>(undefined, `?${t ? `t=${t}` : `b=${b}`}`)
+    call<{ businessName: string; firstName: string; knownContact: boolean }>(undefined, `?${t ? `t=${t}` : `b=${b}`}`)
       .then(setInfo)
       .catch((e) => {
         setError(e.message)
@@ -73,7 +74,10 @@ export default function ReviewPage() {
     if (positive && text.trim()) await navigator.clipboard?.writeText(text.trim()).catch(() => {})
     try {
       const res = API.startsWith('http')
-        ? await call<{ reviewLink: string | null }>({ method: 'POST', body: JSON.stringify({ t, b, rating: r, text: positive ? text : '', photo: positive ? photo : '' }) })
+        ? await call<{ reviewLink: string | null }>({
+            method: 'POST',
+            body: JSON.stringify({ t, b, rating: r, text, photo: positive ? photo : '', ...(positive ? {} : contact) }),
+          })
         : { reviewLink: null }
       if (positive && res.reviewLink) {
         setDone('google')
@@ -89,8 +93,9 @@ export default function ReviewPage() {
   }
 
   const pick = (r: number) => {
+    // Switching between the happy and unhappy side starts the text fresh
+    if (rating !== null && (rating >= 4) !== (r >= 4)) setText('')
     setRating(r)
-    if (r < 4) void submit(r) // Bad / Worse: just the choice, no text, no Google
   }
 
   const positive = rating !== null && rating >= 4
@@ -114,7 +119,7 @@ export default function ReviewPage() {
             <div className="py-10 text-center">
               <p className="text-5xl">🙏</p>
               <p className="mt-4 text-xl font-semibold">Thank you for your feedback!</p>
-              <p className="mt-1 text-muted">We really appreciate you taking the time.</p>
+              <p className="mt-1 text-muted">{rating !== null && rating < 4 ? `${info?.businessName ?? 'The team'} will look into it and may get in touch.` : 'We really appreciate you taking the time.'}</p>
             </div>
           )}
 
@@ -192,6 +197,62 @@ export default function ReviewPage() {
                     {busy && <Loader2 className="size-4 animate-spin" />} Post on Google
                   </button>
                   <p className="mt-2 text-center text-xs text-muted">Google opens with your review copied. Paste it there and add your photo.</p>
+                </div>
+              )}
+
+              {rating !== null && !positive && (
+                <div className="mt-6">
+                  <p className="text-[16px] font-semibold">We're sorry to hear that</p>
+                  <p className="mt-0.5 text-sm text-muted">Tell us what went wrong. This goes only to {info?.businessName ?? 'the business'}, not to Google.</p>
+                  <label htmlFor="feedback-text" className="mt-4 block text-sm font-medium">What could we do better?</label>
+                  <textarea
+                    id="feedback-text"
+                    rows={4}
+                    value={text}
+                    maxLength={2000}
+                    onChange={(e) => setText(e.target.value)}
+                    placeholder="Your feedback helps us improve…"
+                    className="mt-1.5 w-full rounded-lg border border-line px-3 py-2.5 text-[15px] outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100"
+                  />
+                  {!info?.knownContact && (
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <input
+                        aria-label="Your name"
+                        placeholder="Your name"
+                        value={contact.name}
+                        maxLength={120}
+                        onChange={(e) => setContact({ ...contact, name: e.target.value })}
+                        className="w-full rounded-lg border border-line px-3 py-2.5 text-[15px] outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100 sm:col-span-2"
+                      />
+                      <input
+                        aria-label="Email"
+                        type="email"
+                        placeholder="Email"
+                        value={contact.email}
+                        maxLength={200}
+                        onChange={(e) => setContact({ ...contact, email: e.target.value })}
+                        className="w-full rounded-lg border border-line px-3 py-2.5 text-[15px] outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100"
+                      />
+                      <input
+                        aria-label="Phone"
+                        type="tel"
+                        placeholder="Phone"
+                        value={contact.phone}
+                        maxLength={30}
+                        onChange={(e) => setContact({ ...contact, phone: e.target.value })}
+                        className="w-full rounded-lg border border-line px-3 py-2.5 text-[15px] outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100"
+                      />
+                      <p className="text-xs text-muted sm:col-span-2">Optional, so they can get back to you.</p>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    disabled={busy || !text.trim()}
+                    onClick={() => submit(rating)}
+                    className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-700 text-[16px] font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
+                  >
+                    {busy && <Loader2 className="size-4 animate-spin" />} Send feedback
+                  </button>
                 </div>
               )}
 

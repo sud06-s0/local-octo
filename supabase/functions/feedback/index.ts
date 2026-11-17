@@ -1,9 +1,10 @@
 // supabase/functions/feedback/index.ts
 // Public API for the review page (local-octo.vercel.app/review?t=<contact token> or ?b=<business public key>).
-//  GET  ?t= | ?b=                       → { businessName, firstName }
-//  POST { t | b, rating, text?, photo? } → saves the answer.
+//  GET  ?t= | ?b=                       → { businessName, firstName, knownContact }
+//  POST { t | b, rating, text?, photo?, name?, email?, phone? } → saves the answer.
 //       rating 5 (Happy) / 4 (Good): text + optional photo (data URL, max 5 MB) → returns { reviewLink }
-//       rating 2 (Bad) / 1 (Worse): choice only, nothing goes to Google → returns { reviewLink: null }
+//       rating 2 (Bad) / 1 (Worse): private feedback (what to improve, plus contact details on shared links);
+//       nothing goes to Google → returns { reviewLink: null }
 
 import { adminClient } from '../_shared/supabase.ts'
 import { json, preflight } from '../_shared/http.ts'
@@ -37,11 +38,20 @@ Deno.serve(async (req) => {
     const q = new URL(req.url).searchParams
     const target = await findTarget(admin, q.get('t') ?? '', q.get('b') ?? '')
     if (!target) return json({ error: 'This review link is not valid' }, 404)
-    return json({ businessName: target.name, firstName: target.firstName })
+    return json({ businessName: target.name, firstName: target.firstName, knownContact: !!target.contactId })
   }
 
   if (req.method !== 'POST') return json({ error: 'Use GET or POST' }, 405)
-  const input = (await req.json().catch(() => ({}))) as { t?: string; b?: string; rating?: number; text?: string; photo?: string }
+  const input = (await req.json().catch(() => ({}))) as {
+    t?: string
+    b?: string
+    rating?: number
+    text?: string
+    photo?: string
+    name?: string
+    email?: string
+    phone?: string
+  }
   const target = await findTarget(admin, input.t ?? '', input.b ?? '')
   if (!target) return json({ error: 'This review link is not valid' }, 404)
 
@@ -50,7 +60,14 @@ Deno.serve(async (req) => {
   const positive = rating >= 4
 
   // Text and photo only for Happy / Good
-  const text = positive ? String(input.text ?? '').trim().slice(0, 4000) : ''
+  // Happy / Good: review text (+ photo). Bad / Worse: what to improve, sent only to the business.
+  const text = String(input.text ?? '').trim().slice(0, positive ? 4000 : 2000)
+  // Contact details only matter on shared links (no contact behind them)
+  const clean = (v: unknown, max: number) => String(v ?? '').trim().slice(0, max)
+  const customerName = target.contactId ? '' : clean(input.name, 120)
+  const customerEmail = target.contactId ? '' : clean(input.email, 200)
+  const customerPhone = target.contactId ? '' : clean(input.phone, 30)
+  if (customerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) return json({ error: 'Please check the email address' }, 400)
   let photoUrl: string | null = null
   if (positive && input.photo) {
     const m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(input.photo)
@@ -70,6 +87,9 @@ Deno.serve(async (req) => {
     rating,
     text,
     photo_url: photoUrl,
+    customer_name: customerName,
+    customer_email: customerEmail,
+    customer_phone: customerPhone,
   })
   if (error) return json({ error: error.message }, 500)
 
@@ -77,7 +97,7 @@ Deno.serve(async (req) => {
     business_id: target.businessId,
     type: positive ? 'new_review' : 'low_rating',
     title: `Review page: ${LABEL[rating]}`,
-    body: `${target.firstName || 'A customer'} picked ${LABEL[rating]}${positive && text ? `: "${text.slice(0, 120)}"` : ''}`,
+    body: `${target.firstName || customerName || 'A customer'} picked ${LABEL[rating]}${text ? `: "${text.slice(0, 120)}"` : ''}`,
   })
 
   return json({ ok: true, reviewLink: positive ? target.reviewLink || null : null })

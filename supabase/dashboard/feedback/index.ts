@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
     const q = new URL(req.url).searchParams;
     const target2 = await findTarget(admin, q.get("t") ?? "", q.get("b") ?? "");
     if (!target2) return json({ error: "This review link is not valid" }, 404);
-    return json({ businessName: target2.name, firstName: target2.firstName });
+    return json({ businessName: target2.name, firstName: target2.firstName, knownContact: !!target2.contactId });
   }
   if (req.method !== "POST") return json({ error: "Use GET or POST" }, 405);
   const input = await req.json().catch(() => ({}));
@@ -70,7 +70,12 @@ Deno.serve(async (req) => {
   const rating = Number(input.rating);
   if (!LABEL[rating]) return json({ error: "Pick one of the faces" }, 400);
   const positive = rating >= 4;
-  const text = positive ? String(input.text ?? "").trim().slice(0, 4e3) : "";
+  const text = String(input.text ?? "").trim().slice(0, positive ? 4e3 : 2e3);
+  const clean = (v, max) => String(v ?? "").trim().slice(0, max);
+  const customerName = target.contactId ? "" : clean(input.name, 120);
+  const customerEmail = target.contactId ? "" : clean(input.email, 200);
+  const customerPhone = target.contactId ? "" : clean(input.phone, 30);
+  if (customerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) return json({ error: "Please check the email address" }, 400);
   let photoUrl = null;
   if (positive && input.photo) {
     const m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(input.photo);
@@ -88,14 +93,17 @@ Deno.serve(async (req) => {
     contact_id: target.contactId,
     rating,
     text,
-    photo_url: photoUrl
+    photo_url: photoUrl,
+    customer_name: customerName,
+    customer_email: customerEmail,
+    customer_phone: customerPhone
   });
   if (error) return json({ error: error.message }, 500);
   await admin.from("notifications").insert({
     business_id: target.businessId,
     type: positive ? "new_review" : "low_rating",
     title: `Review page: ${LABEL[rating]}`,
-    body: `${target.firstName || "A customer"} picked ${LABEL[rating]}${positive && text ? `: "${text.slice(0, 120)}"` : ""}`
+    body: `${target.firstName || customerName || "A customer"} picked ${LABEL[rating]}${text ? `: "${text.slice(0, 120)}"` : ""}`
   });
   return json({ ok: true, reviewLink: positive ? target.reviewLink || null : null });
 });

@@ -2,7 +2,7 @@
 // SAMPLE DATA ONLY — every name, review and project below is invented for the UI.
 // Replace with Supabase queries when the backend is connected.
 
-import type { AppState, Contact, Review, AppNotification } from '../types'
+import type { AppState, Contact, CustomerFeedback, Review, AppNotification } from '../types'
 import { daysAgo } from '../lib/utils'
 
 const contacts: Contact[] = [
@@ -46,6 +46,13 @@ const notifications: AppNotification[] = [
   { id: 'n2', type: 'new_review', title: 'New 5-star review', body: 'Priya Raman left a 5-star review on Google.', at: daysAgo(2), read: false },
   { id: 'n3', type: 'system', title: 'Follow-ups resumed', body: 'Review requests are being sent as scheduled again.', at: daysAgo(6), read: true },
   { id: 'n4', type: 'system', title: 'Google profile connected', body: 'Your Google Business Profile is synced. 4 reviews imported.', at: daysAgo(29), read: true },
+]
+
+/** Demo answers from the review page */
+export const demoFeedback: CustomerFeedback[] = [
+  { id: 'f1', rating: 2, text: 'Waited 40 minutes past my appointment time and nobody told us why.', photoUrl: null, createdAt: daysAgo(1), name: 'Rohit Sharma', email: 'rohit@example.com', phone: '+91 98450 12345', fromContact: true },
+  { id: 'f2', rating: 1, text: 'Billing was wrong and the staff at the counter were rude about fixing it.', photoUrl: null, createdAt: daysAgo(3), name: 'Meera K', email: 'meera.k@example.com', phone: '', fromContact: false },
+  { id: 'f3', rating: 5, text: 'Lovely staff and very quick service!', photoUrl: null, createdAt: daysAgo(4), name: 'Priya Raman', email: 'priya@example.com', phone: '', fromContact: true },
 ]
 
 export const initialState: AppState = {

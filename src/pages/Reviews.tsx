@@ -2,8 +2,9 @@
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { GoogleG } from '../components/ui/BrandIcons'
-import { ChevronLeft, ChevronRight, Globe, Link2, MessageSquare, Pencil, RefreshCw, Search, Send, Sparkles, Star, Trash2 } from 'lucide-react'
-import { Avatar, Badge, Button, Card, EmptyState, Input, Label, Stars, Textarea, Toggle } from '../components/ui/primitives'
+import { ChevronLeft, ChevronRight, Globe, Link2, MessageSquare, MessageSquareText, Pencil, RefreshCw, Search, Send, Sparkles, Star, Trash2 } from 'lucide-react'
+import { Avatar, Badge, Button, Card, EmptyState, Input, Label, Segmented, Stars, Textarea, Toggle } from '../components/ui/primitives'
+import { FeedbackList } from '../components/FeedbackList'
 import { useStore } from '../store/AppStore'
 import { useToast } from '../components/ui/Toast'
 import { brand } from '../config/brand'
@@ -176,6 +177,9 @@ export default function Reviews() {
   const [replyFilter, setReplyFilter] = useState<ReplyFilter>('all')
   const [rating, setRating] = useState<number | null>(null)
   const [nickname, setNickname] = useState(state.settings.ai.nickname)
+  const view = params.get('view') === 'feedback' ? 'feedback' : 'google'
+  const { feedback } = useStore()
+  const attention = feedback.filter((f) => f.rating <= 2).length
   const page = Math.max(0, Number(params.get('page') ?? 0))
   const sort = (params.get('sort') as Sort) || 'newest'
 
@@ -221,7 +225,7 @@ export default function Reviews() {
           <h1 className="text-[26px] font-semibold tracking-tight">Reviews</h1>
           <p className="mt-1 text-[16px] text-muted">What Google actually shows, and where every reply stands.</p>
         </div>
-        {(biz.placeId || gbpReady) && (
+        {view === 'google' && (biz.placeId || gbpReady) && (
           <div className="flex items-center gap-3">
             {biz.googleSyncedAt && <span className="text-xs text-muted">Synced {timeAgo(biz.googleSyncedAt)}</span>}
             <Button variant="outline" icon={RefreshCw} disabled={syncing} onClick={syncGoogle}>
@@ -230,6 +234,20 @@ export default function Reviews() {
           </div>
         )}
       </div>
+      <Segmented
+        className="mt-5"
+        value={view}
+        onChange={(v) => setParams(v === 'feedback' ? { view: 'feedback' } : {}, { replace: true })}
+        options={[
+          { value: 'google', label: 'Google Reviews', icon: Star },
+          { value: 'feedback', label: attention ? `Customer Feedback (${attention})` : 'Customer Feedback', icon: MessageSquareText },
+        ]}
+      />
+
+      {view === 'feedback' ? (
+        <FeedbackList />
+      ) : (
+      <>
       {!gbpReady && (
         <div className="mt-5 flex flex-wrap items-center gap-3 rounded-xl border border-line bg-white p-4">
           <GoogleG className="size-6" />
@@ -366,6 +384,8 @@ export default function Reviews() {
             Next <ChevronRight className="size-4" />
           </Button>
         </div>
+      )}
+      </>
       )}
     </div>
   )

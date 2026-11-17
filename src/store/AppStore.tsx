@@ -3,8 +3,8 @@
 // isolated); demo mode (no env vars) uses sample data saved in localStorage.
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { AppNotification, AppState, Contact, GbpLocation, GoogleConnection, GooglePlaceResult, NewContact, Review, ReviewReply, Settings, WaStandardTemplate, WaTemplate, WaTemplateKind } from '../types'
-import { initialState } from '../data/mockData'
+import type { AppNotification, AppState, Contact, CustomerFeedback, GbpLocation, GoogleConnection, GooglePlaceResult, NewContact, Review, ReviewReply, Settings, WaStandardTemplate, WaTemplate, WaTemplateKind } from '../types'
+import { demoFeedback, initialState } from '../data/mockData'
 import { storage, uid } from '../lib/utils'
 import { db, invokeFn, isLive } from '../lib/supabase'
 import { draftReply as templateDraft } from '../lib/aiDraft'
@@ -34,6 +34,8 @@ interface AppStore {
   businesses: BusinessSummary[]
   activeBusinessId: string | null
   publicKey: string
+  /** Answers from the review page, newest first (Bad / Worse carry what to improve) */
+  feedback: CustomerFeedback[]
   /** WhatsApp custom templates of the active business (agency submits; clients see approved ones) */
   waTemplates: WaTemplate[]
   submitWhatsAppTemplates: (kinds: Array<'initial' | 'followup'>) => Promise<string[]>
@@ -114,6 +116,21 @@ const toWaTemplate = (r: Row): WaTemplate => ({
   createdAt: r.created_at,
 })
 
+const toFeedback = (r: Row): CustomerFeedback => {
+  const c = r.contacts as Row | null
+  return {
+    id: r.id,
+    rating: r.rating,
+    text: r.text ?? '',
+    photoUrl: r.photo_url ?? null,
+    createdAt: r.created_at,
+    name: c ? `${c.first_name ?? ''} ${c.last_name ?? ''}`.trim() : r.customer_name ?? '',
+    email: c?.email || r.customer_email || '',
+    phone: c?.phone ? `+${c.phone}` : r.customer_phone || '',
+    fromContact: !!c,
+  }
+}
+
 function toSettings(b: Row): Settings {
   const d = initialState.settings
   return {
@@ -178,6 +195,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const [businesses, setBusinesses] = useState<BusinessSummary[]>(isLive ? [] : [{ id: 'demo', name: initialState.settings.business.name }])
   const [activeId, setActiveId] = useState<string | null>(isLive ? storage.get<string | null>(ACTIVE_KEY, null) : 'demo')
   const [waTemplates, setWaTemplates] = useState<WaTemplate[]>([])
+  const [feedback, setFeedback] = useState<CustomerFeedback[]>(isLive ? [] : demoFeedback)
   const [keys, setKeys] = useState({ publicKey: isLive ? '' : 'demo0public0key000000000' })
   const [loading, setLoading] = useState(isLive)
   const stateRef = useRef(state)
@@ -226,13 +244,15 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     async (bid: string) => {
       setLoading(true)
       const c = db()
-      const [b, contacts, reviews, notifications, templates] = await Promise.all([
+      const [b, contacts, reviews, notifications, templates, answers] = await Promise.all([
         c.from('businesses').select(BUSINESS_COLS).eq('id', bid).single(),
         c.from('contacts').select('*').eq('business_id', bid).order('created_at', { ascending: false }).limit(2000),
         c.from('reviews').select('*').eq('business_id', bid).order('review_created_at', { ascending: false }).limit(500),
         c.from('notifications').select('*').eq('business_id', bid).order('created_at', { ascending: false }).limit(100),
         c.from('whatsapp_templates').select('*').eq('business_id', bid).order('created_at', { ascending: false }).limit(30),
+        c.from('review_feedback').select('*, contacts(first_name, last_name, email, phone)').eq('business_id', bid).order('created_at', { ascending: false }).limit(300),
       ])
+      setFeedback(answers.error ? [] : (answers.data ?? []).map(toFeedback))
       // Don't fail the whole load if the WhatsApp templates table isn't there yet
       setWaTemplates(templates.error ? [] : (templates.data ?? []).map(toWaTemplate))
       const err = b.error || contacts.error || reviews.error || notifications.error
@@ -640,6 +660,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       businesses,
       activeBusinessId: activeId,
       publicKey: keys.publicKey,
+      feedback,
       waTemplates,
       submitWhatsAppTemplates,
       refreshWhatsAppTemplates,
@@ -672,7 +693,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       refresh,
       resetDemo,
     }),
-    [loading, state, businesses, activeId, keys, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, submitStandardTemplates, switchBusiness, createBusiness, searchGoogle, importFromGoogle, google, refreshGoogle, connectGoogle, googleLocations, selectGoogleLocation, syncGoogleReviews, disconnectGoogle, postReviewReply, deleteReviewReply, addContacts, updateContact, deleteContact, updateSettings, setReviewReply, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, refresh, resetDemo],
+    [loading, state, businesses, activeId, keys, feedback, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, submitStandardTemplates, switchBusiness, createBusiness, searchGoogle, importFromGoogle, google, refreshGoogle, connectGoogle, googleLocations, selectGoogleLocation, syncGoogleReviews, disconnectGoogle, postReviewReply, deleteReviewReply, addContacts, updateContact, deleteContact, updateSettings, setReviewReply, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, refresh, resetDemo],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
