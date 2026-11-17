@@ -1,7 +1,8 @@
 // src/pages/ReviewPage.tsx
 // Public review page (no login): local-octo.vercel.app/review?t=<contact token> or ?b=<business public key>.
-// Four big faces, each with the same review form (text + photo). Happy (5) and Good (4): "Post on Google";
-// Bad (2) and Worse (1): "Submit review" saves it in the app only (Reviews → Customer Feedback); Google never opens.
+// Four big faces. Happy (5) and Good (4) open Google's review page straight away;
+// Bad (2) and Worse (1) get a review form (text + photo); "Submit review" saves it in the app only
+// (Reviews → Customer Feedback) and Google never opens.
 
 import { useEffect, useRef, useState } from 'react'
 import { ImagePlus, Loader2, X } from 'lucide-react'
@@ -50,8 +51,6 @@ export default function ReviewPage() {
   const [photo, setPhoto] = useState('')
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState<'' | 'thanks' | 'google'>('')
-  const [googleLink, setGoogleLink] = useState('')
-  const [copied, setCopied] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -68,24 +67,10 @@ export default function ReviewPage() {
       })
   }, [t, b])
 
-  /** Copies the review text; must run inside a tap so browsers allow it. */
-  const copyReview = async () => {
-    if (!text.trim()) return false
-    try {
-      await navigator.clipboard.writeText(text.trim())
-      setCopied(true)
-      return true
-    } catch {
-      return false
-    }
-  }
-
   const submit = async (r: number) => {
     setBusy(true)
     setError('')
     const positive = r >= 4
-    // Copy first (needs the tap), so the text is ready to paste on Google
-    if (positive) await copyReview()
     try {
       const res = API.startsWith('http')
         ? await call<{ reviewLink: string | null }>({
@@ -94,9 +79,9 @@ export default function ReviewPage() {
           })
         : { reviewLink: null }
       if (positive && res.reviewLink) {
-        // Google's form can't be filled in by any app, so show how to paste before opening it
-        setGoogleLink(res.reviewLink)
+        // Happy / Good: straight to Google's review page
         setDone('google')
+        window.location.assign(res.reviewLink)
       } else {
         setDone('thanks')
       }
@@ -109,6 +94,7 @@ export default function ReviewPage() {
 
   const pick = (r: number) => {
     setRating(r)
+    if (r >= 4) void submit(r) // Happy / Good: record the tap, then open Google directly
   }
 
   const positive = rating !== null && rating >= 4
@@ -137,42 +123,9 @@ export default function ReviewPage() {
           )}
 
           {done === 'google' && (
-            <div className="py-6">
-              <p className="text-center text-xl font-semibold">Almost done!</p>
-              <p className="mt-1 text-center text-muted">Post it on Google in 3 quick steps</p>
-              <ol className="mt-6 space-y-3">
-                {[
-                  ['Tap the stars', `Give ${info?.businessName ?? 'us'} your rating on Google.`],
-                  [text.trim() ? 'Paste your review' : 'Write a few words', text.trim() ? (copied ? 'Your review is copied. Tap the box and choose Paste (or press Ctrl+V).' : 'Tap the box and type your review.') : 'Tell others about your experience.'],
-                  ['Add your photo and tap Post', photo ? 'Tap "Add photos" to add the picture you chose.' : 'Photos are optional.'],
-                ].map(([title, body], i) => (
-                  <li key={title} className="flex gap-3 rounded-xl border border-line p-3">
-                    <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-brand-700 text-sm font-semibold text-white">{i + 1}</span>
-                    <span>
-                      <span className="block font-medium">{title}</span>
-                      <span className="block text-sm text-muted">{body}</span>
-                    </span>
-                  </li>
-                ))}
-              </ol>
-              {text.trim() && (
-                <div className="mt-4 rounded-lg bg-canvas p-3 text-sm text-ink/80">
-                  <p className="line-clamp-3 whitespace-pre-line">{text.trim()}</p>
-                  <button type="button" onClick={copyReview} className="mt-1 text-xs font-medium text-brand-700 hover:underline">
-                    {copied ? 'Copied ✓ Copy again' : 'Copy review'}
-                  </button>
-                </div>
-              )}
-              <button
-                type="button"
-                onClick={async () => {
-                  await copyReview()
-                  window.location.assign(googleLink)
-                }}
-                className="mt-5 flex h-12 w-full items-center justify-center rounded-xl bg-brand-700 text-[16px] font-semibold text-white hover:bg-brand-800"
-              >
-                Open Google review
-              </button>
+            <div className="py-10 text-center">
+              <Loader2 className="mx-auto size-6 animate-spin text-brand-700" />
+              <p className="mt-4 font-semibold">Opening Google…</p>
             </div>
           )}
 
@@ -196,7 +149,7 @@ export default function ReviewPage() {
                 ))}
               </div>
 
-              {rating !== null && (
+              {rating !== null && !positive && (
                 <div className="mt-6">
                   <label htmlFor="review-text" className="text-sm font-medium">Write your review</label>
                   <textarea
@@ -205,7 +158,7 @@ export default function ReviewPage() {
                     value={text}
                     maxLength={4000}
                     onChange={(e) => setText(e.target.value)}
-                    placeholder={positive ? 'Tell others what you liked…' : 'Tell us about your experience…'}
+                    placeholder="Tell us about your experience…"
                     className="mt-1.5 w-full rounded-lg border border-line px-3 py-2.5 text-[15px] outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100"
                   />
 
@@ -233,8 +186,6 @@ export default function ReviewPage() {
                     </button>
                   )}
 
-                  {!positive && (
-                    <>
                   {!info?.knownContact && (
                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
                       <input
@@ -266,8 +217,6 @@ export default function ReviewPage() {
                       <p className="text-xs text-muted sm:col-span-2">Optional</p>
                     </div>
                   )}
-                    </>
-                  )}
 
                   <button
                     type="button"
@@ -275,9 +224,8 @@ export default function ReviewPage() {
                     onClick={() => submit(rating!)}
                     className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-700 text-[16px] font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
                   >
-                    {busy && <Loader2 className="size-4 animate-spin" />} {positive ? 'Post on Google' : 'Submit review'}
+                    {busy && <Loader2 className="size-4 animate-spin" />} Submit review
                   </button>
-                  {positive && <p className="mt-2 text-center text-xs text-muted">Google opens with your review copied. Paste it there and add your photo.</p>}
                 </div>
               )}
 
