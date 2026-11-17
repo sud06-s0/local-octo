@@ -1,10 +1,11 @@
 // src/pages/Messaging.tsx
 import { forwardRef, useEffect, useRef, useState } from 'react'
-import { Bell, CircleCheck, Clock, Calendar,  ImagePlus, MessageCircle, MessageSquare, RefreshCw, Sparkles, TrendingUp, Trash2, CircleStop } from 'lucide-react'
+import { Bell, CircleCheck, Clock, Calendar, ImagePlus, Mail, MessageCircle, MessageSquare, RefreshCw, Smartphone, Sparkles, TrendingUp, Trash2, CircleStop } from 'lucide-react'
 import { Badge, Button, Card, Input, Label, PageHeader, Segmented, Textarea, Toggle } from '../components/ui/primitives'
 import { IncomingBubble, OutgoingBubble, PhoneMockup } from '../components/ui/PhoneMockup'
 import { Modal } from '../components/ui/Modal'
 import { useStore } from '../store/AppStore'
+import { useAuth } from '../store/AuthProvider'
 import { useToast } from '../components/ui/Toast'
 import { brand } from '../config/brand'
 import { cn, fillTemplate, toTemplateName, isEmail, isPhone, timeAgo } from '../lib/utils'
@@ -46,7 +47,7 @@ const KIND_LABEL: Record<WaTemplateKind, string> = {
   followup_image: 'Follow-up with photo',
 }
 
-/** Exact text for the 4 standard templates (Meta rejects bodies that end with a variable, hence "Thank you!") */
+/** Exact text for the standard templates (Meta rejects bodies that end with a variable, hence "Thank you!") */
 const STANDARD_BODY: Record<WaTemplateKind, string> = {
   initial: 'Hi {{1}}, thanks for choosing {{2}}! Would you mind taking a moment to leave us a Google review? {{3}} Thank you!',
   initial_image: 'Hi {{1}}, thanks for choosing {{2}}! Would you mind taking a moment to leave us a Google review? {{3}} Thank you!',
@@ -67,7 +68,7 @@ function PreviewImage({ src, name }: { src: string; name: string }) {
 }
 
 /** The 4 standard templates: submitted to Meta from here, with their approval status. */
-function StandardTemplates() {
+function StandardTemplates({ canSubmit }: { canSubmit: boolean }) {
   const { mode, checkStandardTemplates, submitStandardTemplates } = useStore()
   const [list, setList] = useState<WaStandardTemplate[] | null>(null)
   const [busy, setBusy] = useState<'' | 'check' | 'submit'>('')
@@ -85,7 +86,9 @@ function StandardTemplates() {
     }
   }
   const check = () => run('check')
-  const missing = list?.some((t) => t.status === 'not_created' || t.status === 'failed')
+  const missing = canSubmit && list?.some((t) => t.status === 'not_created' || t.status === 'failed')
+  // Clients only see what's approved
+  const shown = canSubmit ? list : list?.filter((t) => t.status === 'approved')
 
   useEffect(() => {
     check()
@@ -99,8 +102,13 @@ function StandardTemplates() {
           <p className="flex items-center gap-2 text-[17px] font-semibold">
             <MessageCircle className="size-5 text-brand-700" /> WhatsApp templates
           </p>
-          <p className="mt-0.5 text-sm text-muted">Standard messages, sent to WhatsApp for approval. Used for Smart Messaging and until a Custom Message is approved.</p>
+          <p className="mt-0.5 text-sm text-muted">
+            {canSubmit
+              ? 'Standard messages, sent to WhatsApp for approval. Used for Smart Messaging and until a Custom Message is approved.'
+              : 'Approved WhatsApp messages used for your review requests.'}
+          </p>
         </div>
+        {canSubmit && (
         <div className="flex gap-2">
           {missing && (
             <Button size="sm" disabled={!!busy} onClick={() => run('submit')}>
@@ -111,11 +119,13 @@ function StandardTemplates() {
             {busy === 'check' ? 'Checking…' : 'Check WhatsApp'}
           </Button>
         </div>
+        )}
       </div>
       {error && <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">{error}</p>}
-      {list && (
+      {shown && !shown.length && !canSubmit && <p className="mt-3 text-sm text-muted">No approved WhatsApp messages yet. Your agency handles approvals.</p>}
+      {shown && (
         <ul className="mt-4 space-y-2.5">
-          {list.map((t) => (
+          {shown.map((t) => (
             <li key={t.kind} className="rounded-lg p-3 ring-1 ring-line">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sm font-medium">
@@ -270,8 +280,80 @@ function Rendered({ text }: { text: string }) {
   )
 }
 
+/** Client view of a custom message: only the approved text, no editing or submitting. */
+function ApprovedCustom({ kind, templates }: { kind: 'initial' | 'followup'; templates: WaTemplate[] }) {
+  const approved = templates.find((t) => t.kind === kind && t.status === 'approved')
+  return approved ? (
+    <div className="mt-4 rounded-xl border border-line bg-canvas/60 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="font-mono text-xs text-muted">{approved.name}</span>
+        <Badge tone="green">Approved</Badge>
+      </div>
+      <p className="mt-2 whitespace-pre-line text-[15px] leading-relaxed">{approved.body}</p>
+    </div>
+  ) : (
+    <p className="mt-4 rounded-xl border border-line bg-canvas/60 p-4 text-sm text-muted">
+      No approved custom message yet. Your agency sets these up; until then the standard message is sent.
+    </p>
+  )
+}
+
+type Channel = 'whatsapp' | 'sms' | 'email'
+
+/** Message preview for the selected channel. SMS and Email show a demo until their APIs are connected. */
+function ChannelPreview({
+  channel,
+  image,
+  name,
+  businessName,
+  text,
+  time,
+  reply,
+}: {
+  channel: Channel
+  image: string | null
+  name: string
+  businessName: string
+  text: string
+  time: string
+  reply?: string
+}) {
+  return (
+    <>
+      {channel !== 'whatsapp' && (
+        <p className="mx-auto mb-4 max-w-[360px] rounded-lg bg-brand-50 px-3 py-2 text-center text-xs text-brand-800 ring-1 ring-brand-200">
+          {channel === 'sms' ? 'SMS' : 'Email'} API not connected · demo preview
+        </p>
+      )}
+      {channel === 'email' ? (
+        <div className="mx-auto w-full max-w-[360px] overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-line">
+          <div className="border-b border-line px-4 py-3">
+            <p className="text-xs text-muted"><span className="font-medium text-ink">{businessName}</span> · to customer</p>
+            <p className="mt-0.5 text-sm font-semibold">How was your visit to {businessName}?</p>
+          </div>
+          {image && <div className="px-4 pt-4"><PreviewImage src={image} name={name} /></div>}
+          <div className="px-4 py-4 text-sm leading-relaxed"><Rendered text={text} /></div>
+          <div className="px-4 pb-5">
+            <span className="block rounded-lg bg-brand-700 py-2.5 text-center text-sm font-semibold text-white">Leave a review</span>
+          </div>
+        </div>
+      ) : (
+        <PhoneMockup>
+          {channel === 'whatsapp' && image && <PreviewImage src={image} name={name} />}
+          <OutgoingBubble time={time}>
+            <Rendered text={text} />
+          </OutgoingBubble>
+          {reply && <IncomingBubble time="2:45 PM">{reply}</IncomingBubble>}
+        </PhoneMockup>
+      )}
+    </>
+  )
+}
+
 export default function Messaging() {
   const { state, mode, updateSettings, sendTest, uploadMessageImage, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates } = useStore()
+  const { isAgency } = useAuth()
+  const [channel, setChannel] = useState<Channel>('whatsapp')
   const toast = useToast()
   const m = state.settings.messaging
   const fileRef = useRef<HTMLInputElement>(null)
@@ -361,13 +443,15 @@ export default function Messaging() {
       <div className="grid gap-8 lg:grid-cols-[1fr_1.1fr] lg:gap-10">
         {/* Phone preview */}
         <div className="lg:sticky lg:top-8 lg:self-start">
-          <PhoneMockup>
-            {/* The business's own photo, or the built-in demo photo until they upload one */}
-            {m.personalizedImage && <PreviewImage src={m.imageDataUrl || DEFAULT_IMAGE} name={sample} />}
-            <OutgoingBubble time="9:41 AM">
-              <Rendered text={initialText} />
-            </OutgoingBubble>
-          </PhoneMockup>
+          {/* The business's own photo, or the built-in demo photo until they upload one */}
+          <ChannelPreview
+            channel={channel}
+            image={m.personalizedImage ? m.imageDataUrl || DEFAULT_IMAGE : null}
+            name={sample}
+            businessName={m.businessName || state.settings.business.name}
+            text={initialText}
+            time="9:41 AM"
+          />
           <div className="mt-5 text-center">
             <Button onClick={() => setTestOpen(true)}>Send Test Message</Button>
           </div>
@@ -375,6 +459,16 @@ export default function Messaging() {
 
         {/* Settings */}
         <div className="space-y-6">
+          <Segmented
+            className="w-full sm:w-full sm:[&>button]:flex-1"
+            value={channel}
+            onChange={setChannel}
+            options={[
+              { value: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
+              { value: 'sms', label: 'SMS', icon: Smartphone },
+              { value: 'email', label: 'Email', icon: Mail },
+            ]}
+          />
           <Card className="border-brand-200 bg-brand-50/60 p-5">
             <div className="flex items-start gap-3">
               <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-white">
@@ -433,7 +527,9 @@ export default function Messaging() {
             ) : (
               <>
                 <h2 className="text-lg font-semibold">Custom Message</h2>
-                <p className="mt-0.5 text-[15px] text-muted">Write your own message template</p>
+                <p className="mt-0.5 text-[15px] text-muted">{isAgency ? 'Write your own message template' : 'Your approved custom message'}</p>
+                {isAgency ? (
+                  <>
                 <TemplateNameField id="tpl-name" value={tplName} onChange={setTplName} placeholder="e.g. review_request_localocto" />
                 <TokenChips onInsert={insertToken} />
                 <CounterTextarea ref={customRef} value={custom} onChange={setCustom} rows={5} />
@@ -457,6 +553,10 @@ export default function Messaging() {
                   busy={waBusy}
                   onRefresh={refreshWa}
                 />
+                  </>
+                ) : (
+                  <ApprovedCustom kind="initial" templates={waTemplates} />
+                )}
               </>
             )}
 
@@ -505,7 +605,7 @@ export default function Messaging() {
             )}
           </Card>
 
-          <StandardTemplates />
+          <StandardTemplates canSubmit={isAgency} />
         </div>
       </div>
 
@@ -517,13 +617,16 @@ export default function Messaging() {
       <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_1.1fr] lg:gap-10">
         {/* Phone preview: sticky and its own height, so a tall settings column can't stretch it */}
         <div className="lg:sticky lg:top-8 lg:self-start">
-          <PhoneMockup>
-            {m.personalizedImage && <PreviewImage src={m.imageDataUrl || DEFAULT_IMAGE} name={sample} />}
-            <OutgoingBubble time="2:30 PM">
-              <Rendered text={followText} />
-            </OutgoingBubble>
-            <IncomingBubble time="2:45 PM">Just left a review! Thanks for your help!</IncomingBubble>
-          </PhoneMockup>
+          {/* Follow-ups are text only */}
+          <ChannelPreview
+            channel={channel}
+            image={null}
+            name={sample}
+            businessName={m.businessName || state.settings.business.name}
+            text={followText}
+            time="2:30 PM"
+            reply="Just left a review! Thanks for your help!"
+          />
         </div>
 
         <div className="space-y-6">
@@ -555,6 +658,8 @@ export default function Messaging() {
               <div className="mt-6 border-t border-line pt-5">
                 <p className="text-[16px] font-semibold">Custom Follow-up Message</p>
                 <p className="mt-0.5 text-[15px] text-muted">Sent if the customer hasn't clicked your review link</p>
+                {isAgency ? (
+                  <>
                 <TemplateNameField id="follow-tpl-name" value={followTplName} onChange={setFollowTplName} placeholder="e.g. review_followup_localocto" />
                 <TokenChips onInsert={(t) => setCustomFollow((v) => (v + ' ' + t).slice(0, MAX_CHARS))} />
                 <CounterTextarea value={customFollow} onChange={setCustomFollow} rows={4} />
@@ -572,11 +677,15 @@ export default function Messaging() {
                   {waBusy ? 'Saving…' : 'Save Follow-up'}
                 </Button>
                 <WhatsAppApproval
-                  kinds={['followup', 'followup_image']}
+                  kinds={['followup']}
                   templates={waTemplates}
                   busy={waBusy}
                   onRefresh={refreshWa}
                 />
+                  </>
+                ) : (
+                  <ApprovedCustom kind="followup" templates={waTemplates} />
+                )}
               </div>
             )}
           </Card>

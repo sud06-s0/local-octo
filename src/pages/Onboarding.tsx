@@ -9,7 +9,7 @@ import { brand } from '../config/brand'
 
 export default function Onboarding() {
   const { createBusiness } = useStore()
-  const { user, signOut } = useAuth()
+  const { user, signOut, isAgency } = useAuth()
   const [details, setDetails] = useState<BusinessDetails>({ name: '', address: '', reviewLink: '', mapsUrl: '' })
   const [busy, setBusy] = useState(false)
 
@@ -23,6 +23,8 @@ export default function Onboarding() {
           </div>
           <Button variant="ghost" size="sm" icon={LogOut} onClick={signOut}>Sign out</Button>
         </div>
+        {isAgency ? (
+          <>
         <h1 className="text-[26px] font-semibold tracking-tight">Set up your business</h1>
         <p className="mt-1 text-muted">Hi {user.name.split(' ')[0]}, add the business you want to collect reviews for. You can change this later.</p>
         <Card className="mt-6 p-5 sm:p-6">
@@ -45,6 +47,17 @@ export default function Onboarding() {
             {busy ? 'Creating…' : 'Continue'}
           </Button>
         </Card>
+          </>
+        ) : (
+          // Client logins can't add businesses: their agency gives them access
+          <Card className="p-6 text-center">
+            <h1 className="text-[22px] font-semibold tracking-tight">No business yet</h1>
+            <p className="mt-2 text-muted">
+              Hi {user.name.split(' ')[0]}, your agency hasn't given this login access to a business yet. Ask them to add {user.email}, then refresh this page.
+            </p>
+            <Button className="mt-5" variant="outline" onClick={() => window.location.reload()}>Refresh</Button>
+          </Card>
+        )}
       </div>
     </div>
   )

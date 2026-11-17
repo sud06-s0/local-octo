@@ -1,7 +1,7 @@
 // src/components/layout/Sidebar.tsx
 import { useState } from 'react'
 import { NavLink } from 'react-router'
-import { Bell, Check, ChevronRight, ChevronsUpDown, CreditCard, Gift, LogOut, Plus, RefreshCw, Settings } from 'lucide-react'
+import { Bell, Check, ChevronRight, ChevronsUpDown, CreditCard, Gift, LogOut, Plus, RefreshCw, Settings, Users } from 'lucide-react'
 import { navItems } from './navItems'
 import { Dropdown, MenuItem } from './Dropdown'
 import { brand } from '../../config/brand'
@@ -12,10 +12,12 @@ import { useAuth } from '../../store/AuthProvider'
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/primitives'
 import { BusinessDetailsForm, businessDetailsValid, type BusinessDetails } from '../BusinessDetailsForm'
+import { ClientLogins } from '../ClientLogins'
 
 export function Sidebar({ onNavigate, onReferral }: { onNavigate?: () => void; onReferral: () => void }) {
   const { state, mode, businesses, activeBusinessId, switchBusiness, createBusiness, resetDemo } = useStore()
-  const { user, signOut } = useAuth()
+  const { user, signOut, isAgency } = useAuth()
+  const [loginsOpen, setLoginsOpen] = useState(false)
   const toast = useToast()
   const [addOpen, setAddOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -51,16 +53,29 @@ export function Sidebar({ onNavigate, onReferral }: { onNavigate?: () => void; o
                   </MenuItem>
                 ))}
               </div>
-              <MenuItem
-                onClick={() => {
-                  close()
-                  if (mode === 'demo') return toast('Adding businesses works once Supabase is connected')
-                  setDraft({ name: '', address: '', reviewLink: '', mapsUrl: '' })
-                  setAddOpen(true)
-                }}
-              >
-                <Plus className="size-4 text-muted" /> Add business
-              </MenuItem>
+              {isAgency && (
+                <>
+                  <MenuItem
+                    onClick={() => {
+                      close()
+                      if (mode === 'demo') return toast('Adding businesses works once Supabase is connected')
+                      setDraft({ name: '', address: '', reviewLink: '', mapsUrl: '' })
+                      setAddOpen(true)
+                    }}
+                  >
+                    <Plus className="size-4 text-muted" /> Add business
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() => {
+                      close()
+                      if (mode === 'demo') return toast('Client logins work once Supabase is connected')
+                      setLoginsOpen(true)
+                    }}
+                  >
+                    <Users className="size-4 text-muted" /> Client logins
+                  </MenuItem>
+                </>
+              )}
             </>
           )}
         </Dropdown>
@@ -164,6 +179,8 @@ export function Sidebar({ onNavigate, onReferral }: { onNavigate?: () => void; o
           )}
         </Dropdown>
       </div>
+
+      {isAgency && <ClientLogins open={loginsOpen} onClose={() => setLoginsOpen(false)} />}
 
       <Modal
         open={addOpen}

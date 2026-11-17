@@ -1,8 +1,9 @@
 // src/pages/Contacts.tsx
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router'
+import { useSearchParams } from 'react-router'
 import { Ban, CircleStop, Ellipsis, Filter, Search, Send, Trash2, UserPlus, Users } from 'lucide-react'
-import { Badge, Button, Card, Checkbox, EmptyState, PageHeader } from '../components/ui/primitives'
+import { Badge, Button, Card, Checkbox, EmptyState, PageHeader, Segmented } from '../components/ui/primitives'
+import { AddContactsPanel } from './AddContacts'
 import { Dropdown, MenuItem } from '../components/layout/Dropdown'
 import { useStore } from '../store/AppStore'
 import { useToast } from '../components/ui/Toast'
@@ -20,6 +21,9 @@ const statusMeta: Record<ContactStatus, { label: string; tone: 'green' | 'gray' 
 type StatusFilter = 'all' | ContactStatus
 
 export default function Contacts() {
+  const [params, setParams] = useSearchParams()
+  const tab = params.get('tab') === 'add' ? 'add' : 'list'
+  const setTab = (t: 'list' | 'add') => setParams(t === 'add' ? { tab: 'add' } : {}, { replace: true })
   const { state, mode, updateContact, deleteContact } = useStore()
   const toast = useToast()
   const [query, setQuery] = useState('')
@@ -91,12 +95,26 @@ export default function Contacts() {
       <PageHeader
         title="Contacts"
         subtitle="Manage your contacts and review requests"
-        actions={
-          <Link to="/add-contacts">
-            <Button icon={UserPlus}>Add Contacts</Button>
-          </Link>
-        }
+        actions={tab === 'list' ? <Button icon={UserPlus} onClick={() => setTab('add')}>Add Contacts</Button> : undefined}
       />
+
+      <Segmented
+        className="mb-6"
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: 'list', label: 'All Contacts', icon: Users },
+          { value: 'add', label: 'Add Contacts', icon: UserPlus },
+        ]}
+      />
+
+      {tab === 'add' ? <AddContactsPanel /> : renderList()}
+    </div>
+  )
+
+  function renderList() {
+    return (
+      <>
 
       <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center">
         <div className="relative w-full xl:w-80">
@@ -196,6 +214,7 @@ export default function Contacts() {
           </>
         )}
       </Card>
-    </div>
-  )
+      </>
+    )
+  }
 }

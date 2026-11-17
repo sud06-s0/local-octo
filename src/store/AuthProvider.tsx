@@ -9,6 +9,8 @@ interface AuthState {
   session: Session | null
   user: { id: string; name: string; email: string }
   recovering: boolean // user opened a password-reset link
+  /** Agency accounts add businesses and submit WhatsApp templates; clients only use what they're given. */
+  isAgency: boolean
   clearRecovering: () => void
   signOut: () => Promise<void>
 }
@@ -20,6 +22,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [ready, setReady] = useState(!isLive)
   const [recovering, setRecovering] = useState(false)
+  const [isAgency, setIsAgency] = useState(!isLive) // demo = agency
+
+  // Account type from the profile (agency / client)
+  const userId = session?.user?.id
+  useEffect(() => {
+    if (!supabase || !userId) {
+      if (isLive) setIsAgency(false)
+      return
+    }
+    supabase
+      .from('profiles')
+      .select('account_type, is_platform_admin')
+      .eq('id', userId)
+      .maybeSingle()
+      .then(({ data }) => setIsAgency(data?.account_type === 'agency' || !!data?.is_platform_admin))
+  }, [userId])
 
   useEffect(() => {
     if (!supabase) return
@@ -44,12 +62,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ? { id: u.id, name: (u.user_metadata?.full_name as string | undefined) || u.email?.split('@')[0] || 'User', email: u.email ?? '' }
         : DEMO_USER,
       recovering,
+      isAgency,
       clearRecovering: () => setRecovering(false),
       signOut: async () => {
         await supabase?.auth.signOut()
       },
     }
-  }, [ready, session, recovering])
+  }, [ready, session, recovering, isAgency])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

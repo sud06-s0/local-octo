@@ -220,3 +220,11 @@ In Supabase:
 
 In the app: Integrations → Google Business Profile → **Connect with Google** → pick the business → reviews sync.
 Replies on the Reviews page then post straight to Google (Delete removes them on Google too).
+
+## Agency and client logins
+
+- SQL: run `supabase/migrations/20261117000002_agency_client_roles.sql`. Everyone who already created a business becomes **agency**; new sign-ups are **client**.
+- Agency: adds businesses, submits WhatsApp templates, and gives access from the business menu → **Client logins** (the client signs up first, then you add their email).
+- Client: works in the businesses it was given; sees only approved WhatsApp templates; cannot add businesses.
+- Make someone agency by hand: `update public.profiles set account_type = 'agency' where email = 'name@example.com';`
+- Functions to redeploy: `wa-template` (agency-only submit, follow-ups text only), `dispatch` (follow-ups text only).

@@ -1,8 +1,5 @@
 // supabase/dashboard/dispatch/index.ts
-// Self-contained copy of supabase/functions/dispatch for pasting into the Supabase dashboard editor.
-// Function name in Supabase must be exactly: dispatch   ·   Turn OFF "Verify JWT" for this function.
-// @ts-nocheck  (bundled JavaScript — the typed source lives in supabase/functions)
-
+// @ts-nocheck
 // supabase/functions/_shared/supabase.ts
 import { createClient } from "npm:@supabase/supabase-js@2";
 function secretKey() {
@@ -273,7 +270,8 @@ Deno.serve(async (req) => {
       messaging: row.messaging ?? {},
       link: `${linkBase}?t=${row.token}`,
       // Photo with the customer's name (business photo, or the demo photo if none uploaded)
-      imageUrl: row.messaging?.personalizedImage ? contactImageUrl(row.token) : void 0
+      // Personalised photo on the first message only; follow-ups are text
+      imageUrl: kind === "initial" && row.messaging?.personalizedImage ? contactImageUrl(row.token) : void 0
     });
     const now = /* @__PURE__ */ new Date();
     if (result.ok) {

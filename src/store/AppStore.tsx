@@ -519,7 +519,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         }
         const rows: WaTemplate[] = []
         if (kinds.includes('initial')) rows.push(make('initial', m.customMessage), make('initial_image', m.customMessage))
-        if (kinds.includes('followup')) rows.push(make('followup', m.customFollowUp), make('followup_image', m.customFollowUp))
+        if (kinds.includes('followup')) rows.push(make('followup', m.customFollowUp)) // follow-ups are text only
         setWaTemplates((t) => [...rows, ...t])
         return []
       }
@@ -546,7 +546,6 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         { kind: 'initial', name: 'review_request', status: 'approved', reason: null, category: 'marketing' },
         { kind: 'initial_image', name: 'review_request_image', status: 'approved', reason: null, category: 'marketing' },
         { kind: 'followup', name: 'review_followup', status: 'pending', reason: null, category: 'marketing' },
-        { kind: 'followup_image', name: 'review_followup_image', status: 'not_created', reason: null, category: null },
       ]
     }
     const res = await invokeFn<{ standard: WaStandardTemplate[] }>('wa-template', { businessId: activeId, action: 'standard' })

@@ -11,7 +11,6 @@ import { AppLayout } from './components/layout/AppLayout'
 import ReviewPage from './pages/ReviewPage'
 const Dashboard = lazyPage(() => import('./pages/Dashboard'))
 const Contacts = lazyPage(() => import('./pages/Contacts'))
-const AddContacts = lazyPage(() => import('./pages/AddContacts'))
 const Messaging = lazyPage(() => import('./pages/Messaging'))
 const RequestScheduling = lazyPage(() => import('./pages/RequestScheduling'))
 const Reviews = lazyPage(() => import('./pages/Reviews'))
@@ -50,7 +49,7 @@ function Gate() {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="contacts" element={<Contacts />} />
-        <Route path="add-contacts" element={<AddContacts />} />
+        <Route path="add-contacts" element={<Navigate to="/contacts?tab=add" replace />} />
         <Route path="messaging" element={<Messaging />} />
         <Route path="request-scheduling" element={<RequestScheduling />} />
         <Route path="reviews" element={<Reviews />} />

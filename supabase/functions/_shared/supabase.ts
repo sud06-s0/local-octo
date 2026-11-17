@@ -43,6 +43,12 @@ export async function isMember(admin: SupabaseClient, userId: string, businessId
   return !!member || !!profile?.is_platform_admin
 }
 
+/** True for agency accounts (and platform staff): they submit templates and add businesses. */
+export async function isAgency(admin: SupabaseClient, userId: string): Promise<boolean> {
+  const { data } = await admin.from('profiles').select('account_type, is_platform_admin').eq('id', userId).maybeSingle()
+  return data?.account_type === 'agency' || !!data?.is_platform_admin
+}
+
 export function functionsUrl(): string {
   return `${Deno.env.get('SUPABASE_URL')}/functions/v1`
 }

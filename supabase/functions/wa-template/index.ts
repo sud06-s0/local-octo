@@ -3,11 +3,12 @@
 //  - submit:          Custom Message / Custom Follow-up → submitted to Meta as text AND photo (Image header) templates,
 //                     named by the business (customTemplateName / customFollowUpTemplateName, photo version + "_photo").
 //  - refresh:         "Check WhatsApp" — looks every custom template up by name and updates its status.
-//  - standard:        approval status of the 4 standard templates (review_request, review_request_image, review_followup, review_followup_image).
+//  - standard:        approval status of the 3 standard templates (review_request, review_request_image, review_followup).
+// Submitting (submit / submit_standard) is for agency accounts only; clients can only read status.
 //  - submit_standard: submits whichever of the 4 standard templates don't exist yet, then returns their status.
 // Only the WABA ID + access token are needed. The app ID for the sample-photo upload is read from the token.
 
-import { adminClient, getUser, isMember } from '../_shared/supabase.ts'
+import { adminClient, getUser, isAgency, isMember } from '../_shared/supabase.ts'
 import { json, preflight } from '../_shared/http.ts'
 import {
   buildTemplateBody,
@@ -63,6 +64,10 @@ Deno.serve(async (req) => {
   const cfg = await metaConfig(admin, businessId)
   if (!cfg.wabaId || !cfg.token) return json({ error: 'WhatsApp is not connected yet (WHATSAPP_WABA_ID / WHATSAPP_ACCESS_TOKEN missing)' }, 400)
 
+  if ((action === 'submit' || action === 'submit_standard') && !(await isAgency(admin, user.id))) {
+    return json({ error: 'Only your agency can submit WhatsApp templates' }, 403)
+  }
+
   const getPhoto = photoHandle(cfg)
   const warnings: string[] = []
 
@@ -101,11 +106,12 @@ Deno.serve(async (req) => {
     for (const job of jobs) {
       const built = buildTemplateBody(job.source, vars)
       const base = { business_id: businessId, language: cfg.lang, body: built.body, params: built.params }
-      const photoKind: TemplateKind = job.kind === 'initial' ? 'initial_image' : 'followup_image'
+      // First message: text + photo versions. Follow-up: text only.
+      const photoKind: TemplateKind | null = job.kind === 'initial' ? 'initial_image' : null
 
       // Text version and photo version (same text + Image header), both submitted to Meta.
       // Names come from the business ("my_name" and "my_name_photo"); generated if none was given.
-      for (const kind of [job.kind, photoKind]) {
+      for (const kind of photoKind ? [job.kind, photoKind] : [job.kind]) {
         const name = job.name ? `${job.name}${kind === photoKind ? '_photo' : ''}` : templateName(businessId, kind)
         try {
           if (!built.params.includes('review_link')) throw new Error('The message must include the Review Link')

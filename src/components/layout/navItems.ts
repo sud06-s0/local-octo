@@ -8,7 +8,6 @@ import {
   Plug,
   Share2,
   Star,
-  UserPlus,
   Users,
   type LucideIcon,
 } from 'lucide-react'
@@ -23,7 +22,6 @@ export interface NavItem {
 export const navItems: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/contacts', label: 'Contacts', icon: Users },
-  { to: '/add-contacts', label: 'Add Contacts', icon: UserPlus },
   { to: '/messaging', label: 'Messaging', icon: MessageSquare },
   { to: '/request-scheduling', label: 'Request Scheduling', icon: CalendarClock },
   { to: '/reviews', label: 'Reviews', icon: Star },

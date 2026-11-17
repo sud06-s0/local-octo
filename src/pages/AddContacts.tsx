@@ -1,4 +1,5 @@
 // src/pages/AddContacts.tsx
+// Shown as the "Add Contacts" tab inside the Contacts page.
 import { useRef, useState, type DragEvent } from 'react'
 import { useNavigate } from 'react-router'
 import { Download, FileText, Upload, UserPlus, X } from 'lucide-react'
@@ -282,15 +283,15 @@ function CsvImport() {
   )
 }
 
-export default function AddContacts() {
+/** "Add Contacts" tab on the Contacts page: single contact or CSV import. */
+export function AddContactsPanel() {
   const [tab, setTab] = useState<Tab>('single')
   return (
-    <div className="mx-auto max-w-[832px]">
-      <h1 className="text-[26px] font-semibold tracking-tight">Add Contacts</h1>
-      <p className="mt-1 text-[16px] text-muted">Add contacts individually or import from a CSV file</p>
+    <div className="max-w-[832px]">
+      <p className="text-[16px] text-muted">Add contacts individually or import from a CSV file</p>
 
       <Segmented
-        className="mt-6"
+        className="mt-4"
         value={tab}
         onChange={setTab}
         options={[
