@@ -30,7 +30,7 @@ function StatTile({ label, value, icon: Icon }: { label: string; value: number; 
 }
 
 export default function Dashboard() {
-  const { state, updateSettings, importFromGoogle } = useStore()
+  const { state, updateSettings, importFromGoogle, publicKey } = useStore()
   const toast = useToast()
   const { reviews, contacts, settings } = state
   const [range, setRange] = useState<Range>('30d')
@@ -243,7 +243,7 @@ export default function Dashboard() {
             variant="outline"
             icon={Copy}
             className="w-full"
-            onClick={async () => toast((await copyText(settings.business.reviewLink)) ? 'Review link copied' : 'Could not copy link', 'success')}
+            onClick={async () => toast((await copyText(publicKey ? `${window.location.origin}/review?b=${publicKey}` : settings.business.reviewLink)) ? 'Review link copied' : 'Could not copy link', 'success')}
           >
             Copy Review Link
           </Button>

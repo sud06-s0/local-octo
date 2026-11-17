@@ -1,6 +1,7 @@
 // supabase/functions/r/index.ts
 // Review-link redirect: /functions/v1/r?t=<contact token>
-// Records the click (stops follow-ups) and sends the customer to the Google review form.
+// Records the click (stops follow-ups) and opens the review page (4 faces) in the app.
+// APP_URL secret = the app's address (default https://local-octo.vercel.app).
 
 import { adminClient } from '../_shared/supabase.ts'
 
@@ -48,5 +49,6 @@ Deno.serve(async (req) => {
     })
   }
 
-  return new Response(null, { status: 302, headers: { Location: business.review_link, 'Cache-Control': 'no-store' } })
+  const appUrl = (Deno.env.get('APP_URL') || 'https://local-octo.vercel.app').replace(/\/+$/, '')
+  return new Response(null, { status: 302, headers: { Location: `${appUrl}/review?t=${token}`, 'Cache-Control': 'no-store' } })
 })

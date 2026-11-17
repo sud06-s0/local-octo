@@ -22,6 +22,7 @@ const Notifications = lazyPage(() => import('./pages/Notifications'))
 const NotFound = lazyPage(() => import('./pages/NotFound'))
 const Login = lazyPage(() => import('./pages/Login'))
 const Onboarding = lazyPage(() => import('./pages/Onboarding'))
+const ReviewPage = lazyPage(() => import('./pages/ReviewPage'))
 
 // Preview builds use hash URLs so they work from any static host without rewrites.
 const Router = import.meta.env.MODE === 'preview' ? HashRouter : BrowserRouter
@@ -65,6 +66,14 @@ function Gate() {
 }
 
 export default function App() {
+  // Public review page: no login, no app shell
+  if (window.location.pathname.replace(/\/+$/, '').endsWith('/review')) {
+    return (
+      <Suspense fallback={<FullPageSpinner />}>
+        <ReviewPage />
+      </Suspense>
+    )
+  }
   return (
     <ToastProvider>
       <AuthProvider>

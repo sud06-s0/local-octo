@@ -39,3 +39,6 @@ verify_jwt = false
 
 [functions.google-business]
 verify_jwt = false
+
+[functions.feedback]
+verify_jwt = false
