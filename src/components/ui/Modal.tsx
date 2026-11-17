@@ -1,5 +1,6 @@
 // src/components/ui/Modal.tsx
 import { useEffect, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
@@ -34,7 +35,8 @@ export function Modal({
   }, [open, onClose])
 
   if (!open) return null
-  return (
+  // Rendered at the end of <body> so no page layout can push it behind another window
+  return createPortal(
     <div className={cn('fixed inset-0 flex items-end justify-center sm:items-center sm:p-4', top ? 'z-[95]' : 'z-[90]')} role="dialog" aria-modal aria-label={title}>
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div
@@ -52,6 +54,7 @@ export function Modal({
         <div className="overflow-y-auto px-5 py-5">{children}</div>
         {footer && <div className="flex justify-end gap-2 border-t border-line px-5 py-4">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
