@@ -1,7 +1,7 @@
 // src/components/layout/Sidebar.tsx
 import { useState } from 'react'
 import { NavLink } from 'react-router'
-import { Bell, Check, ChevronRight, ChevronsUpDown, CreditCard, Gift, LogOut, Plus, RefreshCw, Settings, Users } from 'lucide-react'
+import { Bell, Check, ChevronsUpDown, CreditCard, LogOut, Plus, RefreshCw, Settings, Users } from 'lucide-react'
 import { navItems } from './navItems'
 import { Dropdown, MenuItem } from './Dropdown'
 import { brand } from '../../config/brand'
@@ -14,7 +14,7 @@ import { Button } from '../ui/primitives'
 import { BusinessDetailsForm, businessDetailsValid, type BusinessDetails } from '../BusinessDetailsForm'
 import { ClientLogins } from '../ClientLogins'
 
-export function Sidebar({ onNavigate, onReferral }: { onNavigate?: () => void; onReferral: () => void }) {
+export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { state, mode, businesses, activeBusinessId, switchBusiness, createBusiness, resetDemo } = useStore()
   const { user, signOut, isAgency } = useAuth()
   const [loginsOpen, setLoginsOpen] = useState(false)
@@ -123,25 +123,6 @@ export function Sidebar({ onNavigate, onReferral }: { onNavigate?: () => void; o
           </NavLink>
         ))}
       </nav>
-
-      {/* Referral */}
-      <div className="px-3 pb-3">
-        <button
-          onClick={onReferral}
-          className="flex w-full items-center gap-3 rounded-xl border border-brand-200 bg-brand-50/70 p-3 text-left transition hover:bg-brand-50"
-        >
-          <span className="flex size-10 items-center justify-center rounded-lg bg-brand-100/80">
-            <Gift className="size-5 text-brand-700" />
-          </span>
-          <span className="flex-1">
-            <span className="block text-[15px] font-semibold text-ink">Refer a Friend</span>
-            <span className="block text-xs text-muted">
-              Earn <b className="font-semibold text-brand-700">{brand.referralReward}</b> per referral
-            </span>
-          </span>
-          <ChevronRight className="size-4 text-muted" />
-        </button>
-      </div>
 
       {/* User */}
       <div className="border-t border-line px-3 py-3">
