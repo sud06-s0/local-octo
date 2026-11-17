@@ -60,7 +60,7 @@ export async function authUrl(state: OAuthState): Promise<string> {
     response_type: 'code',
     scope: SCOPES,
     access_type: 'offline',
-    prompt: 'consent', // always returns a refresh token
+    prompt: 'select_account consent', // lets the user pick which Google account; consent always returns a refresh token
     include_granted_scopes: 'true',
     state: await signState(state),
   })
