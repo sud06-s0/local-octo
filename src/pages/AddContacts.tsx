@@ -287,7 +287,7 @@ function CsvImport() {
 export function AddContactsPanel() {
   const [tab, setTab] = useState<Tab>('single')
   return (
-    <div className="max-w-[832px]">
+    <div className="mx-auto max-w-[832px]">
       <p className="text-[16px] text-muted">Add contacts individually or import from a CSV file</p>
 
       <Segmented
