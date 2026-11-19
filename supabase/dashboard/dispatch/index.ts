@@ -134,6 +134,11 @@ async function sendEmail(ch, to, name, vars) {
   const data = body.data;
   return { ok: true, id: data?.unique_id ?? "" };
 }
+function withTitle(firstName, gender) {
+  if (gender === "male") return `${firstName} Sir`;
+  if (gender === "female") return `${firstName} Ma'am`;
+  return firstName;
+}
 async function deliver(input) {
   const ch = await loadChannels(input.admin, input.businessId);
   const isFollow = input.kind === "follow_up";
@@ -143,12 +148,13 @@ async function deliver(input) {
     const wa = ch.whatsapp;
     const photo = isFollow ? void 0 : input.imageUrl;
     let template = isFollow ? wa.followUp : photo ? wa.initialImage : wa.initial;
-    let params = [input.firstName, input.businessName, input.link];
+    const waName = withTitle(input.firstName, input.gender);
+    let params = [waName, input.businessName, input.link];
     const header = photo;
     let lang;
     if (input.messaging.waMode === "custom") {
       const custom = await approvedTemplates(input.admin, input.businessId);
-      const values = { first_name: input.firstName, review_link: input.link };
+      const values = { first_name: waName, review_link: input.link };
       const pick = isFollow ? custom.followup : photo ? custom.initial_image : custom.initial;
       if (pick) {
         template = pick.name;
@@ -268,6 +274,7 @@ Deno.serve(async (req) => {
       contactId: row.contact_id,
       kind,
       firstName: row.first_name,
+      gender: row.gender,
       email: row.email,
       phone: row.phone,
       businessName: row.business_name,

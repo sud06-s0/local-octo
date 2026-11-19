@@ -77,6 +77,7 @@ Deno.serve(async (req) => {
       p_email: str(c.email),
       p_phone: str(c.phone ?? c.mobile ?? c.whatsapp),
       p_dnc: c.do_not_contact === true || c.doNotContact === true,
+      p_gender: str(c.gender) || null,
       p_source: "webhook",
       p_consent: true
     });

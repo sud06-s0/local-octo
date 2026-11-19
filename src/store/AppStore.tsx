@@ -80,6 +80,7 @@ const toContact = (r: Row): Contact => ({
   id: r.id,
   firstName: r.first_name,
   lastName: r.last_name ?? '',
+  gender: r.gender ?? '',
   email: r.email ?? '',
   phone: r.phone ? `+${r.phone}` : '',
   status: r.status,
@@ -162,6 +163,7 @@ const SETTINGS_COLUMN: Record<Exclude<keyof Settings, 'business'>, string> = {
 const CONTACT_COLUMN: Partial<Record<keyof Contact, string>> = {
   firstName: 'first_name',
   lastName: 'last_name',
+  gender: 'gender',
   email: 'email',
   status: 'status',
   doNotContact: 'do_not_contact',

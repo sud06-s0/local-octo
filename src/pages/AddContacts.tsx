@@ -14,7 +14,7 @@ type Tab = 'single' | 'csv'
 function SingleContactForm() {
   const { addContacts } = useStore()
   const toast = useToast()
-  const empty = { firstName: '', lastName: '', email: '', phone: '', doNotContact: false }
+  const empty: NewContact = { firstName: '', lastName: '', gender: '', email: '', phone: '', doNotContact: false }
   const [form, setForm] = useState<NewContact>(empty)
   const [consent, setConsent] = useState(false)
   const [touched, setTouched] = useState(false)
@@ -78,6 +78,24 @@ function SingleContactForm() {
           </div>
         </div>
         <div>
+          <Label htmlFor="gender">Gender</Label>
+          <select
+            id="gender"
+            value={form.gender ?? ''}
+            onChange={(e) => set('gender', e.target.value)}
+            className="h-10 w-full cursor-pointer rounded-lg border border-line bg-white px-3 text-[15px] text-ink outline-none transition focus:border-brand-500 focus:ring-3 focus:ring-brand-100"
+          >
+            <option value="">Not set</option>
+            <option value="male">Male (Sir)</option>
+            <option value="female">Female (Ma'am)</option>
+          </select>
+          {form.gender && (
+            <p className="mt-1 text-xs text-muted">
+              WhatsApp messages will say "{form.firstName.trim() || 'Name'} {form.gender === 'male' ? 'Sir' : "Ma'am"}"
+            </p>
+          )}
+        </div>
+        <div>
           <Label htmlFor="email">Email</Label>
           <Input id="email" type="email" placeholder="Enter email address" value={form.email} onChange={(e) => set('email', e.target.value)} />
           {!emailOk && <p className="mt-1 text-xs text-red-600">Enter a valid email address</p>}
@@ -110,6 +128,7 @@ const HEADER_MAP: Record<string, keyof NewContact> = {
   last_name: 'lastName', lastname: 'lastName', last: 'lastName', surname: 'lastName',
   email: 'email', email_address: 'email', mail: 'email',
   phone: 'phone', phone_number: 'phone', mobile: 'phone', whatsapp: 'phone',
+  gender: 'gender', sex: 'gender',
 }
 
 function CsvImport() {
@@ -135,9 +154,11 @@ function CsvImport() {
       const parsed: NewContact[] = []
       let bad = 0
       for (const r of table.slice(1)) {
-        const c: NewContact = { firstName: '', lastName: '', email: '', phone: '', doNotContact: false }
+        const c: NewContact = { firstName: '', lastName: '', gender: '', email: '', phone: '', doNotContact: false }
         headers.forEach((key, i) => {
-          if (key && key !== 'doNotContact') c[key] = (r[i] ?? '').trim()
+          const v = (r[i] ?? '').trim()
+          if (key === 'gender') c.gender = /^(m|male)$/i.test(v) ? 'male' : /^(f|female)$/i.test(v) ? 'female' : ''
+          else if (key && key !== 'doNotContact') c[key] = v
         })
         // "name" column with full name -> split
         if (!c.lastName && c.firstName.includes(' ')) {
@@ -164,7 +185,7 @@ function CsvImport() {
   }
 
   const downloadTemplate = () => {
-    const blob = new Blob(['first_name,last_name,email,phone\nPriya,Raman,priya@example.com,+919845011223\n'], { type: 'text/csv' })
+    const blob = new Blob(['first_name,last_name,gender,email,phone\nPriya,Raman,female,priya@example.com,+919845011223\n'], { type: 'text/csv' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
     a.download = 'contacts-template.csv'

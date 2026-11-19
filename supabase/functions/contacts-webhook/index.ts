@@ -2,7 +2,7 @@
 // POST contacts from Zapier, Pabbly, a CRM or any system.
 // Auth: header `x-api-key: lo_live_...` (generate it on the Integrations page).
 // Body: one contact, an array, or { "contacts": [...] }.
-// Fields: first_name (or name), last_name, email, phone, do_not_contact.
+// Fields: first_name (or name), last_name, email, phone, gender (male/female), do_not_contact.
 // Sending through this API confirms you have the customer's consent to message them.
 
 import { adminClient } from '../_shared/supabase.ts'
@@ -46,6 +46,7 @@ Deno.serve(async (req) => {
       p_email: str(c.email),
       p_phone: str(c.phone ?? c.mobile ?? c.whatsapp),
       p_dnc: c.do_not_contact === true || c.doNotContact === true,
+      p_gender: str(c.gender) || null,
       p_source: 'webhook',
       p_consent: true,
     })

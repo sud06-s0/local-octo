@@ -16,6 +16,7 @@ interface DueRow {
   contact_id: string
   business_id: string
   first_name: string
+  gender: string
   email: string
   phone: string
   token: string
@@ -56,6 +57,7 @@ Deno.serve(async (req) => {
       contactId: row.contact_id,
       kind,
       firstName: row.first_name,
+      gender: row.gender,
       email: row.email,
       phone: row.phone,
       businessName: row.business_name,

@@ -8,8 +8,8 @@ import { RequestSchedulingPanel } from './RequestScheduling'
 import { Dropdown, MenuItem } from '../components/layout/Dropdown'
 import { useStore } from '../store/AppStore'
 import { useToast } from '../components/ui/Toast'
-import { formatDate, timeAgo } from '../lib/utils'
-import type { Contact, ContactStatus } from '../types'
+import { cn, formatDate, timeAgo } from '../lib/utils'
+import type { Contact, ContactStatus, Gender } from '../types'
 
 const statusMeta: Record<ContactStatus, { label: string; tone: 'green' | 'gray' | 'amber' | 'red' | 'blue' }> = {
   pending: { label: 'Pending', tone: 'gray' },
@@ -168,6 +168,7 @@ export default function Contacts() {
                 <tr className="border-b border-line text-xs uppercase tracking-wide text-muted">
                   <th className="px-5 py-3 font-medium">Name</th>
                   <th className="px-5 py-3 font-medium">Contact</th>
+                  <th className="px-5 py-3 font-medium">Gender</th>
                   <th className="px-5 py-3 font-medium">Status</th>
                   <th className="px-5 py-3 font-medium">Requests</th>
                   <th className="hidden px-5 py-3 font-medium lg:table-cell">Last sent</th>
@@ -182,6 +183,18 @@ export default function Contacts() {
                     <td className="px-5 py-3.5 text-sm text-muted">
                       <div>{c.email || '—'}</div>
                       <div>{c.phone || '—'}</div>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <select
+                        aria-label={`Gender of ${c.firstName}`}
+                        value={c.gender ?? ''}
+                        onChange={(e) => updateContact(c.id, { gender: e.target.value as Gender })}
+                        className={cn('cursor-pointer rounded-md border border-line bg-white px-2 py-1 text-sm outline-none focus:border-brand-500', !c.gender && 'text-muted')}
+                      >
+                        <option value="">Not set</option>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                      </select>
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="flex flex-wrap gap-1.5">

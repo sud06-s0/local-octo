@@ -2,10 +2,14 @@
 
 export type ContactStatus = 'pending' | 'sent' | 'clicked' | 'reviewed' | 'stopped'
 
+export type Gender = 'male' | 'female' | ''
+
 export interface Contact {
   id: string
   firstName: string
   lastName: string
+  /** WhatsApp adds "Sir" (male) or "Ma'am" (female) after the first name */
+  gender?: Gender
   email: string
   phone: string
   status: ContactStatus
@@ -16,7 +20,7 @@ export interface Contact {
   nextSendAt?: string | null // live mode: when the next request/follow-up is due
 }
 
-export type NewContact = Pick<Contact, 'firstName' | 'lastName' | 'email' | 'phone' | 'doNotContact'>
+export type NewContact = Pick<Contact, 'firstName' | 'lastName' | 'email' | 'phone' | 'gender' | 'doNotContact'>
 
 export type ReplySource = 'google' | 'app' | 'draft'
 

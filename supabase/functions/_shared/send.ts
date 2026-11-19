@@ -175,6 +175,8 @@ export interface DeliverInput {
   contactId: string | null
   kind: Kind
   firstName: string
+  /** 'male' | 'female' | '' — WhatsApp adds Sir / Ma'am after the first name */
+  gender?: string
   email: string
   phone: string // digits with country code
   businessName: string
@@ -182,6 +184,13 @@ export interface DeliverInput {
   link: string
   /** Photo with the customer's name (when Personalized Image is on) — first message and follow-ups */
   imageUrl?: string
+}
+
+/** "Adarsh" + male -> "Adarsh Sir", "Varsha" + female -> "Varsha Ma'am", otherwise just the first name. */
+export function withTitle(firstName: string, gender?: string): string {
+  if (gender === 'male') return `${firstName} Sir`
+  if (gender === 'female') return `${firstName} Ma'am`
+  return firstName
 }
 
 export interface DeliverResult {
@@ -207,14 +216,15 @@ export async function deliver(input: DeliverInput): Promise<DeliverResult> {
     // First message carries the personalised photo when enabled; follow-ups are text only.
     const photo = isFollow ? undefined : input.imageUrl
     let template = isFollow ? wa.followUp : photo ? wa.initialImage : wa.initial
-    let params = [input.firstName, input.businessName, input.link]
+    const waName = withTitle(input.firstName, input.gender)
+    let params = [waName, input.businessName, input.link]
     const header = photo
     let lang: string | undefined
 
     // WhatsApp custom mode: the agency's own approved template, when there is one (otherwise the standard one)
     if (input.messaging.waMode === 'custom') {
       const custom = await approvedTemplates(input.admin, input.businessId)
-      const values: Record<ParamKey, string> = { first_name: input.firstName, review_link: input.link }
+      const values: Record<ParamKey, string> = { first_name: waName, review_link: input.link }
       const pick = isFollow ? custom.followup : photo ? custom.initial_image : custom.initial
       if (pick) {
         template = pick.name
