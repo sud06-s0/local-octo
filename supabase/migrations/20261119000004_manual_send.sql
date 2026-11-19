@@ -1,6 +1,7 @@
 -- supabase/migrations/20261119000004_manual_send.sql
 -- Contacts menu: "Send first message" / "Send follow-up" always send that message, even past the follow-up limit.
 -- contacts.send_kind = 'initial' | 'follow_up' while a manual send is waiting ('' = none).
+-- Manual sends go to any contact except Do Not Contact (also Clicked / Left review); automatic ones only to pending / sent.
 -- Automatic scheduling keeps its rules. Includes the gender column and the Sending hours (Anytime) check.
 -- Safe to run more than once.
 
@@ -18,6 +19,7 @@ returns table (
   first_name text,
   gender text,
   send_kind text,
+  status text,
   email text,
   phone text,
   token text,
@@ -39,7 +41,7 @@ begin
     where c.next_send_at is not null
       and c.next_send_at <= now()
       and c.do_not_contact = false
-      and c.status in ('pending', 'sent')
+      and (c.status in ('pending', 'sent') or c.send_kind in ('initial', 'follow_up'))
       and coalesce((b.scheduling ->> 'active')::boolean, true)
       and b.review_link <> ''
       -- 9 AM–7 PM in the business's time zone, unless Sending hours = Anytime
@@ -64,7 +66,7 @@ begin
     from picked where c.id = picked.id
     returning c.*
   )
-  select l.id, l.business_id, l.first_name, l.gender, l.send_kind, l.email, l.phone, l.token, l.requests_sent,
+  select l.id, l.business_id, l.first_name, l.gender, l.send_kind, l.status::text, l.email, l.phone, l.token, l.requests_sent,
          coalesce(nullif(b.messaging ->> 'businessName', ''), b.name),
          b.review_link, b.messaging, b.scheduling
   from locked l

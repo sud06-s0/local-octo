@@ -53,7 +53,6 @@ export default function Contacts() {
       const what = action === 'send_initial' ? 'first message' : 'follow-up'
       if (c.doNotContact) return toast(`${name} is on the Do Not Contact list`, 'error')
       if (mode === 'live') {
-        if (c.status === 'clicked' || c.status === 'reviewed') return toast(`${name} already ${c.status === 'clicked' ? 'opened the link' : 'left a review'}`, 'error')
         // The cron dispatcher sends exactly this message within a minute (inside 9 AM–7 PM unless Sending hours = Anytime),
         // even past the follow-up limit; automatic scheduling keeps its own rules
         updateContact(c.id, {

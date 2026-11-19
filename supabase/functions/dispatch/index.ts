@@ -19,6 +19,7 @@ interface DueRow {
   gender: string
   /** set by the Contacts menu: 'initial' | 'follow_up' — a manual send ('' = automatic) */
   send_kind: string
+  status: string
   email: string
   phone: string
   token: string
@@ -75,12 +76,13 @@ Deno.serve(async (req) => {
     const now = new Date()
     if (result.ok) {
       const sent = row.requests_sent + 1
-      const next = sent <= maxFollowUps ? new Date(now.getTime() + FOLLOW_UP_GAP_DAYS * 86_400_000).toISOString() : null
+      // Clicked / Left review contacts (only reachable by a manual send) keep their status and get no automatic follow-ups
+      const open = row.status === 'pending' || row.status === 'sent'
+      const next = open && sent <= maxFollowUps ? new Date(now.getTime() + FOLLOW_UP_GAP_DAYS * 86_400_000).toISOString() : null
       await admin
         .from('contacts')
-        .update({ requests_sent: sent, last_sent_at: now.toISOString(), next_send_at: next, status: 'sent', send_kind: '' })
+        .update({ requests_sent: sent, last_sent_at: now.toISOString(), next_send_at: next, send_kind: '', ...(open ? { status: 'sent' } : {}) })
         .eq('id', row.contact_id)
-        .in('status', ['pending', 'sent'])
       stats.sent++
     } else {
       // No channel configured: stop. Provider error: retry in 1 hour, max 3 failed attempts per day.

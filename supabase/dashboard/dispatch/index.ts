@@ -288,8 +288,9 @@ Deno.serve(async (req) => {
     const now = /* @__PURE__ */ new Date();
     if (result.ok) {
       const sent = row.requests_sent + 1;
-      const next = sent <= maxFollowUps ? new Date(now.getTime() + FOLLOW_UP_GAP_DAYS * 864e5).toISOString() : null;
-      await admin.from("contacts").update({ requests_sent: sent, last_sent_at: now.toISOString(), next_send_at: next, status: "sent", send_kind: "" }).eq("id", row.contact_id).in("status", ["pending", "sent"]);
+      const open = row.status === "pending" || row.status === "sent";
+      const next = open && sent <= maxFollowUps ? new Date(now.getTime() + FOLLOW_UP_GAP_DAYS * 864e5).toISOString() : null;
+      await admin.from("contacts").update({ requests_sent: sent, last_sent_at: now.toISOString(), next_send_at: next, send_kind: "", ...open ? { status: "sent" } : {} }).eq("id", row.contact_id);
       stats.sent++;
     } else {
       let next = null;
