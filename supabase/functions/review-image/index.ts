@@ -13,13 +13,15 @@ Deno.serve(async (req) => {
   const admin = adminClient()
   let photo: string | null = null
   let name = ''
+  let gender: string | null = null
 
   const token = url.searchParams.get('t')
   if (token) {
     if (!/^[a-f0-9]{8,64}$/.test(token)) return new Response('Not found', { status: 404 })
-    const { data } = await admin.from('contacts').select('first_name, businesses(messaging)').eq('token', token).maybeSingle()
+    const { data } = await admin.from('contacts').select('first_name, gender, businesses(messaging)').eq('token', token).maybeSingle()
     if (!data) return new Response('Not found', { status: 404 })
     name = data.first_name
+    gender = (data as { gender?: string }).gender ?? null
     photo = ((data.businesses as unknown as { messaging?: { imageDataUrl?: string } })?.messaging?.imageDataUrl) ?? null
   } else {
     const b = url.searchParams.get('b') ?? ''
@@ -33,7 +35,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const jpeg = await renderReviewImage(photo, name)
+    const jpeg = await renderReviewImage(photo, name, gender)
     return new Response(new Blob([jpeg as Uint8Array<ArrayBuffer>]), { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=300' } })
   } catch (e) {
     console.error('review-image failed', e)

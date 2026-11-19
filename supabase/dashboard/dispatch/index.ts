@@ -241,8 +241,8 @@ function photoVersion(photoUrl) {
   for (const c of photoUrl ?? "") h = Math.imul(h ^ c.charCodeAt(0), 16777619);
   return (h >>> 0).toString(36);
 }
-function contactImageUrl(token, photoUrl) {
-  return `${functionsUrl()}/review-image?t=${token}&v=${photoVersion(photoUrl)}`;
+function contactImageUrl(token, photoUrl, gender) {
+  return `${functionsUrl()}/review-image?t=${token}&v=${photoVersion(`${photoUrl ?? ""}|${gender ?? ""}`)}`;
 }
 
 // supabase/functions/dispatch/index.ts
@@ -282,7 +282,7 @@ Deno.serve(async (req) => {
       link: `${linkBase}?t=${row.token}`,
       // Photo with the customer's name (business photo, or the demo photo if none uploaded)
       // Personalised photo on the first message only; follow-ups are text
-      imageUrl: kind === "initial" && row.messaging?.personalizedImage ? contactImageUrl(row.token, row.messaging?.imageDataUrl) : void 0
+      imageUrl: kind === "initial" && row.messaging?.personalizedImage ? contactImageUrl(row.token, row.messaging?.imageDataUrl, row.gender) : void 0
     });
     const now = /* @__PURE__ */ new Date();
     if (result.ok) {

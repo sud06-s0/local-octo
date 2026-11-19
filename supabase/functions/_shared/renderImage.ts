@@ -1,5 +1,5 @@
 // supabase/functions/_shared/renderImage.ts
-// Draws the personalised review-request image: the business photo with "<Name>!" on a white label.
+// Draws the personalised review-request image: the business photo with "<Name>!" (or "<Name> Sir!" / "<Name> Ma'am!") on a white label.
 // Uses ImageScript's Deno build (pure WebAssembly). The npm build needs a native add-on that
 // Supabase's Edge Runtime can't load ("unsupported arch/platform").
 
@@ -16,7 +16,7 @@ function font(): Uint8Array {
   return fontBytes
 }
 
-export async function renderReviewImage(photoUrl: string | null, firstName: string): Promise<Uint8Array> {
+export async function renderReviewImage(photoUrl: string | null, firstName: string, gender?: string | null): Promise<Uint8Array> {
   photoUrl = photoUrl || defaultPhotoUrl()
 
   // Background: the business photo (or demo photo), cover-cropped to 800x600; brand purple only if it can't be loaded
@@ -40,7 +40,7 @@ export async function renderReviewImage(photoUrl: string | null, firstName: stri
   }
 
   // Label: shrink the font until it fits 86% of the width
-  const text = labelText(firstName)
+  const text = labelText(firstName, gender)
   let size = 72
   let rendered = await Image.renderText(font(), size, text, Image.rgbaToColor(17, 17, 17, 255))
   while (rendered.width > W * 0.86 && size > 30) {

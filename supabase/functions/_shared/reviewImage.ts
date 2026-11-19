@@ -6,10 +6,13 @@ import { functionsUrl } from './supabase.ts'
 const LATIN = /^[\x20-\x7E -ÿ‘-”]+$/
 
 /** First name for the label; falls back when the name uses a script the font doesn't cover. */
-export function labelText(firstName: string): string {
+export function labelText(firstName: string, gender?: string | null): string {
   const name = (firstName || '').trim().split(/\s+/)[0] ?? ''
   // Very long single names would get too small to read; fall back to a friendly generic label
-  return name && name.length <= 22 && LATIN.test(name) ? `${name}!` : 'Thank you!'
+  if (!(name && name.length <= 22 && LATIN.test(name))) return 'Thank you!'
+  // Same as the WhatsApp message: "Adarsh Sir!" / "Varsha Ma'am!"
+  const title = gender === 'male' ? ' Sir' : gender === 'female' ? " Ma'am" : ''
+  return `${name}${title}!`
 }
 
 /** Demo photo used when a business hasn't uploaded its own (public/default-personal.jpg in the app). */
@@ -34,8 +37,8 @@ export function photoVersion(photoUrl?: string | null): string {
 }
 
 /** Image URL for a real contact (name comes from the database). */
-export function contactImageUrl(token: string, photoUrl?: string | null): string {
-  return `${functionsUrl()}/review-image?t=${token}&v=${photoVersion(photoUrl)}`
+export function contactImageUrl(token: string, photoUrl?: string | null, gender?: string | null): string {
+  return `${functionsUrl()}/review-image?t=${token}&v=${photoVersion(`${photoUrl ?? ''}|${gender ?? ''}`)}`
 }
 
 /** Signed image URL for test messages (any name, but only for that business). */

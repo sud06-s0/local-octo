@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
       link: `${linkBase}?t=${row.token}`,
       // Photo with the customer's name (business photo, or the demo photo if none uploaded)
       // Personalised photo on the first message only; follow-ups are text
-      imageUrl: kind === 'initial' && row.messaging?.personalizedImage ? contactImageUrl(row.token, row.messaging?.imageDataUrl) : undefined,
+      imageUrl: kind === 'initial' && row.messaging?.personalizedImage ? contactImageUrl(row.token, row.messaging?.imageDataUrl, row.gender) : undefined,
     })
 
     const now = new Date()

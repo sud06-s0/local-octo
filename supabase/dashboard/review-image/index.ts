@@ -27,9 +27,11 @@ function adminClient() {
 
 // supabase/functions/_shared/reviewImage.ts
 var LATIN = /^[\x20-\x7E -ÿ‘-”]+$/;
-function labelText(firstName) {
+function labelText(firstName, gender) {
   const name = (firstName || "").trim().split(/\s+/)[0] ?? "";
-  return name && name.length <= 22 && LATIN.test(name) ? `${name}!` : "Thank you!";
+  if (!(name && name.length <= 22 && LATIN.test(name))) return "Thank you!";
+  const title = gender === "male" ? " Sir" : gender === "female" ? " Ma'am" : "";
+  return `${name}${title}!`;
 }
 function defaultPhotoUrl() {
   return Deno.env.get("DEFAULT_REVIEW_IMAGE_URL") || "https://local-octo.vercel.app/default-personal.jpg";
@@ -58,7 +60,7 @@ function font() {
   if (!fontBytes) fontBytes = Uint8Array.from(atob(FIRA_SANS_BOLD_LATIN), (c) => c.charCodeAt(0));
   return fontBytes;
 }
-async function renderReviewImage(photoUrl, firstName) {
+async function renderReviewImage(photoUrl, firstName, gender) {
   photoUrl = photoUrl || defaultPhotoUrl();
   let canvas = new Image(W, H).fill(Image.rgbaToColor(154, 77, 255, 255));
   if (photoUrl && /^https?:\/\//i.test(photoUrl)) {
@@ -78,7 +80,7 @@ async function renderReviewImage(photoUrl, firstName) {
       console.error("review-image: photo could not be read", e);
     }
   }
-  const text = labelText(firstName);
+  const text = labelText(firstName, gender);
   let size = 72;
   let rendered = await Image.renderText(font(), size, text, Image.rgbaToColor(17, 17, 17, 255));
   while (rendered.width > W * 0.86 && size > 30) {
@@ -99,12 +101,14 @@ Deno.serve(async (req) => {
   const admin = adminClient();
   let photo = null;
   let name = "";
+  let gender = null;
   const token = url.searchParams.get("t");
   if (token) {
     if (!/^[a-f0-9]{8,64}$/.test(token)) return new Response("Not found", { status: 404 });
-    const { data } = await admin.from("contacts").select("first_name, businesses(messaging)").eq("token", token).maybeSingle();
+    const { data } = await admin.from("contacts").select("first_name, gender, businesses(messaging)").eq("token", token).maybeSingle();
     if (!data) return new Response("Not found", { status: 404 });
     name = data.first_name;
+    gender = data.gender ?? null;
     photo = data.businesses?.messaging?.imageDataUrl ?? null;
   } else {
     const b = url.searchParams.get("b") ?? "";
@@ -117,7 +121,7 @@ Deno.serve(async (req) => {
     photo = data.messaging?.imageDataUrl ?? null;
   }
   try {
-    const jpeg = await renderReviewImage(photo, name);
+    const jpeg = await renderReviewImage(photo, name, gender);
     return new Response(new Blob([jpeg]), { headers: { "Content-Type": "image/jpeg", "Cache-Control": "public, max-age=300" } });
   } catch (e) {
     console.error("review-image failed", e);
