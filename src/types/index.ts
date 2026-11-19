@@ -18,6 +18,8 @@ export interface Contact {
   addedAt: string // ISO
   lastSentAt: string | null
   nextSendAt?: string | null // live mode: when the next request/follow-up is due
+  /** manual send waiting: 'initial' (first message with photo) | 'follow_up' | '' */
+  sendKind?: 'initial' | 'follow_up' | ''
 }
 
 export type NewContact = Pick<Contact, 'firstName' | 'lastName' | 'email' | 'phone' | 'gender' | 'doNotContact'>

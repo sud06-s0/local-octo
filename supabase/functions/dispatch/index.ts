@@ -17,6 +17,8 @@ interface DueRow {
   business_id: string
   first_name: string
   gender: string
+  /** set by the Contacts menu: 'initial' | 'follow_up' — a manual send ('' = automatic) */
+  send_kind: string
   email: string
   phone: string
   token: string
@@ -42,10 +44,12 @@ Deno.serve(async (req) => {
 
   const handle = async (row: DueRow) => {
     const maxFollowUps = row.messaging?.followUpsEnabled === false ? 0 : Number(row.scheduling?.followUps ?? 2)
-    const kind = row.requests_sent === 0 ? 'initial' : 'follow_up'
+    // Manual send from the Contacts menu: exactly the message that was picked, even past the follow-up limit
+    const manual = row.send_kind === 'initial' || row.send_kind === 'follow_up'
+    const kind = manual ? (row.send_kind as 'initial' | 'follow_up') : row.requests_sent === 0 ? 'initial' : 'follow_up'
 
     // Nothing left to send (follow-ups turned down since it was scheduled)
-    if (kind === 'follow_up' && row.requests_sent > maxFollowUps) {
+    if (!manual && kind === 'follow_up' && row.requests_sent > maxFollowUps) {
       await admin.from('contacts').update({ next_send_at: null }).eq('id', row.contact_id)
       stats.finished++
       return
@@ -74,7 +78,7 @@ Deno.serve(async (req) => {
       const next = sent <= maxFollowUps ? new Date(now.getTime() + FOLLOW_UP_GAP_DAYS * 86_400_000).toISOString() : null
       await admin
         .from('contacts')
-        .update({ requests_sent: sent, last_sent_at: now.toISOString(), next_send_at: next, status: 'sent' })
+        .update({ requests_sent: sent, last_sent_at: now.toISOString(), next_send_at: next, status: 'sent', send_kind: '' })
         .eq('id', row.contact_id)
         .in('status', ['pending', 'sent'])
       stats.sent++
@@ -91,7 +95,8 @@ Deno.serve(async (req) => {
           .gte('created_at', since)
         if ((count ?? 0) < 3) next = new Date(now.getTime() + 3_600_000).toISOString()
       }
-      await admin.from('contacts').update({ next_send_at: next }).eq('id', row.contact_id)
+      // a manual send keeps its choice while it is being retried
+      await admin.from('contacts').update({ next_send_at: next, ...(next ? {} : { send_kind: '' }) }).eq('id', row.contact_id)
       stats.failed++
     }
   }

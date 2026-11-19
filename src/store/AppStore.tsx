@@ -168,6 +168,7 @@ const CONTACT_COLUMN: Partial<Record<keyof Contact, string>> = {
   status: 'status',
   doNotContact: 'do_not_contact',
   nextSendAt: 'next_send_at',
+  sendKind: 'send_kind',
 }
 
 const emptyState: AppState = { contacts: [], reviews: [], notifications: [], settings: initialState.settings }

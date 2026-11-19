@@ -1,7 +1,7 @@
 // src/pages/Contacts.tsx
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
-import { Ban, CalendarClock, CircleStop, Ellipsis, Filter, Search, Send, Trash2, UserPlus, Users } from 'lucide-react'
+import { Ban, CalendarClock, CircleStop, Ellipsis, Filter, Reply, Search, Send, Trash2, UserPlus, Users } from 'lucide-react'
 import { Badge, Button, Card, Checkbox, EmptyState, PageHeader, Segmented } from '../components/ui/primitives'
 import { AddContactsPanel } from './AddContacts'
 import { RequestSchedulingPanel } from './RequestScheduling'
@@ -47,18 +47,24 @@ export default function Contacts() {
     })
   }, [state.contacts, query, status, flags])
 
-  const act = (c: Contact, action: 'send' | 'stop' | 'dnc' | 'delete') => {
+  const act = (c: Contact, action: 'send_initial' | 'send_follow_up' | 'stop' | 'dnc' | 'delete') => {
     const name = `${c.firstName} ${c.lastName}`.trim()
-    if (action === 'send') {
+    if (action === 'send_initial' || action === 'send_follow_up') {
+      const what = action === 'send_initial' ? 'first message' : 'follow-up'
       if (c.doNotContact) return toast(`${name} is on the Do Not Contact list`, 'error')
       if (mode === 'live') {
         if (c.status === 'clicked' || c.status === 'reviewed') return toast(`${name} already ${c.status === 'clicked' ? 'opened the link' : 'left a review'}`, 'error')
-        // The cron dispatcher picks it up within a minute (inside 9 AM–7 PM unless Sending hours = Anytime)
-        updateContact(c.id, { nextSendAt: new Date().toISOString(), status: c.status === 'stopped' ? 'pending' : c.status })
-        toast(anytime ? `Queued — ${name} gets the request within a minute` : `Queued — ${name} gets the request within a minute (9 AM–7 PM)`)
+        // The cron dispatcher sends exactly this message within a minute (inside 9 AM–7 PM unless Sending hours = Anytime),
+        // even past the follow-up limit; automatic scheduling keeps its own rules
+        updateContact(c.id, {
+          sendKind: action === 'send_initial' ? 'initial' : 'follow_up',
+          nextSendAt: new Date().toISOString(),
+          status: c.status === 'stopped' ? 'pending' : c.status,
+        })
+        toast(anytime ? `Queued — ${name} gets the ${what} within a minute` : `Queued — ${name} gets the ${what} within a minute (9 AM–7 PM)`)
       } else {
         updateContact(c.id, { status: 'sent', requestsSent: c.requestsSent + 1, lastSentAt: new Date().toISOString() })
-        toast(`Review request queued for ${name}`)
+        toast(`${what === 'first message' ? 'First message' : 'Follow-up'} queued for ${name}`)
       }
     } else if (action === 'stop') {
       updateContact(c.id, { status: 'stopped', nextSendAt: null })
@@ -84,7 +90,8 @@ export default function Contacts() {
     >
       {(close) => (
         <>
-          <MenuItem onClick={() => { close(); act(c, 'send') }}><Send className="size-4 text-muted" /> Send request now</MenuItem>
+          <MenuItem onClick={() => { close(); act(c, 'send_initial') }}><Send className="size-4 text-muted" /> Send first message</MenuItem>
+          <MenuItem onClick={() => { close(); act(c, 'send_follow_up') }}><Reply className="size-4 text-muted" /> Send follow-up</MenuItem>
           <MenuItem onClick={() => { close(); act(c, 'stop') }}><CircleStop className="size-4 text-muted" /> Stop follow-ups</MenuItem>
           <MenuItem onClick={() => { close(); act(c, 'dnc') }}><Ban className="size-4 text-muted" /> {c.doNotContact ? 'Allow contact' : 'Do not contact'}</MenuItem>
           <div className="my-1 h-px bg-line" />

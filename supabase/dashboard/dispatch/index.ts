@@ -262,8 +262,9 @@ Deno.serve(async (req) => {
   const stats = { claimed: rows.length, sent: 0, failed: 0, finished: 0 };
   const handle = async (row) => {
     const maxFollowUps = row.messaging?.followUpsEnabled === false ? 0 : Number(row.scheduling?.followUps ?? 2);
-    const kind = row.requests_sent === 0 ? "initial" : "follow_up";
-    if (kind === "follow_up" && row.requests_sent > maxFollowUps) {
+    const manual = row.send_kind === "initial" || row.send_kind === "follow_up";
+    const kind = manual ? row.send_kind : row.requests_sent === 0 ? "initial" : "follow_up";
+    if (!manual && kind === "follow_up" && row.requests_sent > maxFollowUps) {
       await admin.from("contacts").update({ next_send_at: null }).eq("id", row.contact_id);
       stats.finished++;
       return;
@@ -288,7 +289,7 @@ Deno.serve(async (req) => {
     if (result.ok) {
       const sent = row.requests_sent + 1;
       const next = sent <= maxFollowUps ? new Date(now.getTime() + FOLLOW_UP_GAP_DAYS * 864e5).toISOString() : null;
-      await admin.from("contacts").update({ requests_sent: sent, last_sent_at: now.toISOString(), next_send_at: next, status: "sent" }).eq("id", row.contact_id).in("status", ["pending", "sent"]);
+      await admin.from("contacts").update({ requests_sent: sent, last_sent_at: now.toISOString(), next_send_at: next, status: "sent", send_kind: "" }).eq("id", row.contact_id).in("status", ["pending", "sent"]);
       stats.sent++;
     } else {
       let next = null;
@@ -297,7 +298,7 @@ Deno.serve(async (req) => {
         const { count } = await admin.from("messages").select("id", { count: "exact", head: true }).eq("contact_id", row.contact_id).eq("status", "failed").gte("created_at", since);
         if ((count ?? 0) < 3) next = new Date(now.getTime() + 36e5).toISOString();
       }
-      await admin.from("contacts").update({ next_send_at: next }).eq("id", row.contact_id);
+      await admin.from("contacts").update({ next_send_at: next, ...next ? {} : { send_kind: "" } }).eq("id", row.contact_id);
       stats.failed++;
     }
   };
