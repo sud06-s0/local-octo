@@ -362,6 +362,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
 
   const updateSettings = useCallback(
     async <K extends keyof Settings>(key: K, patch: Partial<Settings[K]>) => {
+      const prev = stateRef.current.settings[key]
       const next = { ...stateRef.current.settings[key], ...patch } as Settings[K]
       setState((s) => ({ ...s, settings: { ...s.settings, [key]: next } }))
       if (!isLive || !activeId) return
@@ -373,10 +374,15 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       } else {
         row = { [SETTINGS_COLUMN[key as Exclude<keyof Settings, 'business'>]]: next }
       }
-      const { error } = await db().from('businesses').update(row).eq('id', activeId)
-      check(error, 'Could not save settings')
+      const { data, error } = await db().from('businesses').update(row).eq('id', activeId).select('id')
+      if (!check(error, 'Could not save settings')) return
+      // No row came back = the database refused the change (this login may not edit this business): undo it on screen
+      if (!data?.length) {
+        setState((st) => ({ ...st, settings: { ...st.settings, [key]: prev } }))
+        toast("Not saved — this login can't change this business's settings. Ask the agency to change it.", 'error')
+      }
     },
-    [activeId, check],
+    [activeId, check, toast],
   )
 
   const setReviewReply = useCallback(
