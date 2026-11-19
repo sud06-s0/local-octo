@@ -1,11 +1,11 @@
 // src/pages/ReviewPage.tsx
 // Public review page (no login): local-octo.vercel.app/review?t=<contact token> or ?b=<business public key>.
 // Four big faces. Happy (5) and Good (4) open Google's review page straight away;
-// Bad (2) and Worse (1) get a review form (text + photo); "Submit review" saves it in the app only
+// Bad (2) and Worse (1) get a review form (review text + name); "Submit review" saves it in the app only
 // (Reviews → Negative Reviews) and Google never opens.
 
-import { useEffect, useRef, useState } from 'react'
-import { ImagePlus, Loader2, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Loader2 } from 'lucide-react'
 import { brand } from '../config/brand'
 import { cn } from '../lib/utils'
 
@@ -18,36 +18,6 @@ const FACES = [
   { rating: 2, emoji: '🙁', label: 'Bad' },
   { rating: 1, emoji: '😠', label: 'Worse' },
 ] as const
-
-/** Loads any photo the browser can show (incl. iPhone HEIC on Safari) — createImageBitmap first, <img> as fallback. */
-async function decode(file: File): Promise<{ src: CanvasImageSource; w: number; h: number }> {
-  try {
-    const bmp = await createImageBitmap(file)
-    return { src: bmp, w: bmp.width, h: bmp.height }
-  } catch {
-    const url = URL.createObjectURL(file)
-    try {
-      const img = new Image()
-      img.src = url
-      await img.decode()
-      return { src: img, w: img.naturalWidth, h: img.naturalHeight }
-    } finally {
-      setTimeout(() => URL.revokeObjectURL(url), 1000)
-    }
-  }
-}
-
-/** Shrinks the photo to max 1600px JPEG so uploads stay small. */
-async function toJpeg(file: File): Promise<string> {
-  const { src, w, h } = await decode(file)
-  if (!w || !h) throw new Error('empty image')
-  const scale = Math.min(1, 1600 / Math.max(w, h))
-  const canvas = document.createElement('canvas')
-  canvas.width = Math.round(w * scale)
-  canvas.height = Math.round(h * scale)
-  canvas.getContext('2d')!.drawImage(src, 0, 0, canvas.width, canvas.height)
-  return canvas.toDataURL('image/jpeg', 0.85)
-}
 
 async function call<T>(init?: RequestInit, query = ''): Promise<T> {
   const res = await fetch(`${API}${query}`, { ...init, headers: { apikey: KEY, 'Content-Type': 'application/json', ...(init?.headers ?? {}) } })
@@ -62,17 +32,13 @@ export default function ReviewPage() {
   const b = params.get('b') ?? ''
 
   const [info, setInfo] = useState<{ businessName: string; firstName: string; knownContact?: boolean } | null>(null)
-  const [contact, setContact] = useState({ name: '', email: '', phone: '' })
+  const [name, setName] = useState('')
   const [error, setError] = useState('')
   const [invalid, setInvalid] = useState(false)
   const [rating, setRating] = useState<number | null>(null)
   const [text, setText] = useState('')
-  const [photo, setPhoto] = useState('')
-  const [photoLoading, setPhotoLoading] = useState(false)
-  const [photoError, setPhotoError] = useState('')
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState<'' | 'thanks' | 'google'>('')
-  const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     document.title = 'Leave a review'
@@ -96,7 +62,7 @@ export default function ReviewPage() {
       const res = API.startsWith('http')
         ? await call<{ reviewLink: string | null }>({
             method: 'POST',
-            body: JSON.stringify({ t, b, rating: r, text, photo, ...(positive ? {} : contact) }),
+            body: JSON.stringify({ t, b, rating: r, text, ...(positive || info?.knownContact ? {} : { name }) }),
           })
         : { reviewLink: null }
       if (positive && res.reviewLink) {
@@ -183,70 +149,15 @@ export default function ReviewPage() {
                     className="mt-1.5 w-full rounded-lg border border-line px-3 py-2.5 text-[15px] outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100"
                   />
 
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={async (e) => {
-                      const f = e.target.files?.[0]
-                      e.target.value = ''
-                      if (!f) return
-                      setPhotoError('')
-                      setPhotoLoading(true)
-                      try {
-                        setPhoto(await toJpeg(f))
-                      } catch {
-                        setPhotoError("Couldn't read this photo. Please choose a JPG or PNG photo.")
-                      } finally {
-                        setPhotoLoading(false)
-                      }
-                    }}
-                  />
-                  {photo ? (
-                    <div className="relative mt-3 inline-block">
-                      <img src={photo} alt="Your photo" className="h-28 rounded-lg object-cover ring-1 ring-line" />
-                      <button type="button" onClick={() => setPhoto('')} className="absolute -right-2 -top-2 rounded-full bg-ink p-1 text-white" aria-label="Remove photo">
-                        <X className="size-3.5" />
-                      </button>
-                    </div>
-                  ) : (
-                    <button type="button" disabled={photoLoading} onClick={() => fileRef.current?.click()} className="mt-3 flex items-center gap-2 rounded-lg border border-dashed border-brand-300 px-4 py-2.5 text-sm font-medium text-brand-700 hover:bg-brand-50 disabled:opacity-60">
-                      <ImagePlus className="size-4" /> {photoLoading ? 'Adding photo…' : 'Add a photo'}
-                    </button>
-                  )}
-                  {photoError && <p className="mt-2 text-sm text-red-600">{photoError}</p>}
-
                   {!info?.knownContact && (
-                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                      <input
-                        aria-label="Your name"
-                        placeholder="Your name"
-                        value={contact.name}
-                        maxLength={120}
-                        onChange={(e) => setContact({ ...contact, name: e.target.value })}
-                        className="w-full rounded-lg border border-line px-3 py-2.5 text-[15px] outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100 sm:col-span-2"
-                      />
-                      <input
-                        aria-label="Email"
-                        type="email"
-                        placeholder="Email"
-                        value={contact.email}
-                        maxLength={200}
-                        onChange={(e) => setContact({ ...contact, email: e.target.value })}
-                        className="w-full rounded-lg border border-line px-3 py-2.5 text-[15px] outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100"
-                      />
-                      <input
-                        aria-label="Phone"
-                        type="tel"
-                        placeholder="Phone"
-                        value={contact.phone}
-                        maxLength={30}
-                        onChange={(e) => setContact({ ...contact, phone: e.target.value })}
-                        className="w-full rounded-lg border border-line px-3 py-2.5 text-[15px] outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100"
-                      />
-                      <p className="text-xs text-muted sm:col-span-2">Optional</p>
-                    </div>
+                    <input
+                      aria-label="Your name"
+                      placeholder="Your name"
+                      value={name}
+                      maxLength={120}
+                      onChange={(e) => setName(e.target.value)}
+                      className="mt-3 w-full rounded-lg border border-line px-3 py-2.5 text-[15px] outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100"
+                    />
                   )}
 
                   <button
