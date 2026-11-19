@@ -191,3 +191,6 @@ begin
 end;
 $$;
 revoke execute on function public.claim_due_contacts(int, int) from public, anon, authenticated;
+
+-- Make the API see the new column/function right away
+notify pgrst, 'reload schema';
