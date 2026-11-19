@@ -136,7 +136,7 @@ export default function Dashboard() {
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <p className="text-[15px] font-medium">Review requests this month</p>
                   <p className="text-[15px]">
-                    <span className="text-2xl font-semibold text-brand-700">{used}</span>
+                    <span className="text-2xl font-semibold text-brand-800">{used}</span>
                     <span className="text-muted"> of {limit} sent</span>
                   </p>
                 </div>

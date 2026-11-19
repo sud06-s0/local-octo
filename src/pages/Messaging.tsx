@@ -33,7 +33,7 @@ function TokenChips({ onInsert }: { onInsert: (token: string) => void }) {
           className="inline-flex items-center gap-2 rounded-md border border-line bg-white px-3 py-1.5 text-[15px] text-ink hover:border-brand-300 hover:bg-brand-50/50"
         >
           {t.label}
-          {t.required && <span className="rounded bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700">Required</span>}
+          {t.required && <span className="rounded bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-800">Required</span>}
         </button>
       ))}
     </div>
@@ -100,7 +100,7 @@ function StandardTemplates({ canSubmit }: { canSubmit: boolean }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="flex items-center gap-2 text-[17px] font-semibold">
-            <MessageCircle className="size-5 text-brand-700" /> WhatsApp templates
+            <MessageCircle className="size-5 text-brand-800" /> WhatsApp templates
           </p>
           <p className="mt-0.5 text-sm text-muted">
             {canSubmit
@@ -189,7 +189,7 @@ function WhatsAppApproval({
     <div className="mt-5 rounded-xl border border-line bg-canvas/60 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="flex items-center gap-2 text-[15px] font-semibold">
-          <MessageCircle className="size-4 text-brand-700" /> WhatsApp approval
+          <MessageCircle className="size-4 text-brand-800" /> WhatsApp approval
         </p>
         <div className="flex gap-2">
           {anyOpen && (
@@ -221,7 +221,7 @@ function WhatsAppApproval({
               <>
                 <p className="mt-1.5 whitespace-pre-line text-xs leading-relaxed text-muted">{t.body}</p>
                 {t.reason && <p className={cn('mt-1.5 text-xs', t.status === 'approved' ? 'text-muted' : 'text-red-600')}>{t.reason}</p>}
-                <p className="mt-1 text-[11px] text-muted/80">
+                <p className="mt-1 text-[11px] text-muted">
                   Submitted {timeAgo(t.createdAt)} · {t.name}
                 </p>
               </>
@@ -486,7 +486,7 @@ export default function Messaging() {
           <Card className="border-brand-200 bg-brand-50/60 p-5">
             <div className="flex items-start gap-3">
               <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-white">
-                <MessageCircle className="size-5 text-brand-700" />
+                <MessageCircle className="size-5 text-brand-800" />
               </span>
               <div className="flex-1">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -505,7 +505,7 @@ export default function Messaging() {
           <Card className="border-brand-200 bg-brand-50/60 p-5">
             <div className="flex items-start gap-3">
               <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-white">
-                {m.mode === 'smart' ? <Sparkles className="size-5 text-brand-700" /> : <MessageSquare className="size-5 text-brand-700" />}
+                {m.mode === 'smart' ? <Sparkles className="size-5 text-brand-800" /> : <MessageSquare className="size-5 text-brand-800" />}
               </span>
               <div className="flex-1">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -586,12 +586,12 @@ export default function Messaging() {
               ) : null
             ) : m.mode === 'smart' ? (
               <>
-                <h2 className="flex items-center gap-2 text-lg font-semibold"><Sparkles className="size-5 text-brand-700" /> Smart Messaging</h2>
+                <h2 className="flex items-center gap-2 text-lg font-semibold"><Sparkles className="size-5 text-brand-800" /> Smart Messaging</h2>
                 <p className="mt-1 text-[15px] text-muted">AI-optimized messages that continuously improve your response rates</p>
                 <div className="mt-5 rounded-xl border border-line bg-canvas p-5">
                   <div className="flex items-start gap-3">
                     <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-100/70">
-                      <TrendingUp className="size-5 text-brand-700" />
+                      <TrendingUp className="size-5 text-brand-800" />
                     </span>
                     <div>
                       <p className="text-[16px] font-semibold">Highest Converting Messages</p>
@@ -715,7 +715,7 @@ export default function Messaging() {
           <Card className="p-5 sm:p-6">
             <div className="flex items-start gap-3">
               <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-50">
-                <TrendingUp className="size-5 text-brand-700" />
+                <TrendingUp className="size-5 text-brand-800" />
               </span>
               <div className="flex-1">
                 <p className="text-[17px] font-semibold">Enable Follow-ups</p>
@@ -734,7 +734,7 @@ export default function Messaging() {
               <p className="flex items-center gap-2 text-[15px] font-medium text-brand-800">
                 <CircleCheck className="size-5" /> 42% of reviews come from follow-up messages
               </p>
-              <p className="mt-1 pl-7 text-[15px] text-brand-700">We'll send gentle reminders to customers who haven't left a review yet.</p>
+              <p className="mt-1 pl-7 text-[15px] text-brand-800">We'll send gentle reminders to customers who haven't left a review yet.</p>
             </div>
             {channel === 'whatsapp' && m.waMode === 'custom' && m.followUpsEnabled && (
               <div className="mt-6 border-t border-line pt-5">

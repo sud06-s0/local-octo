@@ -35,7 +35,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             )}
           >
             {t.kind === 'success' ? (
-              <CircleCheck className="size-5 shrink-0 text-brand-700" />
+              <CircleCheck className="size-5 shrink-0 text-brand-800" />
             ) : (
               <TriangleAlert className="size-5 shrink-0 text-red-600" />
             )}

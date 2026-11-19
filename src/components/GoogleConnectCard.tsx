@@ -133,7 +133,7 @@ export function GoogleLinkBox() {
   }
 
   const switchAccount = (
-    <button type="button" className="text-xs font-medium text-brand-700 hover:underline disabled:opacity-50" disabled={!!busy} onClick={connect}>
+    <button type="button" className="text-xs font-medium text-brand-800 hover:underline disabled:opacity-50" disabled={!!busy} onClick={connect}>
       {busy === 'connect' ? 'Opening Google…' : 'Use a different Google account'}
     </button>
   )
@@ -174,7 +174,7 @@ export function GoogleLinkBox() {
         </>
       ) : ready ? (
         <>
-          <p className="mt-1.5 flex items-center gap-1.5 text-sm font-medium text-brand-700">
+          <p className="mt-1.5 flex items-center gap-1.5 text-sm font-medium text-brand-800">
             <CircleCheck className="size-4" /> Linked to {google?.locationTitle}
           </p>
           <p className="mt-0.5 text-xs text-muted">Signed in as {google?.email}. Review link, Maps link and address come from Google.</p>

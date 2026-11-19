@@ -22,7 +22,7 @@ export function OutgoingBubble({ children, time }: { children: ReactNode; time: 
   return (
     <div className="flex flex-col items-end">
       <div className="max-w-[86%] rounded-2xl rounded-br-md bg-brand-700 px-3 py-2.5 text-[13.5px] leading-[1.55] text-white">{children}</div>
-      <span className="mt-1 text-[10px] text-muted/70">{time}</span>
+      <span className="mt-1 text-[10px] text-muted">{time}</span>
     </div>
   )
 }
@@ -31,7 +31,7 @@ export function IncomingBubble({ children, time }: { children: ReactNode; time: 
   return (
     <div className="flex flex-col items-start">
       <div className="max-w-[80%] rounded-2xl rounded-bl-md bg-[#e9e7ee] px-3 py-2.5 text-[13.5px] leading-[1.55] text-ink">{children}</div>
-      <span className="mt-1 text-[10px] text-muted/70">{time}</span>
+      <span className="mt-1 text-[10px] text-muted">{time}</span>
     </div>
   )
 }

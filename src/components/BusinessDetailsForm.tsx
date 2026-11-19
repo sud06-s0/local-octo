@@ -38,7 +38,7 @@ export function BusinessDetailsForm({ value, onChange, top }: { value: BusinessD
         {value.reviewLink && !isHttpUrl(value.reviewLink) && <p className="mt-1 text-xs text-red-600">Paste the full link starting with https://</p>}
         <p className="mt-1.5 text-xs text-muted">
           Google Business Profile → <b>Ask for reviews</b> → copy the link. Review requests can't go out until this is set.{' '}
-          <a href="https://business.google.com/" target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 font-medium text-brand-700 hover:underline">
+          <a href="https://business.google.com/" target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 font-medium text-brand-800 hover:underline">
             Open Google <ExternalLink className="size-3" />
           </a>
         </p>

@@ -71,7 +71,7 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
     <input
       ref={ref}
       className={cn(
-        'h-10 w-full rounded-lg border border-line bg-white px-3 text-[15px] text-ink placeholder:text-muted/70 outline-none transition focus:border-brand-500 focus:ring-3 focus:ring-brand-100',
+        'h-10 w-full rounded-lg border border-line bg-white px-3 text-[15px] text-ink placeholder:text-muted/90 outline-none transition focus:border-brand-500 focus:ring-3 focus:ring-brand-100',
         className,
       )}
       {...rest}
@@ -87,7 +87,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<H
     <textarea
       ref={ref}
       className={cn(
-        'w-full rounded-lg border border-line bg-white px-3 py-2.5 text-[15px] leading-relaxed text-ink placeholder:text-muted/70 outline-none transition focus:border-brand-500 focus:ring-3 focus:ring-brand-100',
+        'w-full rounded-lg border border-line bg-white px-3 py-2.5 text-[15px] leading-relaxed text-ink placeholder:text-muted/90 outline-none transition focus:border-brand-500 focus:ring-3 focus:ring-brand-100',
         className,
       )}
       {...rest}
@@ -157,7 +157,7 @@ export function Toggle({
 /* ---------- Badge ---------- */
 type Tone = 'green' | 'gray' | 'amber' | 'red' | 'blue'
 const toneClass: Record<Tone, string> = {
-  green: 'bg-brand-50 text-brand-700 ring-brand-200',
+  green: 'bg-brand-50 text-brand-800 ring-brand-200',
   gray: 'bg-gray-50 text-muted ring-gray-200',
   amber: 'bg-amber-50 text-amber-700 ring-amber-200',
   red: 'bg-red-50 text-red-700 ring-red-200',

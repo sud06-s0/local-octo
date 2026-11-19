@@ -87,7 +87,7 @@ function ReviewCard({ review }: { review: Review }) {
       {(editing || reply?.source === 'draft') && (
         <div className={cn('mt-4 rounded-xl border p-4', reply?.source === 'draft' && !editing ? 'border-brand-200 bg-brand-50/50' : 'border-line')}>
           {reply?.source === 'draft' && !editing && (
-            <p className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-brand-700">
+            <p className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-brand-800">
               <Sparkles className="size-3.5" /> AI draft · waiting for your approval
             </p>
           )}
@@ -252,7 +252,7 @@ export default function Reviews() {
         <div className="mt-5 flex flex-wrap items-center gap-3 rounded-xl border border-line bg-white p-4">
           <GoogleG className="size-6" />
           <p className="flex-1 text-[15px] text-ink/85">Connect your Google Business Profile to get all your reviews and post replies straight to Google.</p>
-          <Link to="/integrations" className="text-sm font-medium text-brand-700 hover:underline">
+          <Link to="/integrations" className="text-sm font-medium text-brand-800 hover:underline">
             Connect in Integrations →
           </Link>
         </div>
@@ -262,7 +262,7 @@ export default function Reviews() {
       <Card className="mt-6 p-5 sm:p-6">
         <div className="flex items-start gap-3">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-50">
-            <Sparkles className="size-5 text-brand-700" />
+            <Sparkles className="size-5 text-brand-800" />
           </span>
           <div>
             <p className="text-[17px] font-semibold">AI Response Settings</p>

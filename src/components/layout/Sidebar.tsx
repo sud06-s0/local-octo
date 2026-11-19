@@ -48,7 +48,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                   <MenuItem key={b.id} onClick={() => { close(); switchBusiness(b.id) }}>
                     <span className="flex size-6 shrink-0 items-center justify-center rounded bg-brand-700 text-[10px] text-white">{initials(b.name) || brand.shortName}</span>
                     <span className="flex-1 truncate">{b.id === activeBusinessId ? business.name : b.name}</span>
-                    {b.id === activeBusinessId && <Check className="size-4 text-brand-700" />}
+                    {b.id === activeBusinessId && <Check className="size-4 text-brand-800" />}
                   </MenuItem>
                 ))}
               </div>
@@ -96,7 +96,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           >
             <Icon className="size-[18px] shrink-0" strokeWidth={1.75} />
             <span className="flex-1">{label}</span>
-            {badge && <span className="rounded-md bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700 ring-1 ring-brand-100">{badge}</span>}
+            {badge && <span className="rounded-md bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-800 ring-1 ring-brand-100">{badge}</span>}
           </NavLink>
         ))}
       </nav>

@@ -225,7 +225,7 @@ function CsvImport() {
           )}
         >
           <span className="flex size-12 items-center justify-center rounded-full bg-brand-50">
-            <Upload className="size-5 text-brand-700" />
+            <Upload className="size-5 text-brand-800" />
           </span>
           <p className="mt-3 font-medium">Drop your CSV here or click to browse</p>
           <p className="mt-1 text-sm text-muted">Columns: first_name, last_name, email, phone</p>
@@ -233,7 +233,7 @@ function CsvImport() {
       ) : (
         <div className="mt-6 space-y-4">
           <div className="flex items-center gap-3 rounded-lg border border-line bg-canvas px-4 py-3">
-            <FileText className="size-5 text-brand-700" />
+            <FileText className="size-5 text-brand-800" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-[15px] font-medium">{fileName}</p>
               <p className="text-sm text-muted">

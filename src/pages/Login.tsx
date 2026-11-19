@@ -97,7 +97,7 @@ export default function Login() {
 
           {sent ? (
             <div className="mt-8 rounded-xl border border-brand-200 bg-brand-50 p-5">
-              <Mail className="size-6 text-brand-700" />
+              <Mail className="size-6 text-brand-800" />
               <p className="mt-3 text-[15px]">{sent}</p>
               <Button variant="outline" className="mt-4 w-full" onClick={() => { setSent(''); setMode('signin') }}>Back to sign in</Button>
             </div>
@@ -120,7 +120,7 @@ export default function Login() {
                   <div className="flex items-center justify-between">
                     <Label htmlFor="pw">{mode === 'reset' ? 'New password' : 'Password'}</Label>
                     {mode === 'signin' && (
-                      <button type="button" onClick={() => setMode('forgot')} className="mb-2 text-sm font-medium text-brand-700 hover:underline">
+                      <button type="button" onClick={() => setMode('forgot')} className="mb-2 text-sm font-medium text-brand-800 hover:underline">
                         Forgot?
                       </button>
                     )}
@@ -144,9 +144,9 @@ export default function Login() {
           {!sent && mode !== 'reset' && (
             <p className="mt-6 text-center text-sm text-muted">
               {mode === 'signin' ? (
-                <>New here? <button onClick={() => setMode('signup')} className="font-medium text-brand-700 hover:underline">Create an account</button></>
+                <>New here? <button onClick={() => setMode('signup')} className="font-medium text-brand-800 hover:underline">Create an account</button></>
               ) : (
-                <>Already have an account? <button onClick={() => setMode('signin')} className="font-medium text-brand-700 hover:underline">Sign in</button></>
+                <>Already have an account? <button onClick={() => setMode('signin')} className="font-medium text-brand-800 hover:underline">Sign in</button></>
               )}
             </p>
           )}

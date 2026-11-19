@@ -77,14 +77,14 @@ export function AppLayout() {
         <div className="space-y-3">
           <p className="text-[15px] text-muted">Our team usually replies within a few hours on business days.</p>
           <a href={`mailto:${brand.supportEmail}`} className="flex items-center gap-3 rounded-xl border border-line p-4 hover:bg-canvas">
-            <Mail className="size-5 text-brand-700" />
+            <Mail className="size-5 text-brand-800" />
             <span>
               <span className="block font-medium">Email support</span>
               <span className="text-sm text-muted">{brand.supportEmail}</span>
             </span>
           </a>
           <div className="flex items-center gap-3 rounded-xl border border-line p-4">
-            <LifeBuoy className="size-5 text-brand-700" />
+            <LifeBuoy className="size-5 text-brand-800" />
             <span>
               <span className="block font-medium">Help centre</span>
               <span className="text-sm text-muted">Guides and how-to articles — coming soon</span>

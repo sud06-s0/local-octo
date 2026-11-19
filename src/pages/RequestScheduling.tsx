@@ -21,7 +21,7 @@ export function RequestSchedulingPanel() {
       {/* Status bar */}
       <Card className={cn('flex flex-wrap items-center gap-4 px-5 py-4', !s.active && 'border-amber-200 bg-amber-50/60')}>
         <span className={cn('flex size-9 items-center justify-center rounded-full', s.active ? 'bg-brand-50' : 'bg-amber-100')}>
-          {s.active ? <Play className="size-4 text-brand-700" /> : <Pause className="size-4 text-amber-700" />}
+          {s.active ? <Play className="size-4 text-brand-800" /> : <Pause className="size-4 text-amber-700" />}
         </span>
         <div className="flex-1">
           <p className="text-[16px] font-medium">{s.active ? 'Review requests active' : 'Review requests paused'}</p>
@@ -69,7 +69,7 @@ export function RequestSchedulingPanel() {
           </h2>
           <p className="mt-3 text-[16px] text-muted">Choose when to send review requests to your contacts after receiving their information.</p>
 
-          <p className="mt-10 text-center text-[30px] font-semibold text-brand-700 sm:text-[36px]">{DELAYS[s.initialDelayIndex]}</p>
+          <p className="mt-10 text-center text-[30px] font-semibold text-brand-800 sm:text-[36px]">{DELAYS[s.initialDelayIndex]}</p>
           <div className="mt-6">
             <RangeSlider
               label="Initial request delay"
@@ -97,7 +97,7 @@ export function RequestSchedulingPanel() {
               )}
               <li>
                 If you need to schedule review requests at specific times in the future, please contact{' '}
-                <a href={`mailto:${brand.supportEmail}`} className="font-semibold text-brand-700 hover:underline">{brand.supportEmail}</a>
+                <a href={`mailto:${brand.supportEmail}`} className="font-semibold text-brand-800 hover:underline">{brand.supportEmail}</a>
               </li>
             </ul>
           </div>
@@ -109,7 +109,7 @@ export function RequestSchedulingPanel() {
           </h2>
           <p className="mt-3 text-[16px] text-muted">Choose how many follow-up messages to send if a contact doesn't respond to the initial review request.</p>
 
-          <p className="mt-10 text-center text-[30px] font-semibold text-brand-700 sm:text-[36px]">
+          <p className="mt-10 text-center text-[30px] font-semibold text-brand-800 sm:text-[36px]">
             {s.followUps === 0 ? 'No follow-ups' : `${s.followUps} follow-up${s.followUps > 1 ? 's' : ''}`}
           </p>
           <div className="mt-6">

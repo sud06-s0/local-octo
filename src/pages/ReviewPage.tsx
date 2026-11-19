@@ -111,7 +111,7 @@ export default function ReviewPage() {
 
           {done === 'google' && (
             <div className="py-10 text-center">
-              <Loader2 className="mx-auto size-6 animate-spin text-brand-700" />
+              <Loader2 className="mx-auto size-6 animate-spin text-brand-800" />
               <p className="mt-4 font-semibold">Opening Google…</p>
             </div>
           )}
