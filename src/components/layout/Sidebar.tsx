@@ -1,7 +1,7 @@
 // src/components/layout/Sidebar.tsx
 import { useState } from 'react'
 import { NavLink } from 'react-router'
-import { Check, ChevronsUpDown, CreditCard, LogOut, Plus, RefreshCw, Settings, Users } from 'lucide-react'
+import { Check, ChevronsUpDown, CreditCard, LogOut, Plus, RefreshCw, Settings } from 'lucide-react'
 import { navItems } from './navItems'
 import { Dropdown, MenuItem } from './Dropdown'
 import { brand } from '../../config/brand'
@@ -12,12 +12,12 @@ import { useAuth } from '../../store/AuthProvider'
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/primitives'
 import { BusinessDetailsForm, businessDetailsValid, type BusinessDetails } from '../BusinessDetailsForm'
-import { ClientLogins } from '../ClientLogins'
+import { AccountSettings } from '../AccountSettings'
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { state, mode, businesses, activeBusinessId, switchBusiness, createBusiness, resetDemo } = useStore()
   const { user, signOut, isAgency } = useAuth()
-  const [loginsOpen, setLoginsOpen] = useState(false)
+  const [accountOpen, setAccountOpen] = useState(false)
   const toast = useToast()
   const [addOpen, setAddOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -64,15 +64,6 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                   >
                     <Plus className="size-4 text-muted" /> Add business
                   </MenuItem>
-                  <MenuItem
-                    onClick={() => {
-                      close()
-                      if (mode === 'demo') return toast('Client logins work once Supabase is connected')
-                      setLoginsOpen(true)
-                    }}
-                  >
-                    <Users className="size-4 text-muted" /> Client logins
-                  </MenuItem>
                 </>
               )}
             </>
@@ -118,7 +109,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         >
           {(close) => (
             <>
-              <MenuItem onClick={() => { close(); toast('Account settings coming soon') }}>
+              <MenuItem onClick={() => { close(); setAccountOpen(true) }}>
                 <Settings className="size-4 text-muted" /> Account settings
               </MenuItem>
               <MenuItem onClick={() => { close(); toast('Billing is managed through Cashfree') }}>
@@ -138,7 +129,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         </Dropdown>
       </div>
 
-      {isAgency && <ClientLogins open={loginsOpen} onClose={() => setLoginsOpen(false)} />}
+      <AccountSettings open={accountOpen} onClose={() => setAccountOpen(false)} />
 
       <Modal
         open={addOpen}
