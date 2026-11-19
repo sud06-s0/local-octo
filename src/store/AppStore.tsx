@@ -59,6 +59,8 @@ interface AppStore {
   addContacts: (items: NewContact[], source?: 'manual' | 'csv') => Promise<AddResult>
   updateContact: (id: string, patch: Partial<Contact>) => void
   requestsThisMonth: number
+  /** Reload the list of businesses this login can open (e.g. after creating one for a client) */
+  refreshBusinesses: () => Promise<BusinessSummary[]>
   deleteContact: (id: string) => void
   updateSettings: <K extends keyof Settings>(key: K, patch: Partial<Settings[K]>) => Promise<void>
   setReviewReply: (id: string, reply: ReviewReply | undefined) => void
@@ -668,6 +670,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       addContacts,
       updateContact,
       requestsThisMonth,
+      refreshBusinesses: loadBusinesses,
       deleteContact,
       updateSettings,
       setReviewReply,
@@ -680,7 +683,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       refresh,
       resetDemo,
     }),
-    [loading, state, businesses, activeId, keys, feedback, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, submitStandardTemplates, switchBusiness, createBusiness, importFromGoogle, google, refreshGoogle, connectGoogle, googleLocations, selectGoogleLocation, syncGoogleReviews, disconnectGoogle, postReviewReply, deleteReviewReply, addContacts, updateContact, requestsThisMonth, deleteContact, updateSettings, setReviewReply, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, refresh, resetDemo],
+    [loading, state, businesses, activeId, keys, feedback, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, submitStandardTemplates, switchBusiness, createBusiness, importFromGoogle, google, refreshGoogle, connectGoogle, googleLocations, selectGoogleLocation, syncGoogleReviews, disconnectGoogle, postReviewReply, deleteReviewReply, addContacts, updateContact, requestsThisMonth, loadBusinesses, deleteContact, updateSettings, setReviewReply, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, refresh, resetDemo],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

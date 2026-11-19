@@ -106,12 +106,13 @@ export default function Dashboard() {
             {settings.business.address || <span className="text-muted">Add your address</span>}
           </p>
           {!settings.business.reviewLink && (
-            <button
-              onClick={() => { setDetails(settings.business); setDetailsOpen(true) }}
-              className="mt-4 w-full rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm text-amber-800 hover:bg-amber-100/70"
-            >
-              <b>Add your Google review link</b> — review requests are on hold until it's set.
-            </button>
+            <div className="mt-4 space-y-2">
+              {/* New business (e.g. made for a client): connect it with the Google login that manages it */}
+              <p className="text-sm text-amber-800">
+                <b>Connect your Google business to get started</b> — review requests are on hold until it's linked.
+              </p>
+              <GoogleLinkBox />
+            </div>
           )}
 
           <div className="mt-7">

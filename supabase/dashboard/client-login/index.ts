@@ -69,11 +69,12 @@ Deno.serve(async (req) => {
   if (!user) return json({ error: "Sign in required" }, 401);
   if (!await isAgency(admin, user.id)) return json({ error: "Only agency accounts can create client logins" }, 403);
   const body = await req.json().catch(() => ({}));
-  const businessId = String(body.businessId ?? "");
+  let businessId = String(body.businessId ?? "");
+  const newBusinessName = String(body.newBusinessName ?? "").trim().slice(0, 120);
   const name = String(body.name ?? "").trim().slice(0, 120);
   const email = String(body.email ?? "").trim().toLowerCase();
   const password = String(body.password ?? "");
-  if (!businessId || !await isMember(admin, user.id, businessId)) return json({ error: "Pick one of your businesses" }, 403);
+  if (!newBusinessName && (!businessId || !await isMember(admin, user.id, businessId))) return json({ error: "Pick one of your businesses" }, 403);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: "Enter a valid email" }, 400);
   const { data: existing } = await admin.from("profiles").select("id, account_type, is_platform_admin").ilike("email", email).maybeSingle();
   if (existing && (existing.account_type !== "client" || existing.is_platform_admin)) {
@@ -95,7 +96,14 @@ Deno.serve(async (req) => {
     created = true;
     await admin.from("profiles").upsert({ id: userId, email, full_name: name, account_type: "client" }, { onConflict: "id" });
   }
+  if (newBusinessName) {
+    const { data: biz, error: bizError } = await admin.from("businesses").insert({ name: newBusinessName, created_by: user.id }).select("id, messaging").single();
+    if (bizError || !biz) return json({ error: `Login ${created ? "created" : "found"}, but the business could not be created` }, 500);
+    businessId = biz.id;
+    await admin.from("businesses").update({ messaging: { ...biz.messaging ?? {}, businessName: newBusinessName } }).eq("id", businessId);
+    await admin.from("business_members").insert({ business_id: businessId, user_id: user.id, role: "owner" });
+  }
   const { error: memberError } = await admin.from("business_members").upsert({ business_id: businessId, user_id: userId, role: "member" }, { onConflict: "business_id,user_id", ignoreDuplicates: true });
   if (memberError) return json({ error: "Login created, but could not give access to the business" }, 500);
-  return json({ ok: true, created });
+  return json({ ok: true, created, businessId });
 });

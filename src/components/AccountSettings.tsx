@@ -32,10 +32,13 @@ const selectClass =
 
 export function AccountSettings({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { user, isAgency } = useAuth()
-  const { businesses, activeBusinessId, mode } = useStore()
+  const { businesses, activeBusinessId, mode, refreshBusinesses } = useStore()
   const toast = useToast()
 
+  const NEW = '__new__' // "+ New business for this client"
   const [businessId, setBusinessId] = useState(activeBusinessId ?? '')
+  const [newBusiness, setNewBusiness] = useState('')
+  const isNew = businessId === NEW
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState(makePassword)
@@ -44,14 +47,14 @@ export function AccountSettings({ open, onClose }: { open: boolean; onClose: () 
   const [created, setCreated] = useState<{ email: string; password: string; business: string } | null>(null)
   const [logins, setLogins] = useState<Login[] | null>(null)
 
-  const businessName = businesses.find((b) => b.id === businessId)?.name ?? ''
+  const businessName = isNew ? newBusiness.trim() : (businesses.find((b) => b.id === businessId)?.name ?? '')
 
   const load = useCallback(async () => {
-    if (!businessId || mode !== 'live') return setLogins([])
+    if (!businessId || isNew || mode !== 'live') return setLogins([])
     const { data, error } = await db().rpc('business_logins', { p_business: businessId })
     if (error) toast(error.message, 'error')
     setLogins((data ?? []) as Login[])
-  }, [businessId, mode, toast])
+  }, [businessId, isNew, mode, toast])
 
   useEffect(() => {
     if (open) {
@@ -68,15 +71,15 @@ export function AccountSettings({ open, onClose }: { open: boolean; onClose: () 
   }, [open, isAgency, load])
 
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
-  const valid = businessId && name.trim() && emailOk && password.length >= 8
+  const valid = businessId && (!isNew || newBusiness.trim()) && name.trim() && emailOk && password.length >= 8
 
   const create = async () => {
     if (!valid || busy) return
     if (mode !== 'live') return toast('Client logins work once Supabase is connected')
     setBusy(true)
     try {
-      const res = await invokeFn<{ ok: boolean; created: boolean }>('client-login', {
-        businessId,
+      const res = await invokeFn<{ ok: boolean; created: boolean; businessId: string }>('client-login', {
+        ...(isNew ? { newBusinessName: newBusiness.trim() } : { businessId }),
         name: name.trim(),
         email: email.trim(),
         password,
@@ -90,7 +93,12 @@ export function AccountSettings({ open, onClose }: { open: boolean; onClose: () 
       setName('')
       setEmail('')
       setPassword(makePassword())
-      void load()
+      if (isNew) {
+        // show the new business in the switcher and in this list
+        setNewBusiness('')
+        await refreshBusinesses()
+        setBusinessId(res.businessId)
+      } else void load()
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not create the login', 'error')
     } finally {
@@ -137,8 +145,19 @@ export function AccountSettings({ open, onClose }: { open: boolean; onClose: () 
                 {businesses.map((b) => (
                   <option key={b.id} value={b.id}>{b.name}</option>
                 ))}
+                <option value={NEW}>+ New business for this client</option>
               </select>
             </div>
+            {isNew && (
+              <div className="sm:col-span-2">
+                <Label htmlFor="cl-newbiz" required>Client's business name</Label>
+                <Input id="cl-newbiz" placeholder="e.g. Sharma Dental Clinic" value={newBusiness} onChange={(e) => setNewBusiness(e.target.value)} />
+                <p className="mt-1 text-xs text-muted">
+                  When the client signs in, they connect it with their Google login and the address, review link and reviews fill in
+                  from their Google Business Profile.
+                </p>
+              </div>
+            )}
             <div>
               <Label htmlFor="cl-name" required>Name</Label>
               <Input id="cl-name" placeholder="Client's name" value={name} onChange={(e) => setName(e.target.value)} />
@@ -193,7 +212,9 @@ export function AccountSettings({ open, onClose }: { open: boolean; onClose: () 
 
           <h3 className="mt-6 text-[15px] font-semibold">Who can open {businessName || 'this business'}</h3>
           <div className="mt-2 divide-y divide-line rounded-lg border border-line">
-            {!logins ? (
+            {isNew ? (
+              <p className="p-3 text-sm text-muted">The new business is created together with this login</p>
+            ) : !logins ? (
               <p className="p-3 text-sm text-muted">Loading…</p>
             ) : !logins.length ? (
               <p className="p-3 text-sm text-muted">No logins yet</p>
