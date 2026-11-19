@@ -425,7 +425,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       }
       const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
       const path = `${activeId}/message-${Date.now()}.${ext}`
-      const { error } = await db().storage.from('business-assets').upload(path, file, { upsert: true, contentType: file.type })
+      const { error } = await db().storage.from('business-assets').upload(path, file, { contentType: file.type })
       if (!check(error, 'Upload failed')) throw new Error(error?.message)
       const { data } = db().storage.from('business-assets').getPublicUrl(path)
       updateSettings('messaging', { imageDataUrl: data.publicUrl, personalizedImage: true })
@@ -446,7 +446,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       }
       const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
       const path = `${activeId}/${prefix}-${Date.now()}.${ext}`
-      const { error } = await db().storage.from('business-assets').upload(path, file, { upsert: true, contentType: file.type })
+      const { error } = await db().storage.from('business-assets').upload(path, file, { contentType: file.type })
       if (!check(error, 'Upload failed')) throw new Error(error?.message)
       return db().storage.from('business-assets').getPublicUrl(path).data.publicUrl
     },
