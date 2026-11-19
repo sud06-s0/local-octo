@@ -396,8 +396,9 @@ export default function Messaging() {
   const followText = waCustom ? fillTemplate(m.waFollowUp, vars) : useCustom ? fillTemplate(m.customFollowUp, vars) : smartFollow
 
   const onImage = async (file: File) => {
-    if (!file.type.startsWith('image/')) return toast('Please choose an image file', 'error')
-    if (file.size > 2 * 1024 * 1024) return toast('Image must be under 2 MB', 'error')
+    if (!file.type.startsWith('image/') && !/\.(heic|heif)$/i.test(file.name)) return toast('Please choose an image file', 'error')
+    // photos are shrunk to a 1600 px JPEG before upload, so big phone photos are fine
+    if (file.size > 20 * 1024 * 1024) return toast('Image must be under 20 MB', 'error')
     setUploading(true)
     try {
       await uploadMessageImage(file)

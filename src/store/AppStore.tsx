@@ -6,6 +6,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { AppNotification, AppState, Contact, CustomerFeedback, GbpLocation, GoogleConnection, NewContact, Review, ReviewReply, Settings, WaStandardTemplate, WaTemplate, WaTemplateKind } from '../types'
 import { demoFeedback, initialState } from '../data/mockData'
 import { storage, uid } from '../lib/utils'
+import { toJpegBlob } from '../lib/image'
 import { db, invokeFn, isLive } from '../lib/supabase'
 import { draftReply as templateDraft } from '../lib/aiDraft'
 import { useAuth } from './AuthProvider'
@@ -440,14 +441,22 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         updateSettings('messaging', { imageDataUrl: dataUrl, personalizedImage: true })
         return
       }
-      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
-      const path = `${activeId}/message-${Date.now()}.${ext}`
-      const { error } = await db().storage.from('business-assets').upload(path, file, { contentType: file.type })
+      // Always a normal JPEG (max 1600 px): the review-image function only reads JPG/PNG and has a short time limit
+      let jpeg: Blob
+      try {
+        jpeg = await toJpegBlob(file)
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Couldn't read this photo"
+        toast(msg, 'error')
+        throw e
+      }
+      const path = `${activeId}/message-${Date.now()}.jpg`
+      const { error } = await db().storage.from('business-assets').upload(path, jpeg, { contentType: 'image/jpeg' })
       if (!check(error, 'Upload failed')) throw new Error(error?.message)
       const { data } = db().storage.from('business-assets').getPublicUrl(path)
       updateSettings('messaging', { imageDataUrl: data.publicUrl, personalizedImage: true })
     },
-    [activeId, check, updateSettings],
+    [activeId, check, toast, updateSettings],
   )
 
   /** Uploads a file to the business's storage folder and returns its public URL (demo: data URL). */
