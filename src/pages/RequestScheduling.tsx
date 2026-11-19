@@ -1,7 +1,7 @@
 // src/pages/RequestScheduling.tsx
 // Shown as the "Schedule Requests" tab inside the Contacts page.
-import { Info, Pause, Play } from 'lucide-react'
-import { Button, Card, RangeSlider, UnderlineHeading } from '../components/ui/primitives'
+import { Clock, Info, Pause, Play, Zap } from 'lucide-react'
+import { Button, Card, RangeSlider, Segmented, UnderlineHeading } from '../components/ui/primitives'
 import { useStore } from '../store/AppStore'
 import { useToast } from '../components/ui/Toast'
 import { brand } from '../config/brand'
@@ -39,6 +39,29 @@ export function RequestSchedulingPanel() {
         </Button>
       </Card>
 
+      {/* Sending hours */}
+      <Card className="flex flex-wrap items-center gap-4 px-5 py-4">
+        <div className="min-w-0 flex-1">
+          <p className="text-[16px] font-medium">Sending hours</p>
+          <p className="text-sm text-muted">
+            {s.sendAnytime
+              ? 'Messages go out straight away, at any hour'
+              : `Messages only go out between ${brand.sendWindow.start} and ${brand.sendWindow.end}; outside that they wait for the next morning`}
+          </p>
+        </div>
+        <Segmented
+          value={s.sendAnytime ? 'now' : 'window'}
+          onChange={(v) => {
+            updateSettings('scheduling', { sendAnytime: v === 'now' })
+            toast(v === 'now' ? 'Messages will go out straight away, any time' : `Messages will go out only between ${brand.sendWindow.start} and ${brand.sendWindow.end}`)
+          }}
+          options={[
+            { value: 'window', label: `${brand.sendWindow.start} – ${brand.sendWindow.end}`, icon: Clock },
+            { value: 'now', label: 'Anytime (now)', icon: Zap },
+          ]}
+        />
+      </Card>
+
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="p-5 sm:p-7">
           <h2 className="text-[24px] font-semibold tracking-tight sm:text-[28px]">
@@ -64,8 +87,14 @@ export function RequestSchedulingPanel() {
           <div className="mt-6 rounded-xl bg-canvas p-5">
             <p className="flex items-center gap-2 text-[16px] font-semibold"><Info className="size-5" /> Important Notes:</p>
             <ul className="mt-3 list-disc space-y-2 pl-5 text-[15px] leading-relaxed text-ink/85 marker:text-ink/60">
-              <li>Review requests are only sent between {brand.sendWindow.start} - {brand.sendWindow.end} local time</li>
-              <li>If scheduled outside these hours, the request will be sent the next day</li>
+              {s.sendAnytime ? (
+                <li>Sending hours are set to Anytime, so requests go out as soon as they're due, day or night</li>
+              ) : (
+                <>
+                  <li>Review requests are only sent between {brand.sendWindow.start} - {brand.sendWindow.end} local time</li>
+                  <li>If scheduled outside these hours, the request will be sent the next day</li>
+                </>
+              )}
               <li>
                 If you need to schedule review requests at specific times in the future, please contact{' '}
                 <a href={`mailto:${brand.supportEmail}`} className="font-semibold text-brand-700 hover:underline">{brand.supportEmail}</a>

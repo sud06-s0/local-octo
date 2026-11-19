@@ -28,6 +28,7 @@ export default function Contacts() {
   const tab: Tab = tabParam === 'add' || tabParam === 'schedule' ? tabParam : 'list'
   const setTab = (t: Tab) => setParams(t === 'list' ? {} : { tab: t }, { replace: true })
   const { state, mode, updateContact, deleteContact } = useStore()
+  const anytime = !!state.settings.scheduling.sendAnytime
   const toast = useToast()
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState<StatusFilter>('all')
@@ -52,9 +53,9 @@ export default function Contacts() {
       if (c.doNotContact) return toast(`${name} is on the Do Not Contact list`, 'error')
       if (mode === 'live') {
         if (c.status === 'clicked' || c.status === 'reviewed') return toast(`${name} already ${c.status === 'clicked' ? 'opened the link' : 'left a review'}`, 'error')
-        // The cron dispatcher picks it up within a minute (inside the 9 AM–7 PM window)
+        // The cron dispatcher picks it up within a minute (inside 9 AM–7 PM unless Sending hours = Anytime)
         updateContact(c.id, { nextSendAt: new Date().toISOString(), status: c.status === 'stopped' ? 'pending' : c.status })
-        toast(`Queued — ${name} gets the request within a minute (9 AM–7 PM)`)
+        toast(anytime ? `Queued — ${name} gets the request within a minute` : `Queued — ${name} gets the request within a minute (9 AM–7 PM)`)
       } else {
         updateContact(c.id, { status: 'sent', requestsSent: c.requestsSent + 1, lastSentAt: new Date().toISOString() })
         toast(`Review request queued for ${name}`)

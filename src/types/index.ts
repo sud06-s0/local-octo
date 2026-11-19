@@ -146,6 +146,8 @@ export interface Settings {
     active: boolean
     initialDelayIndex: number
     followUps: number
+    /** false = only 9 AM–7 PM (default), true = send any time, straight away */
+    sendAnytime?: boolean
   }
   ai: {
     autoPostPositive: boolean
