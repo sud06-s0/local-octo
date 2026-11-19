@@ -633,11 +633,11 @@ export default function Messaging() {
 
             <div className={cn('space-y-4', channel !== 'whatsapp' && 'mt-6')}>
               <div>
-                <Label htmlFor="owner">Owner First Name</Label>
+                <Label htmlFor="owner">Customer First Name <span className="font-mono text-brand-800">{"{{1}}"}</span></Label>
                 <Input id="owner" value={owner} onChange={(e) => setOwner(e.target.value)} />
               </div>
               <div>
-                <Label htmlFor="biz">Business Name</Label>
+                <Label htmlFor="biz">Business Name <span className="font-mono text-brand-800">{"{{2}}"}</span></Label>
                 <Input id="biz" value={biz} onChange={(e) => setBiz(e.target.value)} />
               </div>
               <Button
