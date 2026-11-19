@@ -1,9 +1,13 @@
 -- supabase/migrations/20261119000003_send_anytime.sql
 -- Sending hours toggle (Contacts → Schedule Requests): scheduling.sendAnytime = true sends at any hour,
--- otherwise only 9 AM–7 PM in the business's time zone. Run after 20261119000002_contact_gender.sql.
+-- otherwise only 9 AM–7 PM in the business's time zone. Works whether or not the gender SQL was run first.
 -- Safe to run more than once.
 
-create or replace function public.claim_due_contacts(p_limit int default 100, p_per_business int default 20)
+-- gender column is returned below (also added by 20261119000002_contact_gender.sql)
+alter table public.contacts add column if not exists gender text not null default '';
+
+drop function if exists public.claim_due_contacts(int, int);
+create function public.claim_due_contacts(p_limit int default 100, p_per_business int default 20)
 returns table (
   contact_id uuid,
   business_id uuid,

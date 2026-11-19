@@ -161,8 +161,12 @@ begin
       and c.status in ('pending', 'sent')
       and coalesce((b.scheduling ->> 'active')::boolean, true)
       and b.review_link <> ''
-      and extract(hour from (now() at time zone b.timezone)) >= 9
-      and extract(hour from (now() at time zone b.timezone)) < 19
+      -- 9 AM–7 PM in the business's time zone, unless Sending hours = Anytime
+      and (
+        coalesce((b.scheduling ->> 'sendAnytime')::boolean, false)
+        or (extract(hour from (now() at time zone b.timezone)) >= 9
+            and extract(hour from (now() at time zone b.timezone)) < 19)
+      )
   ),
   picked as (
     select c.id
