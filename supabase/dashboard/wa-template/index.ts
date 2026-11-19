@@ -35,10 +35,6 @@ async function isMember(admin, userId, businessId) {
   ]);
   return !!member || !!profile?.is_platform_admin;
 }
-async function isAgency(admin, userId) {
-  const { data } = await admin.from("profiles").select("account_type, is_platform_admin").eq("id", userId).maybeSingle();
-  return data?.account_type === "agency" || !!data?.is_platform_admin;
-}
 
 // supabase/functions/_shared/http.ts
 var corsHeaders = {
@@ -185,9 +181,6 @@ Deno.serve(async (req) => {
   if (!await isMember(admin, user.id, businessId)) return json({ error: "Not allowed" }, 403);
   const cfg = await metaConfig(admin, businessId);
   if (!cfg.wabaId || !cfg.token) return json({ error: "WhatsApp is not connected yet (WHATSAPP_WABA_ID / WHATSAPP_ACCESS_TOKEN missing)" }, 400);
-  if ((action === "submit" || action === "submit_standard") && !await isAgency(admin, user.id)) {
-    return json({ error: "Only your agency can submit WhatsApp templates" }, 403);
-  }
   const getPhoto = photoHandle(cfg);
   const warnings = [];
   if (action === "standard" || action === "submit_standard") {

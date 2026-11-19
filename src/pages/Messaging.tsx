@@ -5,7 +5,6 @@ import { Badge, Button, Card, Input, Label, PageHeader, Segmented, Textarea, Tog
 import { IncomingBubble, OutgoingBubble, PhoneMockup } from '../components/ui/PhoneMockup'
 import { Modal } from '../components/ui/Modal'
 import { useStore } from '../store/AppStore'
-import { useAuth } from '../store/AuthProvider'
 import { useToast } from '../components/ui/Toast'
 import { brand } from '../config/brand'
 import { cn, fillTemplate, isEmail, isPhone, timeAgo, toTemplateName } from '../lib/utils'
@@ -280,33 +279,6 @@ function Rendered({ text }: { text: string }) {
   )
 }
 
-/** Client view of the custom SMS / email message: read-only. */
-function SavedCustom({ text }: { text: string }) {
-  return text.trim() ? (
-    <p className="mt-4 whitespace-pre-line rounded-xl border border-line bg-canvas/60 p-4 text-[15px] leading-relaxed">{text}</p>
-  ) : (
-    <p className="mt-4 rounded-xl border border-line bg-canvas/60 p-4 text-sm text-muted">No custom message yet. Your agency sets this up; until then the smart message is sent.</p>
-  )
-}
-
-/** Client view of a custom message: only the approved text, no editing or submitting. */
-function ApprovedCustom({ kind, templates }: { kind: 'initial' | 'followup'; templates: WaTemplate[] }) {
-  const approved = templates.find((t) => t.kind === kind && t.status === 'approved')
-  return approved ? (
-    <div className="mt-4 rounded-xl border border-line bg-canvas/60 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="font-mono text-xs text-muted">{approved.name}</span>
-        <Badge tone="green">Approved</Badge>
-      </div>
-      <p className="mt-2 whitespace-pre-line text-[15px] leading-relaxed">{approved.body}</p>
-    </div>
-  ) : (
-    <p className="mt-4 rounded-xl border border-line bg-canvas/60 p-4 text-sm text-muted">
-      No approved custom WhatsApp template yet. Your agency sets these up; until then the standard template is sent.
-    </p>
-  )
-}
-
 type Channel = 'whatsapp' | 'sms' | 'email'
 
 /** Message preview for the selected channel. SMS and Email show a demo until their APIs are connected. */
@@ -361,7 +333,6 @@ function ChannelPreview({
 
 export default function Messaging() {
   const { state, mode, updateSettings, sendTest, uploadMessageImage, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates } = useStore()
-  const { isAgency } = useAuth()
   const [channel, setChannel] = useState<Channel>('whatsapp')
   const toast = useToast()
   const m = state.settings.messaging
@@ -537,7 +508,7 @@ export default function Messaging() {
           </>
           )}
 
-          {channel === 'whatsapp' && isAgency && (
+          {channel === 'whatsapp' && (
             <Segmented
               className="w-full sm:w-full sm:[&>button]:flex-1"
               value={m.waMode}
@@ -557,9 +528,8 @@ export default function Messaging() {
               m.waMode === 'custom' ? (
                 <div className="mb-6 border-b border-line pb-6">
                   <h2 className="text-lg font-semibold">Custom WhatsApp Template</h2>
-                  <p className="mt-0.5 text-[15px] text-muted">{isAgency ? 'Write the template and send it to WhatsApp for approval' : 'Your approved WhatsApp template'}</p>
-                  {isAgency ? (
-                    <>
+                  <p className="mt-0.5 text-[15px] text-muted">{'Write the template and send it to WhatsApp for approval'}</p>
+                  <>
                       <TemplateNameField id="wa-name" value={waName} onChange={setWaName} placeholder="e.g. review_request_localocto" />
                       <TokenChips onInsert={(t) => setWaMsg((v) => (v + ' ' + t).slice(0, MAX_CHARS))} />
                       <CounterTextarea ref={waRef} value={waMsg} onChange={setWaMsg} rows={5} />
@@ -579,9 +549,6 @@ export default function Messaging() {
                       </Button>
                       <WhatsAppApproval kinds={['initial', 'initial_image']} templates={waTemplates} busy={waBusy} onRefresh={refreshWa} />
                     </>
-                  ) : (
-                    <ApprovedCustom kind="initial" templates={waTemplates} />
-                  )}
                 </div>
               ) : null
             ) : m.mode === 'smart' ? (
@@ -608,9 +575,8 @@ export default function Messaging() {
             ) : (
               <>
                 <h2 className="text-lg font-semibold">Custom Message</h2>
-                <p className="mt-0.5 text-[15px] text-muted">{isAgency ? 'Write your own message for SMS and email' : 'Your custom message for SMS and email'}</p>
-                {isAgency ? (
-                  <>
+                <p className="mt-0.5 text-[15px] text-muted">{'Write your own message for SMS and email'}</p>
+                <>
                     <TokenChips onInsert={insertToken} />
                     <CounterTextarea ref={customRef} value={custom} onChange={setCustom} rows={5} />
                     {!custom.includes('{review_link}') && <p className="mt-1.5 text-xs text-red-600">Add the Review Link so customers can leave a review</p>}
@@ -625,9 +591,6 @@ export default function Messaging() {
                       Save Message
                     </Button>
                   </>
-                ) : (
-                  <SavedCustom text={m.customMessage} />
-                )}
               </>
             )}
 
@@ -687,7 +650,7 @@ export default function Messaging() {
             )}
           </Card>
 
-          {channel === 'whatsapp' && <StandardTemplates canSubmit={isAgency} />}
+          {channel === 'whatsapp' && <StandardTemplates canSubmit />}
         </div>
       </div>
 
@@ -740,8 +703,7 @@ export default function Messaging() {
               <div className="mt-6 border-t border-line pt-5">
                 <p className="text-[16px] font-semibold">Custom WhatsApp Follow-up Template</p>
                 <p className="mt-0.5 text-[15px] text-muted">Text only. Sent if the customer hasn't clicked your review link</p>
-                {isAgency ? (
-                  <>
+                <>
                     <TemplateNameField id="wa-follow-name" value={waFollowName} onChange={setWaFollowName} placeholder="e.g. review_followup_localocto" />
                     <TokenChips onInsert={(t) => setWaFollow((v) => (v + ' ' + t).slice(0, MAX_CHARS))} />
                     <CounterTextarea value={waFollow} onChange={setWaFollow} rows={4} />
@@ -760,17 +722,13 @@ export default function Messaging() {
                     </Button>
                     <WhatsAppApproval kinds={['followup']} templates={waTemplates} busy={waBusy} onRefresh={refreshWa} />
                   </>
-                ) : (
-                  <ApprovedCustom kind="followup" templates={waTemplates} />
-                )}
               </div>
             )}
             {channel !== 'whatsapp' && m.mode === 'custom' && m.followUpsEnabled && (
               <div className="mt-6 border-t border-line pt-5">
                 <p className="text-[16px] font-semibold">Custom Follow-up Message</p>
                 <p className="mt-0.5 text-[15px] text-muted">Sent if the customer hasn't clicked your review link</p>
-                {isAgency ? (
-                  <>
+                <>
                     <TokenChips onInsert={(t) => setCustomFollow((v) => (v + ' ' + t).slice(0, MAX_CHARS))} />
                     <CounterTextarea value={customFollow} onChange={setCustomFollow} rows={4} />
                     <Button
@@ -784,9 +742,6 @@ export default function Messaging() {
                       Save Follow-up
                     </Button>
                   </>
-                ) : (
-                  <SavedCustom text={m.customFollowUp} />
-                )}
               </div>
             )}
           </Card>

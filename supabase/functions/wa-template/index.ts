@@ -5,11 +5,11 @@
 //                     waFollowUpTemplateName). First message: text + photo ("_photo") versions; follow-up: text only.
 //  - refresh:         "Check WhatsApp" — looks every custom template up by name and updates its status.
 //  - standard:        approval status of the 3 standard templates (review_request, review_request_image, review_followup).
-// Submitting (submit / submit_standard) is for agency accounts only; clients can only read status.
+// Any member of the business (agency or client login) can submit and check templates.
 //  - submit_standard: submits whichever of the 4 standard templates don't exist yet, then returns their status.
 // Only the WABA ID + access token are needed. The app ID for the sample-photo upload is read from the token.
 
-import { adminClient, getUser, isAgency, isMember } from '../_shared/supabase.ts'
+import { adminClient, getUser, isMember } from '../_shared/supabase.ts'
 import { json, preflight } from '../_shared/http.ts'
 import {
   buildTemplateBody,
@@ -64,10 +64,6 @@ Deno.serve(async (req) => {
 
   const cfg = await metaConfig(admin, businessId)
   if (!cfg.wabaId || !cfg.token) return json({ error: 'WhatsApp is not connected yet (WHATSAPP_WABA_ID / WHATSAPP_ACCESS_TOKEN missing)' }, 400)
-
-  if ((action === 'submit' || action === 'submit_standard') && !(await isAgency(admin, user.id))) {
-    return json({ error: 'Only your agency can submit WhatsApp templates' }, 403)
-  }
 
   const getPhoto = photoHandle(cfg)
   const warnings: string[] = []
