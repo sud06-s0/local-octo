@@ -5,6 +5,7 @@ import { Badge, Button, Card, Input, Label, PageHeader, Segmented, Textarea, Tog
 import { IncomingBubble, OutgoingBubble, PhoneMockup } from '../components/ui/PhoneMockup'
 import { Modal } from '../components/ui/Modal'
 import { useStore } from '../store/AppStore'
+import { useAuth } from '../store/AuthProvider'
 import { useToast } from '../components/ui/Toast'
 import { brand } from '../config/brand'
 import { cn, fillTemplate, isEmail, isPhone, timeAgo, toTemplateName } from '../lib/utils'
@@ -388,6 +389,7 @@ export default function Messaging() {
   // WhatsApp: standard templates or the agency's custom template; SMS / email: smart or custom message
   const smartFirst = `Hey ${sample}, we hope you enjoyed your experience with ${m.businessName}! Would you mind taking a moment to leave a review? Here's the link: {review_link}`
   const smartFollow = `Hey ${sample}, just wanted to quickly follow up. We'd really appreciate your feedback! {review_link}`
+  const { isAgency } = useAuth()
   const waCustom = channel === 'whatsapp' && m.waMode === 'custom'
   const useCustom = channel !== 'whatsapp' && m.mode === 'custom'
   const initialText = waCustom ? fillTemplate(m.waMessage, vars) : useCustom ? fillTemplate(m.customMessage, vars) : smartFirst
@@ -508,7 +510,8 @@ export default function Messaging() {
           </>
           )}
 
-          {channel === 'whatsapp' && (
+          {/* Standard / Custom switch: agency only (clients use the templates the agency set) */}
+          {channel === 'whatsapp' && isAgency && (
             <Segmented
               className="w-full sm:w-full sm:[&>button]:flex-1"
               value={m.waMode}
@@ -525,7 +528,7 @@ export default function Messaging() {
 
           <Card className="p-5 sm:p-6">
             {channel === 'whatsapp' ? (
-              m.waMode === 'custom' ? (
+              isAgency && m.waMode === 'custom' ? (
                 <div className="mb-6 border-b border-line pb-6">
                   <h2 className="text-lg font-semibold">Custom WhatsApp Template</h2>
                   <p className="mt-0.5 text-[15px] text-muted">{'Write the template and send it to WhatsApp for approval'}</p>
@@ -699,7 +702,7 @@ export default function Messaging() {
               </p>
               <p className="mt-1 pl-7 text-[15px] text-brand-800">We'll send gentle reminders to customers who haven't left a review yet.</p>
             </div>
-            {channel === 'whatsapp' && m.waMode === 'custom' && m.followUpsEnabled && (
+            {channel === 'whatsapp' && isAgency && m.waMode === 'custom' && m.followUpsEnabled && (
               <div className="mt-6 border-t border-line pt-5">
                 <p className="text-[16px] font-semibold">Custom WhatsApp Follow-up Template</p>
                 <p className="mt-0.5 text-[15px] text-muted">Text only. Sent if the customer hasn't clicked your review link</p>
