@@ -19,14 +19,33 @@ const FACES = [
   { rating: 1, emoji: '😠', label: 'Worse' },
 ] as const
 
+/** Loads any photo the browser can show (incl. iPhone HEIC on Safari) — createImageBitmap first, <img> as fallback. */
+async function decode(file: File): Promise<{ src: CanvasImageSource; w: number; h: number }> {
+  try {
+    const bmp = await createImageBitmap(file)
+    return { src: bmp, w: bmp.width, h: bmp.height }
+  } catch {
+    const url = URL.createObjectURL(file)
+    try {
+      const img = new Image()
+      img.src = url
+      await img.decode()
+      return { src: img, w: img.naturalWidth, h: img.naturalHeight }
+    } finally {
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    }
+  }
+}
+
 /** Shrinks the photo to max 1600px JPEG so uploads stay small. */
 async function toJpeg(file: File): Promise<string> {
-  const img = await createImageBitmap(file)
-  const scale = Math.min(1, 1600 / Math.max(img.width, img.height))
+  const { src, w, h } = await decode(file)
+  if (!w || !h) throw new Error('empty image')
+  const scale = Math.min(1, 1600 / Math.max(w, h))
   const canvas = document.createElement('canvas')
-  canvas.width = Math.round(img.width * scale)
-  canvas.height = Math.round(img.height * scale)
-  canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
+  canvas.width = Math.round(w * scale)
+  canvas.height = Math.round(h * scale)
+  canvas.getContext('2d')!.drawImage(src, 0, 0, canvas.width, canvas.height)
   return canvas.toDataURL('image/jpeg', 0.85)
 }
 
@@ -49,6 +68,8 @@ export default function ReviewPage() {
   const [rating, setRating] = useState<number | null>(null)
   const [text, setText] = useState('')
   const [photo, setPhoto] = useState('')
+  const [photoLoading, setPhotoLoading] = useState(false)
+  const [photoError, setPhotoError] = useState('')
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState<'' | 'thanks' | 'google'>('')
   const fileRef = useRef<HTMLInputElement>(null)
@@ -170,7 +191,16 @@ export default function ReviewPage() {
                     onChange={async (e) => {
                       const f = e.target.files?.[0]
                       e.target.value = ''
-                      if (f) setPhoto(await toJpeg(f).catch(() => ''))
+                      if (!f) return
+                      setPhotoError('')
+                      setPhotoLoading(true)
+                      try {
+                        setPhoto(await toJpeg(f))
+                      } catch {
+                        setPhotoError("Couldn't read this photo. Please choose a JPG or PNG photo.")
+                      } finally {
+                        setPhotoLoading(false)
+                      }
                     }}
                   />
                   {photo ? (
@@ -181,10 +211,11 @@ export default function ReviewPage() {
                       </button>
                     </div>
                   ) : (
-                    <button type="button" onClick={() => fileRef.current?.click()} className="mt-3 flex items-center gap-2 rounded-lg border border-dashed border-brand-300 px-4 py-2.5 text-sm font-medium text-brand-700 hover:bg-brand-50">
-                      <ImagePlus className="size-4" /> Add a photo
+                    <button type="button" disabled={photoLoading} onClick={() => fileRef.current?.click()} className="mt-3 flex items-center gap-2 rounded-lg border border-dashed border-brand-300 px-4 py-2.5 text-sm font-medium text-brand-700 hover:bg-brand-50 disabled:opacity-60">
+                      <ImagePlus className="size-4" /> {photoLoading ? 'Adding photo…' : 'Add a photo'}
                     </button>
                   )}
+                  {photoError && <p className="mt-2 text-sm text-red-600">{photoError}</p>}
 
                   {!info?.knownContact && (
                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
