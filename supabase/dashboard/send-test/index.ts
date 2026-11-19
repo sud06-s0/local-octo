@@ -273,9 +273,11 @@ Deno.serve(async (req) => {
   const { businessId, to } = await req.json().catch(() => ({}));
   if (!businessId || !to) return json({ error: "businessId and to are required" }, 400);
   if (!await isMember(admin, user.id, businessId)) return json({ error: "Not allowed" }, 403);
-  const { data: b } = await admin.from("businesses").select("name, review_link, messaging, country_code").eq("id", businessId).single();
+  const { data: b } = await admin.from("businesses").select("name, review_link, public_key, messaging, country_code").eq("id", businessId).single();
   if (!b) return json({ error: "Business not found" }, 404);
   if (!b.review_link) return json({ error: "Add your Google review link first" }, 400);
+  const appUrl = (Deno.env.get("APP_URL") || "https://local-octo.vercel.app").replace(/\/+$/, "");
+  const reviewPageLink = b.public_key ? `${appUrl}/review?b=${b.public_key}` : b.review_link;
   const isEmail = to.includes("@");
   let phone = "";
   if (!isEmail) {
@@ -295,7 +297,7 @@ Deno.serve(async (req) => {
     phone,
     businessName: messaging.businessName || b.name,
     messaging,
-    link: b.review_link,
+    link: reviewPageLink,
     imageUrl
   });
   return result.ok ? json({ ok: true, channel: result.channel }) : json({ ok: false, error: result.error }, 502);
