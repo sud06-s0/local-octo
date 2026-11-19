@@ -25,15 +25,23 @@ async function sign(value: string): Promise<string> {
   return [...new Uint8Array(sig)].slice(0, 12).map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
+/** Short fingerprint of the uploaded photo: a new photo gives a new image URL,
+ *  so WhatsApp (which keeps a copy per URL) downloads the new one instead of reusing the old. */
+export function photoVersion(photoUrl?: string | null): string {
+  let h = 2166136261
+  for (const c of photoUrl ?? '') h = Math.imul(h ^ c.charCodeAt(0), 16777619)
+  return (h >>> 0).toString(36)
+}
+
 /** Image URL for a real contact (name comes from the database). */
-export function contactImageUrl(token: string): string {
-  return `${functionsUrl()}/review-image?t=${token}`
+export function contactImageUrl(token: string, photoUrl?: string | null): string {
+  return `${functionsUrl()}/review-image?t=${token}&v=${photoVersion(photoUrl)}`
 }
 
 /** Signed image URL for test messages (any name, but only for that business). */
-export async function testImageUrl(businessId: string, name: string): Promise<string> {
+export async function testImageUrl(businessId: string, name: string, photoUrl?: string | null): Promise<string> {
   const n = labelText(name).replace(/!$/, '')
-  return `${functionsUrl()}/review-image?b=${businessId}&n=${encodeURIComponent(n)}&s=${await sign(`${businessId}:${n}`)}`
+  return `${functionsUrl()}/review-image?b=${businessId}&n=${encodeURIComponent(n)}&s=${await sign(`${businessId}:${n}`)}&v=${photoVersion(photoUrl)}`
 }
 
 export async function verifyTestSignature(businessId: string, name: string, s: string): Promise<boolean> {

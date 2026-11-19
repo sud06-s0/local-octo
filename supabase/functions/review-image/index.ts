@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
 
   try {
     const jpeg = await renderReviewImage(photo, name)
-    return new Response(new Blob([jpeg as Uint8Array<ArrayBuffer>]), { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=86400' } })
+    return new Response(new Blob([jpeg as Uint8Array<ArrayBuffer>]), { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=300' } })
   } catch (e) {
     console.error('review-image failed', e)
     return new Response('Image error', { status: 500 })

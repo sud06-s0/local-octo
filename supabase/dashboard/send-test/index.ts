@@ -252,9 +252,14 @@ async function sign(value) {
   const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(value));
   return [...new Uint8Array(sig)].slice(0, 12).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
-async function testImageUrl(businessId, name) {
+function photoVersion(photoUrl) {
+  let h = 2166136261;
+  for (const c of photoUrl ?? "") h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+  return (h >>> 0).toString(36);
+}
+async function testImageUrl(businessId, name, photoUrl) {
   const n = labelText(name).replace(/!$/, "");
-  return `${functionsUrl()}/review-image?b=${businessId}&n=${encodeURIComponent(n)}&s=${await sign(`${businessId}:${n}`)}`;
+  return `${functionsUrl()}/review-image?b=${businessId}&n=${encodeURIComponent(n)}&s=${await sign(`${businessId}:${n}`)}&v=${photoVersion(photoUrl)}`;
 }
 
 // supabase/functions/send-test/index.ts
@@ -279,7 +284,7 @@ Deno.serve(async (req) => {
   }
   const messaging = b.messaging ?? {};
   const firstName = messaging.ownerFirstName?.trim().split(/\s+/)[0] || user.user_metadata?.full_name?.trim().split(/\s+/)[0] || messaging.businessName?.trim() || b.name;
-  const imageUrl = messaging.personalizedImage ? await testImageUrl(businessId, firstName) : void 0;
+  const imageUrl = messaging.personalizedImage ? await testImageUrl(businessId, firstName, messaging.imageDataUrl) : void 0;
   const result = await deliver({
     admin,
     businessId,
