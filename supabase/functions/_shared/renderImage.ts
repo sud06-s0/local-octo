@@ -4,6 +4,7 @@
 // Supabase's Edge Runtime can't load ("unsupported arch/platform").
 
 import { Image } from 'https://deno.land/x/imagescript@1.3.0/mod.ts'
+import decodeWebp, { init as initWebp } from 'npm:@jsquash/webp@1.5.0/decode.js'
 import { FIRA_SANS_BOLD_LATIN } from './font.ts'
 import { defaultPhotoUrl, labelText } from './reviewImage.ts'
 
@@ -16,6 +17,47 @@ function font(): Uint8Array {
   return fontBytes
 }
 
+// ImageScript reads JPG/PNG/GIF/TIFF but not WebP. WebP photos are decoded with @jsquash/webp; its wasm is
+// loaded once from a CDN (not from the package files, which the Edge Runtime may not be able to read).
+const WEBP_WASM = [
+  'https://cdn.jsdelivr.net/npm/@jsquash/webp@1.5.0/codec/dec/webp_dec.wasm',
+  'https://unpkg.com/@jsquash/webp@1.5.0/codec/dec/webp_dec.wasm',
+]
+let webpReady: Promise<void> | null = null
+function loadWebp(): Promise<void> {
+  webpReady ??= (async () => {
+    for (const url of WEBP_WASM) {
+      try {
+        const res = await fetch(url)
+        if (res.ok) return await initWebp(await WebAssembly.compile(await res.arrayBuffer()))
+      } catch { /* try the next CDN */ }
+    }
+    throw new Error('WebP decoder could not be loaded')
+  })().catch((e) => {
+    webpReady = null // retry on the next image
+    throw e
+  })
+  return webpReady
+}
+
+function isWebp(b: Uint8Array): boolean {
+  // "RIFF" .... "WEBP"
+  return b.length > 12 && b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50
+}
+
+/** Any photo the business uploaded (JPG, PNG, GIF, WebP) as an ImageScript image. */
+async function decodePhoto(bytes: Uint8Array): Promise<Image | null> {
+  if (isWebp(bytes)) {
+    await loadWebp()
+    const d = await decodeWebp(bytes.slice().buffer)
+    const img = new Image(d.width, d.height)
+    img.bitmap.set(d.data)
+    return img
+  }
+  const decoded = await Image.decode(bytes)
+  return decoded instanceof Image ? decoded : null
+}
+
 export async function renderReviewImage(photoUrl: string | null, firstName: string, gender?: string | null): Promise<Uint8Array> {
   photoUrl = photoUrl || defaultPhotoUrl()
 
@@ -25,8 +67,8 @@ export async function renderReviewImage(photoUrl: string | null, firstName: stri
     try {
       const res = await fetch(photoUrl)
       if (res.ok) {
-        const decoded = await Image.decode(new Uint8Array(await res.arrayBuffer()))
-        if (decoded instanceof Image) {
+        const decoded = await decodePhoto(new Uint8Array(await res.arrayBuffer()))
+        if (decoded) {
           const scale = Math.max(W / decoded.width, H / decoded.height)
           const resized = decoded.resize(Math.ceil(decoded.width * scale), Math.ceil(decoded.height * scale))
           canvas = resized.crop(Math.floor((resized.width - W) / 2), Math.floor((resized.height - H) / 2), W, H)

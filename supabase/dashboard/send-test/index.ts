@@ -1,5 +1,8 @@
 // supabase/dashboard/send-test/index.ts
-// @ts-nocheck
+// Self-contained copy of supabase/functions/send-test for pasting into the Supabase dashboard editor.
+// Function name in Supabase must be exactly: send-test   ·   Turn OFF "Verify JWT" for this function.
+// @ts-nocheck  (bundled JavaScript — the typed source lives in supabase/functions)
+
 // supabase/functions/_shared/supabase.ts
 import { createClient } from "npm:@supabase/supabase-js@2";
 function secretKey() {
@@ -148,6 +151,11 @@ async function sendEmail(ch, to, name, vars) {
   const data = body.data;
   return { ok: true, id: data?.unique_id ?? "" };
 }
+function withTitle(firstName, gender) {
+  if (gender === "male") return `${firstName} Sir`;
+  if (gender === "female") return `${firstName} Ma'am`;
+  return firstName;
+}
 async function deliver(input) {
   const ch = await loadChannels(input.admin, input.businessId);
   const isFollow = input.kind === "follow_up";
@@ -157,12 +165,13 @@ async function deliver(input) {
     const wa = ch.whatsapp;
     const photo = isFollow ? void 0 : input.imageUrl;
     let template = isFollow ? wa.followUp : photo ? wa.initialImage : wa.initial;
-    let params = [input.firstName, input.businessName, input.link];
+    const waName = input.messaging.useTitle === false ? input.firstName : withTitle(input.firstName, input.gender);
+    let params = [waName, input.businessName, input.link];
     const header = photo;
     let lang;
     if (input.messaging.waMode === "custom") {
       const custom = await approvedTemplates(input.admin, input.businessId);
-      const values = { first_name: input.firstName, review_link: input.link };
+      const values = { first_name: waName, review_link: input.link };
       const pick = isFollow ? custom.followup : photo ? custom.initial_image : custom.initial;
       if (pick) {
         template = pick.name;
@@ -242,9 +251,11 @@ function preflight(req) {
 
 // supabase/functions/_shared/reviewImage.ts
 var LATIN = /^[\x20-\x7E -ÿ‘-”]+$/;
-function labelText(firstName) {
+function labelText(firstName, gender) {
   const name = (firstName || "").trim().split(/\s+/)[0] ?? "";
-  return name && name.length <= 22 && LATIN.test(name) ? `${name}!` : "Thank you!";
+  if (!(name && name.length <= 22 && LATIN.test(name))) return "Thank you!";
+  const title = gender === "male" ? " Sir" : gender === "female" ? " Ma'am" : "";
+  return `${name}${title}!`;
 }
 async function sign(value) {
   const secret = Deno.env.get("IMAGE_SIGNING_SECRET") || Deno.env.get("CRON_SECRET") || "change-me";
@@ -252,9 +263,10 @@ async function sign(value) {
   const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(value));
   return [...new Uint8Array(sig)].slice(0, 12).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
+var RENDER_VERSION = "2";
 function photoVersion(photoUrl) {
   let h = 2166136261;
-  for (const c of photoUrl ?? "") h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+  for (const c of `${RENDER_VERSION}|${photoUrl ?? ""}`) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
   return (h >>> 0).toString(36);
 }
 async function testImageUrl(businessId, name, photoUrl) {

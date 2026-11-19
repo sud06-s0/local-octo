@@ -1,5 +1,8 @@
 // supabase/dashboard/dispatch/index.ts
-// @ts-nocheck
+// Self-contained copy of supabase/functions/dispatch for pasting into the Supabase dashboard editor.
+// Function name in Supabase must be exactly: dispatch   ·   Turn OFF "Verify JWT" for this function.
+// @ts-nocheck  (bundled JavaScript — the typed source lives in supabase/functions)
+
 // supabase/functions/_shared/supabase.ts
 import { createClient } from "npm:@supabase/supabase-js@2";
 function secretKey() {
@@ -236,9 +239,10 @@ function safeEqual(a, b) {
 }
 
 // supabase/functions/_shared/reviewImage.ts
+var RENDER_VERSION = "2";
 function photoVersion(photoUrl) {
   let h = 2166136261;
-  for (const c of photoUrl ?? "") h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+  for (const c of `${RENDER_VERSION}|${photoUrl ?? ""}`) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
   return (h >>> 0).toString(36);
 }
 function contactImageUrl(token, photoUrl, gender) {

@@ -30,9 +30,12 @@ async function sign(value: string): Promise<string> {
 
 /** Short fingerprint of the uploaded photo: a new photo gives a new image URL,
  *  so WhatsApp (which keeps a copy per URL) downloads the new one instead of reusing the old. */
+// Bump when the drawing changes (e.g. WebP support) so WhatsApp fetches a fresh image instead of its old copy
+const RENDER_VERSION = '2'
+
 export function photoVersion(photoUrl?: string | null): string {
   let h = 2166136261
-  for (const c of photoUrl ?? '') h = Math.imul(h ^ c.charCodeAt(0), 16777619)
+  for (const c of `${RENDER_VERSION}|${photoUrl ?? ''}`) h = Math.imul(h ^ c.charCodeAt(0), 16777619)
   return (h >>> 0).toString(36)
 }
 
