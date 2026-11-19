@@ -108,7 +108,8 @@ Deno.serve(async (req) => {
     const { data } = await admin.from("contacts").select("first_name, gender, businesses(messaging)").eq("token", token).maybeSingle();
     if (!data) return new Response("Not found", { status: 404 });
     name = data.first_name;
-    gender = data.gender ?? null;
+    const useTitle = data.businesses?.messaging?.useTitle !== false;
+    gender = useTitle ? data.gender ?? null : null;
     photo = data.businesses?.messaging?.imageDataUrl ?? null;
   } else {
     const b = url.searchParams.get("b") ?? "";

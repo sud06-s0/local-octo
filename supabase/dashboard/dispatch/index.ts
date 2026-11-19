@@ -148,7 +148,7 @@ async function deliver(input) {
     const wa = ch.whatsapp;
     const photo = isFollow ? void 0 : input.imageUrl;
     let template = isFollow ? wa.followUp : photo ? wa.initialImage : wa.initial;
-    const waName = withTitle(input.firstName, input.gender);
+    const waName = input.messaging.useTitle === false ? input.firstName : withTitle(input.firstName, input.gender);
     let params = [waName, input.businessName, input.link];
     const header = photo;
     let lang;
@@ -283,7 +283,7 @@ Deno.serve(async (req) => {
       link: `${linkBase}?t=${row.token}`,
       // Photo with the customer's name (business photo, or the demo photo if none uploaded)
       // Personalised photo on the first message only; follow-ups are text
-      imageUrl: kind === "initial" && row.messaging?.personalizedImage ? contactImageUrl(row.token, row.messaging?.imageDataUrl, row.gender) : void 0
+      imageUrl: kind === "initial" && row.messaging?.personalizedImage ? contactImageUrl(row.token, row.messaging?.imageDataUrl, row.messaging?.useTitle === false ? "" : row.gender) : void 0
     });
     const now = /* @__PURE__ */ new Date();
     if (result.ok) {

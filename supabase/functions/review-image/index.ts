@@ -21,7 +21,8 @@ Deno.serve(async (req) => {
     const { data } = await admin.from('contacts').select('first_name, gender, businesses(messaging)').eq('token', token).maybeSingle()
     if (!data) return new Response('Not found', { status: 404 })
     name = data.first_name
-    gender = (data as { gender?: string }).gender ?? null
+    const useTitle = (data.businesses as unknown as { messaging?: { useTitle?: boolean } })?.messaging?.useTitle !== false
+    gender = useTitle ? ((data as { gender?: string }).gender ?? null) : null
     photo = ((data.businesses as unknown as { messaging?: { imageDataUrl?: string } })?.messaging?.imageDataUrl) ?? null
   } else {
     const b = url.searchParams.get('b') ?? ''

@@ -132,6 +132,8 @@ export interface Settings {
     ownerFirstName: string
     businessName: string
     personalizedImage: boolean
+    /** add Sir / Ma'am after the first name (by contact gender) on WhatsApp and the image; default on */
+    useTitle?: boolean
     imageDataUrl: string | null
     customMessage: string
     customFollowUp: string

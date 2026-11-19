@@ -12,6 +12,7 @@ export interface Messaging {
   mode?: 'smart' | 'custom'
   ownerFirstName?: string
   personalizedImage?: boolean
+  useTitle?: boolean
   imageDataUrl?: string | null
   businessName?: string
   customMessage?: string
@@ -216,7 +217,7 @@ export async function deliver(input: DeliverInput): Promise<DeliverResult> {
     // First message carries the personalised photo when enabled; follow-ups are text only.
     const photo = isFollow ? undefined : input.imageUrl
     let template = isFollow ? wa.followUp : photo ? wa.initialImage : wa.initial
-    const waName = withTitle(input.firstName, input.gender)
+    const waName = input.messaging.useTitle === false ? input.firstName : withTitle(input.firstName, input.gender)
     let params = [waName, input.businessName, input.link]
     const header = photo
     let lang: string | undefined

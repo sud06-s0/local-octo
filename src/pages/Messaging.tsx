@@ -674,6 +674,17 @@ export default function Messaging() {
                 <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => e.target.files?.[0] && onImage(e.target.files[0])} />
               </div>
             )}
+
+            {channel === 'whatsapp' && (
+              <div className="mt-6 flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-[15px] font-medium">Sir / Ma'am after first name</p>
+                  <p className="text-sm text-muted">"Adarsh Sir", "Varsha Ma'am" in WhatsApp messages and on the image</p>
+                  <p className="mt-0.5 text-xs text-muted">Uses each contact's gender; contacts without a gender get just their first name</p>
+                </div>
+                <Toggle checked={m.useTitle !== false} onChange={(v) => updateSettings('messaging', { useTitle: v })} label="Sir / Ma'am after first name" />
+              </div>
+            )}
           </Card>
 
           {channel === 'whatsapp' && <StandardTemplates canSubmit={isAgency} />}
