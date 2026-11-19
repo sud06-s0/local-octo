@@ -10,6 +10,7 @@ import { BusinessDetailsForm, businessDetailsValid, type BusinessDetails } from 
 import { GoogleLinkBox } from '../components/GoogleConnectCard'
 import { useToast } from '../components/ui/Toast'
 import { cn, copyText } from '../lib/utils'
+import { brand } from '../config/brand'
 
 type Range = '7d' | '30d' | 'all'
 const DAY = 86_400_000
@@ -31,7 +32,7 @@ function StatTile({ label, value, icon: Icon }: { label: string; value: number; 
 }
 
 export default function Dashboard() {
-  const { state, updateSettings, publicKey } = useStore()
+  const { state, updateSettings, publicKey, requestsThisMonth } = useStore()
   const toast = useToast()
   const { reviews, contacts, settings } = state
   const [range, setRange] = useState<Range>('30d')
@@ -123,6 +124,33 @@ export default function Dashboard() {
             <StatTile label="Requests Sent" value={stats.requests} icon={Mail} />
             <StatTile label="Contacts Added" value={stats.added} icon={UserPlus} />
           </div>
+
+          {/* Monthly review-request allowance */}
+          {(() => {
+            const limit = brand.monthlyRequestLimit
+            const used = Math.min(requestsThisMonth, limit)
+            const full = requestsThisMonth >= limit
+            const month = new Date().toLocaleString('en-IN', { month: 'long' })
+            return (
+              <div className={cn('mt-5 rounded-xl border p-4', full ? 'border-amber-200 bg-amber-50' : 'border-line bg-canvas/60')}>
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <p className="text-[15px] font-medium">Review requests this month</p>
+                  <p className="text-[15px]">
+                    <span className="text-2xl font-semibold text-brand-700">{used}</span>
+                    <span className="text-muted"> of {limit} sent</span>
+                  </p>
+                </div>
+                <div className="mt-2.5 h-2.5 w-full overflow-hidden rounded-full bg-black/[0.06]" role="progressbar" aria-valuenow={used} aria-valuemin={0} aria-valuemax={limit} aria-label="Review requests this month">
+                  <div className={cn('h-full rounded-full transition-all', full ? 'bg-amber-500' : 'bg-brand-700')} style={{ width: `${(used / limit) * 100}%` }} />
+                </div>
+                <p className={cn('mt-2 text-xs', full ? 'text-amber-800' : 'text-muted')}>
+                  {full
+                    ? `All ${limit} used for ${month}. New requests wait and go out from the 1st of next month.`
+                    : `${limit - used} left for ${month} · first messages and follow-ups count · resets on the 1st`}
+                </p>
+              </div>
+            )
+          })()}
         </Card>
 
         {/* Review history */}

@@ -1,7 +1,7 @@
 // src/components/layout/Sidebar.tsx
 import { useState } from 'react'
 import { NavLink } from 'react-router'
-import { Bell, Check, ChevronsUpDown, CreditCard, LogOut, Plus, RefreshCw, Settings, Users } from 'lucide-react'
+import { Check, ChevronsUpDown, CreditCard, LogOut, Plus, RefreshCw, Settings, Users } from 'lucide-react'
 import { navItems } from './navItems'
 import { Dropdown, MenuItem } from './Dropdown'
 import { brand } from '../../config/brand'
@@ -22,7 +22,6 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const [addOpen, setAddOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [draft, setDraft] = useState<BusinessDetails>({ name: '', address: '', reviewLink: '', mapsUrl: '' })
-  const unread = state.notifications.filter((n) => !n.read).length
   const business = state.settings.business
 
   return (
@@ -81,28 +80,6 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         </Dropdown>
       </div>
 
-      <div className="border-t border-line px-3 pt-1.5">
-        <NavLink
-          to="/notifications"
-          onClick={onNavigate}
-          className={({ isActive }) =>
-            cn(
-              'flex items-center gap-3 rounded-lg border px-3 py-2.5 text-[15px] transition',
-              isActive ? 'border-brand-200 bg-brand-50 text-ink' : 'border-line bg-black/[0.015] text-ink/85 hover:bg-black/[0.03]',
-            )
-          }
-        >
-          <span className="flex size-6 items-center justify-center rounded-md bg-black/[0.04]">
-            <Bell className="size-4" />
-          </span>
-          <span className="flex-1">Notifications</span>
-          {unread > 0 && (
-            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-700 px-1.5 text-xs font-medium text-white">
-              {unread}
-            </span>
-          )}
-        </NavLink>
-      </div>
 
       <nav className="mt-2 flex-1 space-y-0.5 overflow-y-auto px-3 pb-4" aria-label="Main">
         {navItems.map(({ to, label, icon: Icon, badge }) => (

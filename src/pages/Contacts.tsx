@@ -9,6 +9,7 @@ import { Dropdown, MenuItem } from '../components/layout/Dropdown'
 import { useStore } from '../store/AppStore'
 import { useToast } from '../components/ui/Toast'
 import { cn, formatDate, timeAgo } from '../lib/utils'
+import { brand } from '../config/brand'
 import type { Contact, ContactStatus, Gender } from '../types'
 
 const statusMeta: Record<ContactStatus, { label: string; tone: 'green' | 'gray' | 'amber' | 'red' | 'blue' }> = {
@@ -27,7 +28,7 @@ export default function Contacts() {
   const tabParam = params.get('tab')
   const tab: Tab = tabParam === 'add' || tabParam === 'schedule' ? tabParam : 'list'
   const setTab = (t: Tab) => setParams(t === 'list' ? {} : { tab: t }, { replace: true })
-  const { state, mode, updateContact, deleteContact } = useStore()
+  const { state, mode, updateContact, deleteContact, requestsThisMonth } = useStore()
   const anytime = !!state.settings.scheduling.sendAnytime
   const toast = useToast()
   const [query, setQuery] = useState('')
@@ -52,6 +53,7 @@ export default function Contacts() {
     if (action === 'send_initial' || action === 'send_follow_up') {
       const what = action === 'send_initial' ? 'first message' : 'follow-up'
       if (c.doNotContact) return toast(`${name} is on the Do Not Contact list`, 'error')
+      if (requestsThisMonth >= brand.monthlyRequestLimit) return toast(`All ${brand.monthlyRequestLimit} review requests for this month are used. More can go out from the 1st.`, 'error')
       if (mode === 'live') {
         // The cron dispatcher sends exactly this message within a minute (inside 9 AM–7 PM unless Sending hours = Anytime),
         // even past the follow-up limit; automatic scheduling keeps its own rules

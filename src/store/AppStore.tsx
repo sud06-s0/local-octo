@@ -58,6 +58,7 @@ interface AppStore {
   deleteReviewReply: (review: Review) => Promise<void>
   addContacts: (items: NewContact[], source?: 'manual' | 'csv') => Promise<AddResult>
   updateContact: (id: string, patch: Partial<Contact>) => void
+  requestsThisMonth: number
   deleteContact: (id: string) => void
   updateSettings: <K extends keyof Settings>(key: K, patch: Partial<Settings[K]>) => Promise<void>
   setReviewReply: (id: string, reply: ReviewReply | undefined) => void
@@ -198,6 +199,8 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const [activeId, setActiveId] = useState<string | null>(isLive ? storage.get<string | null>(ACTIVE_KEY, null) : 'demo')
   const [waTemplates, setWaTemplates] = useState<WaTemplate[]>([])
   const [feedback, setFeedback] = useState<CustomerFeedback[]>(isLive ? [] : demoFeedback)
+  /** Review requests sent this calendar month (first messages + follow-ups, not tests or failed) */
+  const [requestsThisMonth, setRequestsThisMonth] = useState<number>(isLive ? 0 : 12)
   const [keys, setKeys] = useState({ publicKey: isLive ? '' : 'demo0public0key000000000' })
   const [loading, setLoading] = useState(isLive)
   const stateRef = useRef(state)
@@ -246,14 +249,17 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     async (bid: string) => {
       setLoading(true)
       const c = db()
-      const [b, contacts, reviews, notifications, templates, answers] = await Promise.all([
+      const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+      const [b, contacts, reviews, notifications, templates, answers, monthSent] = await Promise.all([
         c.from('businesses').select(BUSINESS_COLS).eq('id', bid).single(),
         c.from('contacts').select('*').eq('business_id', bid).order('created_at', { ascending: false }).limit(2000),
         c.from('reviews').select('*').eq('business_id', bid).order('review_created_at', { ascending: false }).limit(500),
         c.from('notifications').select('*').eq('business_id', bid).order('created_at', { ascending: false }).limit(100),
         c.from('whatsapp_templates').select('*').eq('business_id', bid).order('created_at', { ascending: false }).limit(30),
         c.from('review_feedback').select('*, contacts(first_name, last_name, email, phone)').eq('business_id', bid).order('created_at', { ascending: false }).limit(300),
+        c.from('messages').select('id', { count: 'exact', head: true }).eq('business_id', bid).in('kind', ['initial', 'follow_up']).neq('status', 'failed').gte('created_at', monthStart),
       ])
+      setRequestsThisMonth(monthSent.error ? 0 : (monthSent.count ?? 0))
       setFeedback(answers.error ? [] : (answers.data ?? []).map(toFeedback))
       // Don't fail the whole load if the WhatsApp templates table isn't there yet
       setWaTemplates(templates.error ? [] : (templates.data ?? []).map(toWaTemplate))
@@ -661,6 +667,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       deleteReviewReply,
       addContacts,
       updateContact,
+      requestsThisMonth,
       deleteContact,
       updateSettings,
       setReviewReply,
@@ -673,7 +680,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       refresh,
       resetDemo,
     }),
-    [loading, state, businesses, activeId, keys, feedback, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, submitStandardTemplates, switchBusiness, createBusiness, importFromGoogle, google, refreshGoogle, connectGoogle, googleLocations, selectGoogleLocation, syncGoogleReviews, disconnectGoogle, postReviewReply, deleteReviewReply, addContacts, updateContact, deleteContact, updateSettings, setReviewReply, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, refresh, resetDemo],
+    [loading, state, businesses, activeId, keys, feedback, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, submitStandardTemplates, switchBusiness, createBusiness, importFromGoogle, google, refreshGoogle, connectGoogle, googleLocations, selectGoogleLocation, syncGoogleReviews, disconnectGoogle, postReviewReply, deleteReviewReply, addContacts, updateContact, requestsThisMonth, deleteContact, updateSettings, setReviewReply, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, refresh, resetDemo],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
