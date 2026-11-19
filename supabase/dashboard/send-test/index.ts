@@ -288,7 +288,7 @@ Deno.serve(async (req) => {
   const { data: b } = await admin.from("businesses").select("name, review_link, public_key, messaging, country_code").eq("id", businessId).single();
   if (!b) return json({ error: "Business not found" }, 404);
   if (!b.review_link) return json({ error: "Add your Google review link first" }, 400);
-  const appUrl = (Deno.env.get("APP_URL") || "https://local-octo.vercel.app").replace(/\/+$/, "");
+  const appUrl = (Deno.env.get("APP_URL") || "https://review.localocto.com").replace(/\/+$/, "");
   const reviewPageLink = b.public_key ? `${appUrl}/review?b=${b.public_key}` : b.review_link;
   const isEmail = to.includes("@");
   let phone = "";

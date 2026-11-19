@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
   if (!b.review_link) return json({ error: 'Add your Google review link first' }, 400)
 
   // Same emoji review page customers get (not the Google link directly)
-  const appUrl = (Deno.env.get('APP_URL') || 'https://local-octo.vercel.app').replace(/\/+$/, '')
+  const appUrl = (Deno.env.get('APP_URL') || 'https://review.localocto.com').replace(/\/+$/, '')
   const reviewPageLink = b.public_key ? `${appUrl}/review?b=${b.public_key}` : b.review_link
 
   const isEmail = to.includes('@')

@@ -17,7 +17,7 @@ export function labelText(firstName: string, gender?: string | null): string {
 
 /** Demo photo used when a business hasn't uploaded its own (public/default-personal.jpg in the app). */
 export function defaultPhotoUrl(): string {
-  return Deno.env.get('DEFAULT_REVIEW_IMAGE_URL') || 'https://local-octo.vercel.app/default-personal.jpg'
+  return Deno.env.get('DEFAULT_REVIEW_IMAGE_URL') || 'https://review.localocto.com/default-personal.jpg'
 }
 
 /* ---------- URLs ---------- */

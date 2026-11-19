@@ -1,5 +1,8 @@
 // supabase/dashboard/wa-template/index.ts
-// @ts-nocheck
+// Self-contained copy of supabase/functions/wa-template for pasting into the Supabase dashboard editor.
+// Function name in Supabase must be exactly: wa-template   ·   Turn OFF "Verify JWT" for this function.
+// @ts-nocheck  (bundled JavaScript — the typed source lives in supabase/functions)
+
 // supabase/functions/_shared/supabase.ts
 import { createClient } from "npm:@supabase/supabase-js@2";
 function secretKey() {
@@ -55,7 +58,7 @@ function preflight(req) {
 // supabase/functions/_shared/waTemplates.ts
 var env = (k) => Deno.env.get(k) ?? "";
 var EXAMPLES = { first_name: "Priya", review_link: "https://g.page/r/example/review" };
-var SAMPLE_PHOTO_URL = () => env("DEFAULT_REVIEW_IMAGE_URL") || "https://local-octo.vercel.app/default-personal.jpg";
+var SAMPLE_PHOTO_URL = () => env("DEFAULT_REVIEW_IMAGE_URL") || "https://review.localocto.com/default-personal.jpg";
 var STANDARD_TEMPLATES = [
   { kind: "initial", col: "whatsapp_template_initial", key: "WHATSAPP_TEMPLATE_INITIAL", def: "review_request", body: "Hi {{1}}, thanks for choosing {{2}}! Would you mind taking a moment to leave us a Google review? {{3}} Thank you!" },
   { kind: "initial_image", col: "whatsapp_template_initial_image", key: "WHATSAPP_TEMPLATE_INITIAL_IMAGE", def: "review_request_image", body: "Hi {{1}}, thanks for choosing {{2}}! Would you mind taking a moment to leave us a Google review? {{3}} Thank you!" },

@@ -1,5 +1,5 @@
 // src/pages/ReviewPage.tsx
-// Public review page (no login): local-octo.vercel.app/review?t=<contact token> or ?b=<business public key>.
+// Public review page (no login): review.localocto.com/review?t=<contact token> or ?b=<business public key>.
 // Four big faces. Happy (5) and Good (4) open Google's review page straight away;
 // Bad (2) and Worse (1) get a review form (review text + name); "Submit review" saves it in the app only
 // (Reviews → Negative Reviews) and Google never opens.

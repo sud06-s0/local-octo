@@ -34,7 +34,7 @@ function labelText(firstName, gender) {
   return `${name}${title}!`;
 }
 function defaultPhotoUrl() {
-  return Deno.env.get("DEFAULT_REVIEW_IMAGE_URL") || "https://local-octo.vercel.app/default-personal.jpg";
+  return Deno.env.get("DEFAULT_REVIEW_IMAGE_URL") || "https://review.localocto.com/default-personal.jpg";
 }
 async function sign(value) {
   const secret = Deno.env.get("IMAGE_SIGNING_SECRET") || Deno.env.get("CRON_SECRET") || "change-me";

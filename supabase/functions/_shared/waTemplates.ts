@@ -10,7 +10,7 @@ export type ParamKey = 'first_name' | 'review_link'
 
 const env = (k: string) => Deno.env.get(k) ?? ''
 const EXAMPLES: Record<ParamKey, string> = { first_name: 'Priya', review_link: 'https://g.page/r/example/review' }
-const SAMPLE_PHOTO_URL = () => env('DEFAULT_REVIEW_IMAGE_URL') || 'https://local-octo.vercel.app/default-personal.jpg'
+const SAMPLE_PHOTO_URL = () => env('DEFAULT_REVIEW_IMAGE_URL') || 'https://review.localocto.com/default-personal.jpg'
 
 /** The 4 standard templates: {{1}} first name, {{2}} business name, {{3}} review link (same order as send.ts). */
 export const STANDARD_TEMPLATES: Array<{ kind: TemplateKind; col: string; key: string; def: string; body: string }> = [

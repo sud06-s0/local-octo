@@ -1,7 +1,7 @@
 // supabase/functions/r/index.ts
 // Review-link redirect: /functions/v1/r?t=<contact token>
 // Records the click (stops follow-ups) and opens the review page (4 faces) in the app.
-// APP_URL secret = the app's address (default https://local-octo.vercel.app).
+// APP_URL secret = the app's address (default https://review.localocto.com).
 
 import { adminClient } from '../_shared/supabase.ts'
 
@@ -49,6 +49,6 @@ Deno.serve(async (req) => {
     })
   }
 
-  const appUrl = (Deno.env.get('APP_URL') || 'https://local-octo.vercel.app').replace(/\/+$/, '')
+  const appUrl = (Deno.env.get('APP_URL') || 'https://review.localocto.com').replace(/\/+$/, '')
   return new Response(null, { status: 302, headers: { Location: `${appUrl}/review?t=${token}`, 'Cache-Control': 'no-store' } })
 })

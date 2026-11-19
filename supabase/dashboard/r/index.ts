@@ -1,5 +1,8 @@
 // supabase/dashboard/r/index.ts
-// @ts-nocheck
+// Self-contained copy of supabase/functions/r for pasting into the Supabase dashboard editor.
+// Function name in Supabase must be exactly: r   ·   Turn OFF "Verify JWT" for this function.
+// @ts-nocheck  (bundled JavaScript — the typed source lives in supabase/functions)
+
 // supabase/functions/_shared/supabase.ts
 import { createClient } from "npm:@supabase/supabase-js@2";
 function secretKey() {
@@ -53,6 +56,6 @@ Deno.serve(async (req) => {
       body: `${`${contact.first_name} ${contact.last_name}`.trim()} opened your review link.`
     });
   }
-  const appUrl = (Deno.env.get("APP_URL") || "https://local-octo.vercel.app").replace(/\/+$/, "");
+  const appUrl = (Deno.env.get("APP_URL") || "https://review.localocto.com").replace(/\/+$/, "");
   return new Response(null, { status: 302, headers: { Location: `${appUrl}/review?t=${token}`, "Cache-Control": "no-store" } });
 });

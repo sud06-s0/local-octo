@@ -1,5 +1,5 @@
 // supabase/functions/feedback/index.ts
-// Public API for the review page (local-octo.vercel.app/review?t=<contact token> or ?b=<business public key>).
+// Public API for the review page (review.localocto.com/review?t=<contact token> or ?b=<business public key>).
 //  GET  ?t= | ?b=                       → { businessName, firstName, knownContact }
 //  POST { t | b, rating, text?, photo?, name?, email?, phone? } → saves the answer.
 //       rating 5 (Happy) / 4 (Good): text + optional photo (data URL, max 5 MB) → returns { reviewLink }

@@ -54,7 +54,7 @@ export interface AppNotification {
   read: boolean
 }
 
-/** An answer from the review page (local-octo.vercel.app/review). Bad / Worse ones carry what to improve. */
+/** An answer from the review page (review.localocto.com/review). Bad / Worse ones carry what to improve. */
 export interface CustomerFeedback {
   id: string
   rating: 1 | 2 | 4 | 5
