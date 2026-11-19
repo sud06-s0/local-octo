@@ -48,6 +48,41 @@ export default function Contacts() {
     })
   }, [state.contacts, query, status, flags])
 
+  // Multi-select (only contacts visible with the current filters count)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const picked = filtered.filter((c) => selected.has(c.id))
+  const allPicked = filtered.length > 0 && picked.length === filtered.length
+  const toggle = (id: string) =>
+    setSelected((s) => {
+      const n = new Set(s)
+      if (n.has(id)) n.delete(id)
+      else n.add(id)
+      return n
+    })
+  const toggleAll = () => setSelected(allPicked ? new Set() : new Set(filtered.map((c) => c.id)))
+
+  /** Queue the chosen message for several contacts (skips Do Not Contact, stays within the monthly limit). */
+  const sendMany = (list: Contact[], kind: 'initial' | 'follow_up') => {
+    const what = kind === 'initial' ? 'first message' : 'follow-up'
+    const ok = list.filter((c) => !c.doNotContact)
+    const skippedDnc = list.length - ok.length
+    const left = Math.max(0, brand.monthlyRequestLimit - requestsThisMonth)
+    if (!left) return toast(`All ${brand.monthlyRequestLimit} review requests for this month are used. More can go out from the 1st.`, 'error')
+    const go = ok.slice(0, left)
+    if (!go.length) return toast('All selected contacts are on the Do Not Contact list', 'error')
+    const now = new Date().toISOString()
+    for (const c of go) {
+      if (mode === 'live') updateContact(c.id, { sendKind: kind, nextSendAt: now, status: c.status === 'stopped' ? 'pending' : c.status })
+      else updateContact(c.id, { status: 'sent', requestsSent: c.requestsSent + 1, lastSentAt: now })
+    }
+    const notes = [
+      skippedDnc ? `${skippedDnc} on Do Not Contact skipped` : '',
+      ok.length > go.length ? `${ok.length - go.length} not sent (only ${left} left this month)` : '',
+    ].filter(Boolean)
+    toast(`Queued — ${what} for ${go.length} contact${go.length > 1 ? 's' : ''}${mode === 'live' && !anytime ? ' (9 AM–7 PM)' : ''}${notes.length ? ` · ${notes.join(' · ')}` : ''}`)
+    setSelected(new Set())
+  }
+
   const act = (c: Contact, action: 'send_initial' | 'send_follow_up' | 'stop' | 'dnc' | 'delete') => {
     const name = `${c.firstName} ${c.lastName}`.trim()
     if (action === 'send_initial' || action === 'send_follow_up') {
@@ -162,6 +197,17 @@ export default function Contacts() {
         <span className="text-sm text-muted xl:ml-auto">{filtered.length} contacts</span>
       </div>
 
+      {picked.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-4 py-2.5">
+          <span className="text-[15px] font-medium">{picked.length} selected</span>
+          <div className="ml-auto flex flex-wrap gap-2">
+            <Button size="sm" icon={Send} onClick={() => sendMany(picked, 'initial')}>Send first message</Button>
+            <Button size="sm" variant="outline" icon={Reply} onClick={() => sendMany(picked, 'follow_up')}>Send follow-up</Button>
+            <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>Clear</Button>
+          </div>
+        </div>
+      )}
+
       <Card className="overflow-visible">
         {filtered.length === 0 ? (
           <EmptyState
@@ -175,6 +221,10 @@ export default function Contacts() {
             <table className="hidden w-full text-left text-[15px] md:table">
               <thead>
                 <tr className="border-b border-line text-xs uppercase tracking-wide text-muted">
+                  <th className="w-10 py-3 pl-5 pr-1">
+                    <input type="checkbox" className="size-4 cursor-pointer accent-brand-700 align-middle" checked={allPicked} ref={(el) => { if (el) el.indeterminate = picked.length > 0 && !allPicked }} onChange={toggleAll} aria-label="Select all contacts" />
+                  </th>
+                  <th className="w-14 px-2 py-3 font-medium">S.No.</th>
                   <th className="px-5 py-3 font-medium">Name</th>
                   <th className="px-5 py-3 font-medium">Contact</th>
                   <th className="px-5 py-3 font-medium">Gender</th>
@@ -186,8 +236,12 @@ export default function Contacts() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((c) => (
-                  <tr key={c.id} className="border-b border-line last:border-0 hover:bg-canvas/60">
+                {filtered.map((c, i) => (
+                  <tr key={c.id} className={cn('border-b border-line last:border-0 hover:bg-canvas/60', selected.has(c.id) && 'bg-brand-50/60')}>
+                    <td className="py-3.5 pl-5 pr-1">
+                      <input type="checkbox" className="size-4 cursor-pointer accent-brand-700 align-middle" checked={selected.has(c.id)} onChange={() => toggle(c.id)} aria-label={`Select ${c.firstName}`} />
+                    </td>
+                    <td className="px-2 py-3.5 text-sm text-muted">{i + 1}</td>
                     <td className="px-5 py-3.5 font-medium">{c.firstName} {c.lastName}</td>
                     <td className="px-5 py-3.5 text-sm text-muted">
                       <div>{c.email || '—'}</div>
@@ -222,10 +276,11 @@ export default function Contacts() {
 
             {/* Mobile cards */}
             <ul className="divide-y divide-line md:hidden">
-              {filtered.map((c) => (
-                <li key={c.id} className="flex items-start gap-3 p-4">
+              {filtered.map((c, i) => (
+                <li key={c.id} className={cn('flex items-start gap-3 p-4', selected.has(c.id) && 'bg-brand-50/60')}>
+                  <input type="checkbox" className="mt-1 size-4 cursor-pointer accent-brand-700" checked={selected.has(c.id)} onChange={() => toggle(c.id)} aria-label={`Select ${c.firstName}`} />
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium">{c.firstName} {c.lastName}</p>
+                    <p className="font-medium"><span className="mr-1.5 text-sm text-muted">{i + 1}.</span>{c.firstName} {c.lastName}</p>
                     <p className="truncate text-sm text-muted">{c.email || c.phone}</p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       <Badge tone={statusMeta[c.status].tone}>{statusMeta[c.status].label}</Badge>
