@@ -788,10 +788,14 @@ export default function Messaging() {
               </p>
               <p className="mt-1 pl-7 text-[15px] text-brand-800">We'll send gentle reminders to customers who haven't left a review yet.</p>
             </div>
-            {channel === 'whatsapp' && isAgency && m.waMode === 'custom' && m.followUpsEnabled && (
+            {/* Always shown in custom mode, so follow-up templates can be made even while follow-ups are off */}
+            {channel === 'whatsapp' && isAgency && m.waMode === 'custom' && (
               <div className="mt-6 border-t border-line pt-5">
                 <p className="text-[16px] font-semibold">Custom WhatsApp Follow-up Template</p>
-                <p className="mt-0.5 text-[15px] text-muted">Text only. Sent if the customer hasn't clicked your review link</p>
+                <p className="mt-0.5 text-[15px] text-muted">
+                  Text only (one template, no photo). Sent if the customer hasn't clicked your review link
+                  {!m.followUpsEnabled && ' — follow-ups are off right now (Contacts → Schedule Requests)'}.
+                </p>
                 <>
                     <TemplateNameField id="wa-follow-name" value={waFollowName} onChange={setWaFollowName} placeholder="e.g. review_followup_localocto" />
                     <CategoryPicker value={waFollowCat} onChange={setWaFollowCat} />
