@@ -60,6 +60,7 @@ interface AppStore {
   addContacts: (items: NewContact[], source?: 'manual' | 'csv') => Promise<AddResult>
   updateContact: (id: string, patch: Partial<Contact>) => void
   requestsThisMonth: number
+  deleteContacts: (ids: string[]) => void
   /** Reload contacts from the database (used for auto-refresh on the Contacts page) */
   refreshContacts: () => Promise<void>
   /** Reload the list of businesses this login can open (e.g. after creating one for a client) */
@@ -359,6 +360,17 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     (id: string) => {
       setState((s) => ({ ...s, contacts: s.contacts.filter((c) => c.id !== id) }))
       if (isLive) db().from('contacts').delete().eq('id', id).then(({ error }) => check(error, 'Could not delete contact'))
+    },
+    [check],
+  )
+
+  /** Delete several contacts at once (message history and feedback stay, just no longer linked to a contact). */
+  const deleteContacts = useCallback(
+    (ids: string[]) => {
+      if (!ids.length) return
+      const drop = new Set(ids)
+      setState((s) => ({ ...s, contacts: s.contacts.filter((c) => !drop.has(c.id)) }))
+      if (isLive) db().from('contacts').delete().in('id', ids).then(({ error }) => check(error, 'Could not delete contacts'))
     },
     [check],
   )
@@ -699,6 +711,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       addContacts,
       updateContact,
       requestsThisMonth,
+      deleteContacts,
       refreshContacts,
       refreshBusinesses: loadBusinesses,
       deleteContact,
@@ -713,7 +726,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       refresh,
       resetDemo,
     }),
-    [loading, state, businesses, activeId, keys, feedback, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, submitStandardTemplates, switchBusiness, createBusiness, importFromGoogle, google, refreshGoogle, connectGoogle, googleLocations, selectGoogleLocation, syncGoogleReviews, disconnectGoogle, postReviewReply, deleteReviewReply, addContacts, updateContact, requestsThisMonth, refreshContacts, loadBusinesses, deleteContact, updateSettings, setReviewReply, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, refresh, resetDemo],
+    [loading, state, businesses, activeId, keys, feedback, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, submitStandardTemplates, switchBusiness, createBusiness, importFromGoogle, google, refreshGoogle, connectGoogle, googleLocations, selectGoogleLocation, syncGoogleReviews, disconnectGoogle, postReviewReply, deleteReviewReply, addContacts, updateContact, requestsThisMonth, deleteContacts, refreshContacts, loadBusinesses, deleteContact, updateSettings, setReviewReply, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, refresh, resetDemo],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

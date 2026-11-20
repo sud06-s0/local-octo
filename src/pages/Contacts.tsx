@@ -7,6 +7,7 @@ import { AddContactsPanel } from './AddContacts'
 import { RequestSchedulingPanel } from './RequestScheduling'
 import { Dropdown, MenuItem } from '../components/layout/Dropdown'
 import { useStore } from '../store/AppStore'
+import { Modal } from '../components/ui/Modal'
 import { useToast } from '../components/ui/Toast'
 import { cn, formatDate, timeAgo } from '../lib/utils'
 import { brand } from '../config/brand'
@@ -28,7 +29,9 @@ export default function Contacts() {
   const tabParam = params.get('tab')
   const tab: Tab = tabParam === 'add' || tabParam === 'schedule' ? tabParam : 'list'
   const setTab = (t: Tab) => setParams(t === 'list' ? {} : { tab: t }, { replace: true })
-  const { state, mode, updateContact, deleteContact, requestsThisMonth, refreshContacts } = useStore()
+  const { state, mode, updateContact, deleteContacts, requestsThisMonth, refreshContacts } = useStore()
+  /** Contacts waiting for the delete confirmation dialog (one from the ⋯ menu, or the selected ones) */
+  const [toDelete, setToDelete] = useState<Contact[] | null>(null)
 
   // Messages go out in the background, so keep the list fresh: every 20 s while open, and when you come back to the tab
   useEffect(() => {
@@ -74,6 +77,19 @@ export default function Contacts() {
       return n
     })
   const toggleAll = () => setSelected(allPicked ? new Set() : new Set(filtered.map((c) => c.id)))
+
+  const confirmDelete = () => {
+    if (!toDelete?.length) return
+    const ids = toDelete.map((c) => c.id)
+    deleteContacts(ids)
+    setSelected((s) => {
+      const n = new Set(s)
+      ids.forEach((id) => n.delete(id))
+      return n
+    })
+    toast(toDelete.length === 1 ? `${`${toDelete[0].firstName} ${toDelete[0].lastName}`.trim()} deleted` : `${toDelete.length} contacts deleted`)
+    setToDelete(null)
+  }
 
   /** Queue the chosen message for several contacts (skips Do Not Contact, stays within the monthly limit). */
   const sendMany = (list: Contact[], kind: 'initial' | 'follow_up') => {
@@ -123,8 +139,7 @@ export default function Contacts() {
       updateContact(c.id, { doNotContact: !c.doNotContact, status: c.doNotContact ? c.status : 'stopped', nextSendAt: null })
       toast(c.doNotContact ? `${name} removed from Do Not Contact` : `${name} added to Do Not Contact`)
     } else {
-      deleteContact(c.id)
-      toast(`${name} deleted`)
+      setToDelete([c]) // asks first; deleted in confirmDelete()
     }
   }
 
@@ -217,6 +232,7 @@ export default function Contacts() {
           <div className="ml-auto flex flex-wrap gap-2">
             <Button size="sm" icon={Send} onClick={() => sendMany(picked, 'initial')}>Send first message</Button>
             <Button size="sm" variant="outline" icon={Reply} onClick={() => sendMany(picked, 'follow_up')}>Send follow-up</Button>
+            <Button size="sm" variant="danger" icon={Trash2} onClick={() => setToDelete(picked)}>Delete</Button>
             <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>Clear</Button>
           </div>
         </div>
@@ -309,6 +325,44 @@ export default function Contacts() {
           </>
         )}
       </Card>
+
+      {/* Delete confirmation */}
+      <Modal
+        open={!!toDelete}
+        onClose={() => setToDelete(null)}
+        title={toDelete && toDelete.length > 1 ? `Delete ${toDelete.length} contacts?` : 'Delete contact?'}
+      >
+        {toDelete && (
+          <>
+            <p className="text-[15px]">
+              {toDelete.length === 1 ? (
+                <>
+                  <b>{`${toDelete[0].firstName} ${toDelete[0].lastName}`.trim()}</b> will be removed from your contacts.
+                </>
+              ) : (
+                <>These {toDelete.length} contacts will be removed:</>
+              )}
+            </p>
+            {toDelete.length > 1 && (
+              <ul className="mt-2 max-h-40 list-disc overflow-y-auto pl-5 text-sm text-muted">
+                {toDelete.slice(0, 50).map((c) => (
+                  <li key={c.id}>{`${c.firstName} ${c.lastName}`.trim()}{c.phone ? ` · ${c.phone}` : c.email ? ` · ${c.email}` : ''}</li>
+                ))}
+                {toDelete.length > 50 && <li>…and {toDelete.length - 50} more</li>}
+              </ul>
+            )}
+            <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">
+              This can't be undone. No more review requests or follow-ups will go to {toDelete.length === 1 ? 'them' : 'these contacts'}.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setToDelete(null)}>Cancel</Button>
+              <Button className="bg-red-600 text-white hover:bg-red-700" icon={Trash2} onClick={confirmDelete}>
+                Delete{toDelete.length > 1 ? ` ${toDelete.length} contacts` : ''}
+              </Button>
+            </div>
+          </>
+        )}
+      </Modal>
       </>
     )
   }
