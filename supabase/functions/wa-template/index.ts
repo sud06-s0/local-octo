@@ -14,6 +14,7 @@ import { json, preflight } from '../_shared/http.ts'
 import {
   buildTemplateBody,
   createTemplate,
+  deleteTemplate,
   findTemplateByName,
   metaConfig,
   STANDARD_EXAMPLE,
@@ -31,6 +32,9 @@ interface Messaging {
   waFollowUp?: string
   waTemplateName?: string
   waFollowUpTemplateName?: string
+  /** WhatsApp category to request for the custom templates ('marketing' default, or 'utility') */
+  waCategory?: 'marketing' | 'utility'
+  waFollowUpCategory?: 'marketing' | 'utility'
 }
 
 /** WhatsApp template names: lowercase letters, numbers and underscores. */
@@ -54,9 +58,10 @@ Deno.serve(async (req) => {
   const user = await getUser(req, admin)
   if (!user) return json({ error: 'Sign in required' }, 401)
 
-  const { businessId, action = 'refresh', kinds } = (await req.json().catch(() => ({}))) as {
+  const { businessId, action = 'refresh', kinds, templateId } = (await req.json().catch(() => ({}))) as {
     businessId?: string
-    action?: 'submit' | 'refresh' | 'standard' | 'submit_standard'
+    templateId?: string
+    action?: 'submit' | 'refresh' | 'standard' | 'submit_standard' | 'delete'
     kinds?: Array<'initial' | 'followup'>
   }
   if (!businessId) return json({ error: 'businessId is required' }, 400)
@@ -96,9 +101,10 @@ Deno.serve(async (req) => {
     const vars = { businessName: m.businessName || b.name, ownerName: m.ownerFirstName || '' }
     const want = new Set(kinds?.length ? kinds : ['initial', 'followup'])
 
-    const jobs: Array<{ kind: TemplateKind; source: string; name: string }> = []
-    if (want.has('initial') && m.waMessage) jobs.push({ kind: 'initial', source: m.waMessage, name: cleanName(m.waTemplateName) })
-    if (want.has('followup') && m.waFollowUp) jobs.push({ kind: 'followup', source: m.waFollowUp, name: cleanName(m.waFollowUpTemplateName) })
+    const cat = (c?: string) => (c === 'utility' ? 'UTILITY' : 'MARKETING') as 'MARKETING' | 'UTILITY'
+    const jobs: Array<{ kind: TemplateKind; source: string; name: string; category: 'MARKETING' | 'UTILITY' }> = []
+    if (want.has('initial') && m.waMessage) jobs.push({ kind: 'initial', source: m.waMessage, name: cleanName(m.waTemplateName), category: cat(m.waCategory) })
+    if (want.has('followup') && m.waFollowUp) jobs.push({ kind: 'followup', source: m.waFollowUp, name: cleanName(m.waFollowUpTemplateName), category: cat(m.waFollowUpCategory) })
 
     for (const job of jobs) {
       const built = buildTemplateBody(job.source, vars)
@@ -113,13 +119,27 @@ Deno.serve(async (req) => {
         try {
           if (!built.params.includes('review_link')) throw new Error('The message must include the Review Link')
           const header = kind === photoKind ? await getPhoto() : undefined
-          const created = await createTemplate(cfg, name, built.body, built.example, header)
+          const created = await createTemplate(cfg, name, built.body, built.example, header, job.category)
           await admin.from('whatsapp_templates').insert({ ...base, kind, name, status: created.status, category: created.category, meta_template_id: created.id })
         } catch (e) {
           await admin.from('whatsapp_templates').insert({ ...base, kind, name, status: 'failed', reason: errText(e) })
         }
       }
     }
+  }
+
+  // Delete a custom template (this business's own only): from WhatsApp first, then from the app
+  if (action === 'delete') {
+    const { data: t } = await admin.from('whatsapp_templates').select('id, name, meta_template_id').eq('id', templateId ?? '').eq('business_id', businessId).maybeSingle()
+    if (!t) return json({ error: 'Template not found' }, 404)
+    // Only delete in Meta if no other business row uses the same template name (the WhatsApp account is shared)
+    const { count } = await admin.from('whatsapp_templates').select('id', { count: 'exact', head: true }).eq('name', t.name).neq('id', t.id)
+    try {
+      if (!count) await deleteTemplate(cfg, t.name, t.meta_template_id)
+    } catch (e) {
+      return json({ error: `WhatsApp could not delete it: ${errText(e)}` }, 400)
+    }
+    await admin.from('whatsapp_templates').delete().eq('id', t.id)
   }
 
   // Check every template that isn't final yet (also runs right after submit)

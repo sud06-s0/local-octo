@@ -144,6 +144,9 @@ export interface Settings {
     waFollowUp: string
     waTemplateName: string
     waFollowUpTemplateName: string
+    /** WhatsApp category requested for the custom templates (default marketing) */
+    waCategory?: 'marketing' | 'utility'
+    waFollowUpCategory?: 'marketing' | 'utility'
     followUpsEnabled: boolean
   }
   scheduling: {

@@ -171,6 +171,34 @@ const STATUS_STYLE: Record<WaTemplateStatus, { label: string; tone: 'green' | 'a
 }
 
 /** Latest WhatsApp template per kind, with approval status. */
+/** Which WhatsApp category to ask Meta for. Meta can still move it (e.g. review requests often become Marketing). */
+function CategoryPicker({ value, onChange }: { value: 'marketing' | 'utility'; onChange: (v: 'marketing' | 'utility') => void }) {
+  return (
+    <div className="mt-3">
+      <p className="mb-1.5 text-sm font-medium">Category</p>
+      <div className="inline-flex rounded-lg border border-line bg-canvas p-1" role="radiogroup" aria-label="WhatsApp template category">
+        {(['marketing', 'utility'] as const).map((c) => (
+          <button
+            key={c}
+            type="button"
+            role="radio"
+            aria-checked={value === c}
+            onClick={() => onChange(c)}
+            className={cn('rounded-md px-3 py-1.5 text-sm font-medium transition', value === c ? 'bg-white text-ink shadow-sm' : 'text-muted hover:text-ink')}
+          >
+            {c === 'marketing' ? 'Marketing' : 'Utility'}
+          </button>
+        ))}
+      </div>
+      <p className="mt-1 text-xs text-muted">
+        {value === 'utility'
+          ? 'Utility: about the customer’s recent visit, no offers. Meta may still move review requests to Marketing.'
+          : 'Marketing: allowed for any wording.'}
+      </p>
+    </div>
+  )
+}
+
 function WhatsAppApproval({
   kinds,
   templates,
@@ -182,6 +210,22 @@ function WhatsAppApproval({
   onRefresh: () => void
   busy: boolean
 }) {
+  const { deleteWhatsAppTemplate } = useStore()
+  const toast = useToast()
+  const [confirmId, setConfirmId] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const remove = async (t: WaTemplate) => {
+    setDeleting(true)
+    try {
+      await deleteWhatsAppTemplate(t.id)
+      toast(`Template ${t.name} deleted`)
+      setConfirmId(null)
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not delete the template', 'error')
+    } finally {
+      setDeleting(false)
+    }
+  }
   const latest = kinds.map((k) => ({ kind: k, t: templates.find((x) => x.kind === k) }))
   const anyOpen = latest.some((l) => l.t)
   const anyBad = latest.some((l) => l.t && ['rejected', 'failed', 'disabled'].includes(l.t.status))
@@ -221,9 +265,24 @@ function WhatsAppApproval({
               <>
                 <p className="mt-1.5 whitespace-pre-line text-xs leading-relaxed text-muted">{t.body}</p>
                 {t.reason && <p className={cn('mt-1.5 text-xs', t.status === 'approved' ? 'text-muted' : 'text-red-600')}>{t.reason}</p>}
-                <p className="mt-1 text-[11px] text-muted">
-                  Submitted {timeAgo(t.createdAt)} · {t.name}
-                </p>
+                <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-[11px] text-muted">
+                    Submitted {timeAgo(t.createdAt)} · {t.name}
+                  </p>
+                  {confirmId === t.id ? (
+                    <span className="flex items-center gap-2 text-xs">
+                      <span className="text-red-700">Delete from WhatsApp too?</span>
+                      <button type="button" disabled={deleting} onClick={() => remove(t)} className="rounded-md bg-red-600 px-2 py-1 font-medium text-white hover:bg-red-700 disabled:opacity-60">
+                        {deleting ? 'Deleting…' : 'Delete'}
+                      </button>
+                      <button type="button" disabled={deleting} onClick={() => setConfirmId(null)} className="rounded-md px-2 py-1 font-medium text-muted hover:bg-canvas">Cancel</button>
+                    </span>
+                  ) : (
+                    <button type="button" onClick={() => setConfirmId(t.id)} className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-muted hover:bg-red-50 hover:text-red-700">
+                      <Trash2 className="size-3.5" /> Delete
+                    </button>
+                  )}
+                </div>
               </>
             )}
           </li>
@@ -351,6 +410,8 @@ export default function Messaging() {
   const [waFollow, setWaFollow] = useState(m.waFollowUp)
   const [waName, setWaName] = useState(m.waTemplateName ?? '')
   const [waFollowName, setWaFollowName] = useState(m.waFollowUpTemplateName ?? '')
+  const [waCat, setWaCat] = useState<'marketing' | 'utility'>(m.waCategory ?? 'marketing')
+  const [waFollowCat, setWaFollowCat] = useState<'marketing' | 'utility'>(m.waFollowUpCategory ?? 'marketing')
   const [waBusy, setWaBusy] = useState(false)
 
   /** Saves first (the Edge Function reads the saved text), then submits to WhatsApp. */
@@ -535,6 +596,7 @@ export default function Messaging() {
                   <p className="mt-0.5 text-[15px] text-muted">{'Write the template and send it to WhatsApp for approval'}</p>
                   <>
                       <TemplateNameField id="wa-name" value={waName} onChange={setWaName} placeholder="e.g. review_request_localocto" />
+                      <CategoryPicker value={waCat} onChange={setWaCat} />
                       <TokenChips onInsert={(t) => setWaMsg((v) => (v + ' ' + t).slice(0, MAX_CHARS))} />
                       <CounterTextarea ref={waRef} value={waMsg} onChange={setWaMsg} rows={5} />
                       {!waMsg.includes('{review_link}') && <p className="mt-1.5 text-xs text-red-600">Add the Review Link so customers can leave a review</p>}
@@ -542,11 +604,11 @@ export default function Messaging() {
                         className="mt-4 w-full"
                         disabled={
                           !waMsg.trim() || !waMsg.includes('{review_link}') || !cleanName(waName) ||
-                          (waMsg === m.waMessage && cleanName(waName) === (m.waTemplateName ?? '')) || waBusy
+                          (waMsg === m.waMessage && cleanName(waName) === (m.waTemplateName ?? '') && waCat === (m.waCategory ?? 'marketing')) || waBusy
                         }
                         onClick={() => {
                           setWaName(cleanName(waName))
-                          saveAndSubmit({ waMessage: waMsg, waTemplateName: cleanName(waName) }, ['initial'], 'Template saved')
+                          saveAndSubmit({ waMessage: waMsg, waTemplateName: cleanName(waName), waCategory: waCat }, ['initial'], 'Template saved')
                         }}
                       >
                         {waBusy ? 'Submitting…' : 'Save & Submit for Approval'}
@@ -709,17 +771,18 @@ export default function Messaging() {
                 <p className="mt-0.5 text-[15px] text-muted">Text only. Sent if the customer hasn't clicked your review link</p>
                 <>
                     <TemplateNameField id="wa-follow-name" value={waFollowName} onChange={setWaFollowName} placeholder="e.g. review_followup_localocto" />
+                    <CategoryPicker value={waFollowCat} onChange={setWaFollowCat} />
                     <TokenChips onInsert={(t) => setWaFollow((v) => (v + ' ' + t).slice(0, MAX_CHARS))} />
                     <CounterTextarea value={waFollow} onChange={setWaFollow} rows={4} />
                     <Button
                       className="mt-4 w-full"
                       disabled={
                         !waFollow.trim() || !waFollow.includes('{review_link}') || !cleanName(waFollowName) ||
-                        (waFollow === m.waFollowUp && cleanName(waFollowName) === (m.waFollowUpTemplateName ?? '')) || waBusy
+                        (waFollow === m.waFollowUp && cleanName(waFollowName) === (m.waFollowUpTemplateName ?? '') && waFollowCat === (m.waFollowUpCategory ?? 'marketing')) || waBusy
                       }
                       onClick={() => {
                         setWaFollowName(cleanName(waFollowName))
-                        saveAndSubmit({ waFollowUp: waFollow, waFollowUpTemplateName: cleanName(waFollowName) }, ['followup'], 'Follow-up template saved')
+                        saveAndSubmit({ waFollowUp: waFollow, waFollowUpTemplateName: cleanName(waFollowName), waFollowUpCategory: waFollowCat }, ['followup'], 'Follow-up template saved')
                       }}
                     >
                       {waBusy ? 'Submitting…' : 'Save & Submit for Approval'}

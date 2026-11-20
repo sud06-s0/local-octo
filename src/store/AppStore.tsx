@@ -60,6 +60,7 @@ interface AppStore {
   addContacts: (items: NewContact[], source?: 'manual' | 'csv') => Promise<AddResult>
   updateContact: (id: string, patch: Partial<Contact>) => void
   requestsThisMonth: number
+  deleteWhatsAppTemplate: (templateId: string) => Promise<void>
   deleteContacts: (ids: string[]) => void
   /** Reload contacts from the database (used for auto-refresh on the Contacts page) */
   refreshContacts: () => Promise<void>
@@ -521,7 +522,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
           body,
           status,
           reason: null,
-          category: 'marketing',
+          category: (kind.startsWith('initial') ? m.waCategory : m.waFollowUpCategory) ?? 'marketing',
           createdAt: now,
           }
         }
@@ -546,6 +547,16 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     const res = await invokeFn<{ templates: Row[]; warnings: string[] }>('wa-template', { businessId: activeId, action: 'refresh' })
     setWaTemplates(res.templates.map(toWaTemplate))
     return res.warnings ?? []
+  }, [activeId])
+
+  /** Delete one custom template: from WhatsApp, then from this business. */
+  const deleteWhatsAppTemplate = useCallback(async (templateId: string) => {
+    if (!isLive) {
+      setWaTemplates((t) => t.filter((x) => x.id !== templateId))
+      return
+    }
+    const res = await invokeFn<{ templates: Row[] }>('wa-template', { businessId: activeId, action: 'delete', templateId })
+    setWaTemplates(res.templates.map(toWaTemplate))
   }, [activeId])
 
   const checkStandardTemplates = useCallback(async (): Promise<WaStandardTemplate[]> => {
@@ -711,6 +722,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       addContacts,
       updateContact,
       requestsThisMonth,
+      deleteWhatsAppTemplate,
       deleteContacts,
       refreshContacts,
       refreshBusinesses: loadBusinesses,
@@ -726,7 +738,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       refresh,
       resetDemo,
     }),
-    [loading, state, businesses, activeId, keys, feedback, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, submitStandardTemplates, switchBusiness, createBusiness, importFromGoogle, google, refreshGoogle, connectGoogle, googleLocations, selectGoogleLocation, syncGoogleReviews, disconnectGoogle, postReviewReply, deleteReviewReply, addContacts, updateContact, requestsThisMonth, deleteContacts, refreshContacts, loadBusinesses, deleteContact, updateSettings, setReviewReply, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, refresh, resetDemo],
+    [loading, state, businesses, activeId, keys, feedback, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, submitStandardTemplates, switchBusiness, createBusiness, importFromGoogle, google, refreshGoogle, connectGoogle, googleLocations, selectGoogleLocation, syncGoogleReviews, disconnectGoogle, postReviewReply, deleteReviewReply, addContacts, updateContact, requestsThisMonth, deleteWhatsAppTemplate, deleteContacts, refreshContacts, loadBusinesses, deleteContact, updateSettings, setReviewReply, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, refresh, resetDemo],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

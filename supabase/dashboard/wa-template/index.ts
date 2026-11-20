@@ -145,16 +145,24 @@ async function uploadSamplePhoto(cfg) {
   if (!res.ok || !body?.h) throw new Error(body?.error?.error_user_msg || body?.error?.message || `Photo upload failed (HTTP ${res.status})`);
   return String(body.h);
 }
-async function createTemplate(cfg, name, body, example, headerHandle) {
+async function createTemplate(cfg, name, body, example, headerHandle, category = "MARKETING") {
   const components = [];
   if (headerHandle) components.push({ type: "HEADER", format: "IMAGE", example: { header_handle: [headerHandle] } });
   components.push({ type: "BODY", text: body, ...example.length ? { example: { body_text: [example] } } : {} });
   const res = await graph(cfg, `${cfg.wabaId}/message_templates`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, language: cfg.lang, category: "MARKETING", components })
+    body: JSON.stringify({ name, language: cfg.lang, category, components })
   });
-  return { id: String(res.id), status: mapStatus(res.status), category: res.category ? String(res.category).toLowerCase() : "marketing" };
+  return { id: String(res.id), status: mapStatus(res.status), category: res.category ? String(res.category).toLowerCase() : category.toLowerCase() };
+}
+async function deleteTemplate(cfg, name, metaId) {
+  const q = `name=${encodeURIComponent(name)}${metaId ? `&hsm_id=${encodeURIComponent(metaId)}` : ""}`;
+  try {
+    await graph(cfg, `${cfg.wabaId}/message_templates?${q}`, { method: "DELETE" });
+  } catch (e) {
+    if (!/not found|does not exist|nonexisting|could not be found/i.test(e instanceof Error ? e.message : String(e))) throw e;
+  }
 }
 async function findTemplateByName(cfg, name) {
   const res = await graph(cfg, `${cfg.wabaId}/message_templates?name=${encodeURIComponent(name)}&fields=id,name,status,rejected_reason,language,category&limit=50`);
@@ -179,7 +187,7 @@ Deno.serve(async (req) => {
   const admin = adminClient();
   const user = await getUser(req, admin);
   if (!user) return json({ error: "Sign in required" }, 401);
-  const { businessId, action = "refresh", kinds } = await req.json().catch(() => ({}));
+  const { businessId, action = "refresh", kinds, templateId } = await req.json().catch(() => ({}));
   if (!businessId) return json({ error: "businessId is required" }, 400);
   if (!await isMember(admin, user.id, businessId)) return json({ error: "Not allowed" }, 403);
   const cfg = await metaConfig(admin, businessId);
@@ -212,9 +220,10 @@ Deno.serve(async (req) => {
     const m = b.messaging ?? {};
     const vars = { businessName: m.businessName || b.name, ownerName: m.ownerFirstName || "" };
     const want = new Set(kinds?.length ? kinds : ["initial", "followup"]);
+    const cat = (c) => c === "utility" ? "UTILITY" : "MARKETING";
     const jobs = [];
-    if (want.has("initial") && m.waMessage) jobs.push({ kind: "initial", source: m.waMessage, name: cleanName(m.waTemplateName) });
-    if (want.has("followup") && m.waFollowUp) jobs.push({ kind: "followup", source: m.waFollowUp, name: cleanName(m.waFollowUpTemplateName) });
+    if (want.has("initial") && m.waMessage) jobs.push({ kind: "initial", source: m.waMessage, name: cleanName(m.waTemplateName), category: cat(m.waCategory) });
+    if (want.has("followup") && m.waFollowUp) jobs.push({ kind: "followup", source: m.waFollowUp, name: cleanName(m.waFollowUpTemplateName), category: cat(m.waFollowUpCategory) });
     for (const job of jobs) {
       const built = buildTemplateBody(job.source, vars);
       const base = { business_id: businessId, language: cfg.lang, body: built.body, params: built.params };
@@ -224,13 +233,24 @@ Deno.serve(async (req) => {
         try {
           if (!built.params.includes("review_link")) throw new Error("The message must include the Review Link");
           const header = kind === photoKind ? await getPhoto() : void 0;
-          const created = await createTemplate(cfg, name, built.body, built.example, header);
+          const created = await createTemplate(cfg, name, built.body, built.example, header, job.category);
           await admin.from("whatsapp_templates").insert({ ...base, kind, name, status: created.status, category: created.category, meta_template_id: created.id });
         } catch (e) {
           await admin.from("whatsapp_templates").insert({ ...base, kind, name, status: "failed", reason: errText(e) });
         }
       }
     }
+  }
+  if (action === "delete") {
+    const { data: t } = await admin.from("whatsapp_templates").select("id, name, meta_template_id").eq("id", templateId ?? "").eq("business_id", businessId).maybeSingle();
+    if (!t) return json({ error: "Template not found" }, 404);
+    const { count } = await admin.from("whatsapp_templates").select("id", { count: "exact", head: true }).eq("name", t.name).neq("id", t.id);
+    try {
+      if (!count) await deleteTemplate(cfg, t.name, t.meta_template_id);
+    } catch (e) {
+      return json({ error: `WhatsApp could not delete it: ${errText(e)}` }, 400);
+    }
+    await admin.from("whatsapp_templates").delete().eq("id", t.id);
   }
   const { data: open } = await admin.from("whatsapp_templates").select("id, name").eq("business_id", businessId).or("status.in.(not_created,pending,paused),and(status.eq.approved,category.is.null)");
   for (const t of open ?? []) {

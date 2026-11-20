@@ -141,6 +141,7 @@ export async function createTemplate(
   body: string,
   example: string[],
   headerHandle?: string,
+  category: 'MARKETING' | 'UTILITY' = 'MARKETING',
 ): Promise<{ id: string; status: string; category: string | null }> {
   const components: unknown[] = []
   if (headerHandle) components.push({ type: 'HEADER', format: 'IMAGE', example: { header_handle: [headerHandle] } })
@@ -148,9 +149,20 @@ export async function createTemplate(
   const res = await graph(cfg, `${cfg.wabaId}/message_templates`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, language: cfg.lang, category: 'MARKETING', components }),
+    body: JSON.stringify({ name, language: cfg.lang, category, components }),
   })
-  return { id: String(res.id), status: mapStatus(res.status), category: res.category ? String(res.category).toLowerCase() : 'marketing' }
+  return { id: String(res.id), status: mapStatus(res.status), category: res.category ? String(res.category).toLowerCase() : category.toLowerCase() }
+}
+
+/** Delete one template from the WhatsApp account (by its Meta id + name, so other languages / names are untouched). */
+export async function deleteTemplate(cfg: MetaConfig, name: string, metaId?: string | null): Promise<void> {
+  const q = `name=${encodeURIComponent(name)}${metaId ? `&hsm_id=${encodeURIComponent(metaId)}` : ''}`
+  try {
+    await graph(cfg, `${cfg.wabaId}/message_templates?${q}`, { method: 'DELETE' })
+  } catch (e) {
+    // Already gone in Meta (or never created there) is fine; anything else is a real error
+    if (!/not found|does not exist|nonexisting|could not be found/i.test(e instanceof Error ? e.message : String(e))) throw e
+  }
 }
 
 /** Looks a template up by exact name in the WhatsApp Business Account (works for API- and hand-made ones). */
