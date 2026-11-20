@@ -47,7 +47,10 @@ export default function ReviewPage() {
       return
     }
     call<{ businessName: string; firstName: string; knownContact: boolean }>(undefined, `?${t ? `t=${t}` : `b=${b}`}`)
-      .then(setInfo)
+      .then((i) => {
+        setInfo(i)
+        if (i.firstName) setName(i.firstName) // WhatsApp link: name box comes prefilled
+      })
       .catch((e) => {
         setError(e.message)
         setInvalid(true)
@@ -62,7 +65,7 @@ export default function ReviewPage() {
       const res = API.startsWith('http')
         ? await call<{ reviewLink: string | null }>({
             method: 'POST',
-            body: JSON.stringify({ t, b, rating: r, text, ...(positive || info?.knownContact ? {} : { name }) }),
+            body: JSON.stringify({ t, b, rating: r, text, ...(positive ? {} : { name }) }),
           })
         : { reviewLink: null }
       if (positive && res.reviewLink) {
@@ -149,16 +152,14 @@ export default function ReviewPage() {
                     className="mt-1.5 w-full rounded-lg border border-line px-3 py-2.5 text-[15px] outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100"
                   />
 
-                  {!info?.knownContact && (
-                    <input
-                      aria-label="Your name"
-                      placeholder="Your name"
-                      value={name}
-                      maxLength={120}
-                      onChange={(e) => setName(e.target.value)}
-                      className="mt-3 w-full rounded-lg border border-line px-3 py-2.5 text-[15px] outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100"
-                    />
-                  )}
+                  <input
+                    aria-label="Your name"
+                    placeholder="Your name"
+                    value={name}
+                    maxLength={120}
+                    onChange={(e) => setName(e.target.value)}
+                    className="mt-3 w-full rounded-lg border border-line px-3 py-2.5 text-[15px] outline-none focus:border-brand-700 focus:ring-2 focus:ring-brand-100"
+                  />
 
                   <button
                     type="button"

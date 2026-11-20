@@ -1,5 +1,8 @@
 // supabase/dashboard/feedback/index.ts
-// @ts-nocheck
+// Self-contained copy of supabase/functions/feedback for pasting into the Supabase dashboard editor.
+// Function name in Supabase must be exactly: feedback   ·   Turn OFF "Verify JWT" for this function.
+// @ts-nocheck  (bundled JavaScript — the typed source lives in supabase/functions)
+
 // supabase/functions/_shared/supabase.ts
 import { createClient } from "npm:@supabase/supabase-js@2";
 function secretKey() {
@@ -72,7 +75,7 @@ Deno.serve(async (req) => {
   const positive = rating >= 4;
   const text = String(input.text ?? "").trim().slice(0, 4e3);
   const clean = (v, max) => String(v ?? "").trim().slice(0, max);
-  const customerName = target.contactId ? "" : clean(input.name, 120);
+  const customerName = clean(input.name, 120);
   const customerEmail = target.contactId ? "" : clean(input.email, 200);
   const customerPhone = target.contactId ? "" : clean(input.phone, 30);
   if (customerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) return json({ error: "Please check the email address" }, 400);
