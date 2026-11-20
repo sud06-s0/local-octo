@@ -43,13 +43,22 @@ function functionsUrl() {
 }
 
 // supabase/functions/_shared/waTemplates.ts
-async function approvedTemplates(admin, businessId) {
-  const { data } = await admin.from("whatsapp_templates").select("kind, name, language, params").eq("business_id", businessId).eq("status", "approved").order("created_at", { ascending: false });
+async function approvedTemplates(admin, businessId, chosen = {}) {
+  const { data } = await admin.from("whatsapp_templates").select("id, business_id, kind, name, language, params").eq("status", "approved").order("created_at", { ascending: false }).limit(500);
+  const rows = data ?? [];
+  const as = (r) => ({ name: r.name, language: r.language, params: r.params ?? [] });
   const out = {};
-  for (const r of data ?? []) {
-    const kind = r.kind;
-    if (!out[kind]) out[kind] = { name: r.name, language: r.language, params: r.params ?? [] };
+  const pickedInitial = chosen.initial ? rows.find((r) => r.id === chosen.initial && r.kind === "initial") : void 0;
+  const pickedFollow = chosen.followup ? rows.find((r) => r.id === chosen.followup && r.kind === "followup") : void 0;
+  const own = rows.filter((r) => r.business_id === businessId);
+  const initial = pickedInitial ?? own.find((r) => r.kind === "initial");
+  if (initial) {
+    out.initial = as(initial);
+    const photo = rows.find((r) => r.kind === "initial_image" && r.name === `${initial.name}_photo`) ?? (pickedInitial ? void 0 : own.find((r) => r.kind === "initial_image"));
+    if (photo) out.initial_image = as(photo);
   }
+  const follow = pickedFollow ?? own.find((r) => r.kind === "followup");
+  if (follow) out.followup = as(follow);
   return out;
 }
 
@@ -170,8 +179,13 @@ async function deliver(input) {
     const header = photo;
     let lang;
     if (input.messaging.waMode === "custom") {
-      const custom = await approvedTemplates(input.admin, input.businessId);
-      const values = { first_name: waName, review_link: input.link };
+      const custom = await approvedTemplates(input.admin, input.businessId, { initial: input.messaging.waTemplateId, followup: input.messaging.waFollowUpTemplateId });
+      const values = {
+        first_name: waName,
+        review_link: input.link,
+        business_name: input.businessName,
+        owner_name: input.messaging.ownerFirstName || input.businessName
+      };
       const pick = isFollow ? custom.followup : photo ? custom.initial_image : custom.initial;
       if (pick) {
         template = pick.name;

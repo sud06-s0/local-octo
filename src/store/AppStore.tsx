@@ -122,6 +122,8 @@ const toWaTemplate = (r: Row): WaTemplate => ({
   reason: r.reason ?? null,
   category: r.category ?? null,
   createdAt: r.created_at,
+  businessId: r.business_id,
+  businessName: (r.businesses as Row | null)?.name ?? undefined,
 })
 
 const toFeedback = (r: Row): CustomerFeedback => {
@@ -262,7 +264,8 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         c.from('contacts').select('*').eq('business_id', bid).order('created_at', { ascending: false }).limit(2000),
         c.from('reviews').select('*').eq('business_id', bid).order('review_created_at', { ascending: false }).limit(500),
         c.from('notifications').select('*').eq('business_id', bid).order('created_at', { ascending: false }).limit(100),
-        c.from('whatsapp_templates').select('*').eq('business_id', bid).order('created_at', { ascending: false }).limit(30),
+        // agency: the whole shared library; client logins: their business only (database rule decides)
+        c.from('whatsapp_templates').select('*, businesses(name)').order('created_at', { ascending: false }).limit(200),
         c.from('review_feedback').select('*, contacts(first_name, last_name, email, phone)').eq('business_id', bid).order('created_at', { ascending: false }).limit(300),
         c.from('messages').select('id', { count: 'exact', head: true }).eq('business_id', bid).in('kind', ['initial', 'follow_up']).neq('status', 'failed').gte('created_at', monthStart),
       ])
@@ -524,6 +527,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
           reason: null,
           category: (kind.startsWith('initial') ? m.waCategory : m.waFollowUpCategory) ?? 'marketing',
           createdAt: now,
+          businessId: activeId ?? undefined,
           }
         }
         const rows: WaTemplate[] = []

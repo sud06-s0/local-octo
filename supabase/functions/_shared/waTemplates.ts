@@ -6,10 +6,10 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 
 export type TemplateKind = 'initial' | 'initial_image' | 'followup' | 'followup_image'
-export type ParamKey = 'first_name' | 'review_link'
+export type ParamKey = 'first_name' | 'review_link' | 'business_name' | 'owner_name'
 
 const env = (k: string) => Deno.env.get(k) ?? ''
-const EXAMPLES: Record<ParamKey, string> = { first_name: 'Priya', review_link: 'https://g.page/r/example/review' }
+const EXAMPLES: Record<ParamKey, string> = { first_name: 'Priya', review_link: 'https://g.page/r/example/review', business_name: 'Sharma Dental Clinic', owner_name: 'Rahul' }
 const SAMPLE_PHOTO_URL = () => env('DEFAULT_REVIEW_IMAGE_URL') || 'https://review.localocto.com/default-personal.jpg'
 
 /** The 4 standard templates: {{1}} first name, {{2}} business name, {{3}} review link (same order as send.ts). */
@@ -38,20 +38,18 @@ export async function metaConfig(admin: SupabaseClient, businessId: string): Pro
 }
 
 /**
- * {first_name} and {review_link} become {{1}}, {{2}}… (in order of appearance).
- * {business_name} and {owner_name} are written in as fixed text.
+ * {first_name}, {review_link}, {business_name} and {owner_name} become {{1}}, {{2}}… (in order of appearance),
+ * so one template works for every business (each fills in its own name when sending).
  * Meta rejects bodies that start or end with a variable, so a short greeting / sign-off is added when needed.
  */
-export function buildTemplateBody(source: string, vars: { businessName: string; ownerName: string }) {
+export function buildTemplateBody(source: string, _vars?: { businessName: string; ownerName: string }) {
   let text = source
-    .replace(/\{business_name\}/g, vars.businessName)
-    .replace(/\{owner_name\}/g, vars.ownerName || vars.businessName)
     .replace(/\r\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
 
   const params: ParamKey[] = []
-  text = text.replace(/\{(first_name|review_link)\}/g, (_m, key: ParamKey) => {
+  text = text.replace(/\{(first_name|review_link|business_name|owner_name)\}/g, (_m, key: ParamKey) => {
     params.push(key)
     return `{{${params.length}}}`
   })
@@ -185,17 +183,38 @@ export interface ApprovedTemplate {
 }
 
 /** Latest approved custom template of each kind for a business. */
-export async function approvedTemplates(admin: SupabaseClient, businessId: string): Promise<Partial<Record<TemplateKind, ApprovedTemplate>>> {
+/**
+ * The custom templates a business sends with. Templates are a shared library (made by the agency in any business):
+ * a business uses the ones it picked (messaging.waTemplateId / waFollowUpTemplateId), otherwise its own latest approved.
+ * The photo version of a first message is the template with the same name + "_photo".
+ */
+export async function approvedTemplates(
+  admin: SupabaseClient,
+  businessId: string,
+  chosen: { initial?: string | null; followup?: string | null } = {},
+): Promise<Partial<Record<TemplateKind, ApprovedTemplate>>> {
   const { data } = await admin
     .from('whatsapp_templates')
-    .select('kind, name, language, params')
-    .eq('business_id', businessId)
+    .select('id, business_id, kind, name, language, params')
     .eq('status', 'approved')
     .order('created_at', { ascending: false })
+    .limit(500)
+  const rows = data ?? []
+  const as = (r: (typeof rows)[number]): ApprovedTemplate => ({ name: r.name, language: r.language, params: (r.params ?? []) as ParamKey[] })
   const out: Partial<Record<TemplateKind, ApprovedTemplate>> = {}
-  for (const r of data ?? []) {
-    const kind = r.kind as TemplateKind
-    if (!out[kind]) out[kind] = { name: r.name, language: r.language, params: (r.params ?? []) as ParamKey[] }
+
+  const pickedInitial = chosen.initial ? rows.find((r) => r.id === chosen.initial && r.kind === 'initial') : undefined
+  const pickedFollow = chosen.followup ? rows.find((r) => r.id === chosen.followup && r.kind === 'followup') : undefined
+  const own = rows.filter((r) => r.business_id === businessId)
+
+  const initial = pickedInitial ?? own.find((r) => r.kind === 'initial')
+  if (initial) {
+    out.initial = as(initial)
+    const photo = rows.find((r) => r.kind === 'initial_image' && r.name === `${initial.name}_photo`)
+      ?? (pickedInitial ? undefined : own.find((r) => r.kind === 'initial_image'))
+    if (photo) out.initial_image = as(photo)
   }
+  const follow = pickedFollow ?? own.find((r) => r.kind === 'followup')
+  if (follow) out.followup = as(follow)
   return out
 }

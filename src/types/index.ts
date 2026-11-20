@@ -79,6 +79,9 @@ export interface WaTemplate {
   /** Category Meta gave it: marketing, utility or authentication */
   category: string | null
   createdAt: string
+  /** Business it was made in (templates are a shared library for the agency) */
+  businessId?: string
+  businessName?: string
 }
 
 export type WaTemplateKind = 'initial' | 'initial_image' | 'followup' | 'followup_image'
@@ -146,6 +149,9 @@ export interface Settings {
     waFollowUpTemplateName: string
     /** WhatsApp category requested for the custom templates (default marketing) */
     waCategory?: 'marketing' | 'utility'
+    /** Templates this business sends with, picked from the shared library (row ids). Empty = its own latest approved */
+    waTemplateId?: string | null
+    waFollowUpTemplateId?: string | null
     waFollowUpCategory?: 'marketing' | 'utility'
     followUpsEnabled: boolean
   }

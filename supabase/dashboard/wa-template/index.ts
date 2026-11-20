@@ -38,6 +38,10 @@ async function isMember(admin, userId, businessId) {
   ]);
   return !!member || !!profile?.is_platform_admin;
 }
+async function isAgency(admin, userId) {
+  const { data } = await admin.from("profiles").select("account_type, is_platform_admin").eq("id", userId).maybeSingle();
+  return data?.account_type === "agency" || !!data?.is_platform_admin;
+}
 
 // supabase/functions/_shared/http.ts
 var corsHeaders = {
@@ -57,7 +61,7 @@ function preflight(req) {
 
 // supabase/functions/_shared/waTemplates.ts
 var env = (k) => Deno.env.get(k) ?? "";
-var EXAMPLES = { first_name: "Priya", review_link: "https://g.page/r/example/review" };
+var EXAMPLES = { first_name: "Priya", review_link: "https://g.page/r/example/review", business_name: "Sharma Dental Clinic", owner_name: "Rahul" };
 var SAMPLE_PHOTO_URL = () => env("DEFAULT_REVIEW_IMAGE_URL") || "https://review.localocto.com/default-personal.jpg";
 var STANDARD_TEMPLATES = [
   { kind: "initial", col: "whatsapp_template_initial", key: "WHATSAPP_TEMPLATE_INITIAL", def: "review_request", body: "Hi {{1}}, thanks for choosing {{2}}! Would you mind taking a moment to leave us a Google review? {{3}} Thank you!" },
@@ -74,10 +78,10 @@ async function metaConfig(admin, businessId) {
     lang: row?.whatsapp_template_lang || env("WHATSAPP_TEMPLATE_LANG") || "en"
   };
 }
-function buildTemplateBody(source, vars) {
-  let text = source.replace(/\{business_name\}/g, vars.businessName).replace(/\{owner_name\}/g, vars.ownerName || vars.businessName).replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+function buildTemplateBody(source, _vars) {
+  let text = source.replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   const params = [];
-  text = text.replace(/\{(first_name|review_link)\}/g, (_m, key) => {
+  text = text.replace(/\{(first_name|review_link|business_name|owner_name)\}/g, (_m, key) => {
     params.push(key);
     return `{{${params.length}}}`;
   });
@@ -174,7 +178,7 @@ async function findTemplateByName(cfg, name) {
 
 // supabase/functions/wa-template/index.ts
 var cleanName = (v) => (v ?? "").toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "").slice(0, 60);
-var COLS = "id, kind, name, language, body, status, reason, category, created_at, updated_at";
+var COLS = "id, business_id, kind, name, language, body, params, status, reason, category, created_at, updated_at, businesses(name)";
 var errText = (e) => e instanceof Error ? e.message : String(e);
 function photoHandle(cfg) {
   let p = null;
@@ -191,6 +195,7 @@ Deno.serve(async (req) => {
   if (!businessId) return json({ error: "businessId is required" }, 400);
   if (!await isMember(admin, user.id, businessId)) return json({ error: "Not allowed" }, 403);
   const cfg = await metaConfig(admin, businessId);
+  const agency = await isAgency(admin, user.id);
   if (!cfg.wabaId || !cfg.token) return json({ error: "WhatsApp is not connected yet (WHATSAPP_WABA_ID / WHATSAPP_ACCESS_TOKEN missing)" }, 400);
   const getPhoto = photoHandle(cfg);
   const warnings = [];
@@ -242,7 +247,9 @@ Deno.serve(async (req) => {
     }
   }
   if (action === "delete") {
-    const { data: t } = await admin.from("whatsapp_templates").select("id, name, meta_template_id").eq("id", templateId ?? "").eq("business_id", businessId).maybeSingle();
+    let q = admin.from("whatsapp_templates").select("id, name, meta_template_id").eq("id", templateId ?? "");
+    if (!agency) q = q.eq("business_id", businessId);
+    const { data: t } = await q.maybeSingle();
     if (!t) return json({ error: "Template not found" }, 404);
     const { count } = await admin.from("whatsapp_templates").select("id", { count: "exact", head: true }).eq("name", t.name).neq("id", t.id);
     try {
@@ -252,7 +259,9 @@ Deno.serve(async (req) => {
     }
     await admin.from("whatsapp_templates").delete().eq("id", t.id);
   }
-  const { data: open } = await admin.from("whatsapp_templates").select("id, name").eq("business_id", businessId).or("status.in.(not_created,pending,paused),and(status.eq.approved,category.is.null)");
+  let openQ = admin.from("whatsapp_templates").select("id, name").or("status.in.(not_created,pending,paused),and(status.eq.approved,category.is.null)");
+  if (!agency) openQ = openQ.eq("business_id", businessId);
+  const { data: open } = await openQ;
   for (const t of open ?? []) {
     try {
       const found = await findTemplateByName(cfg, t.name);
@@ -263,6 +272,8 @@ Deno.serve(async (req) => {
       warnings.push(errText(e));
     }
   }
-  const { data: rows } = await admin.from("whatsapp_templates").select(COLS).eq("business_id", businessId).order("created_at", { ascending: false }).limit(30);
+  let listQ = admin.from("whatsapp_templates").select(COLS).order("created_at", { ascending: false }).limit(agency ? 200 : 30);
+  if (!agency) listQ = listQ.eq("business_id", businessId);
+  const { data: rows } = await listQ;
   return json({ ok: true, templates: rows ?? [], warnings: [...new Set(warnings)] });
 });

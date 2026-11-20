@@ -19,6 +19,9 @@ export interface Messaging {
   customFollowUp?: string
   /** WhatsApp: 'standard' templates, or the agency's own approved 'custom' templates */
   waMode?: 'standard' | 'custom'
+  /** chosen templates from the shared library (row ids); empty = this business's own latest approved */
+  waTemplateId?: string | null
+  waFollowUpTemplateId?: string | null
   followUpsEnabled?: boolean
 }
 
@@ -224,8 +227,13 @@ export async function deliver(input: DeliverInput): Promise<DeliverResult> {
 
     // WhatsApp custom mode: the agency's own approved template, when there is one (otherwise the standard one)
     if (input.messaging.waMode === 'custom') {
-      const custom = await approvedTemplates(input.admin, input.businessId)
-      const values: Record<ParamKey, string> = { first_name: waName, review_link: input.link }
+      const custom = await approvedTemplates(input.admin, input.businessId, { initial: input.messaging.waTemplateId, followup: input.messaging.waFollowUpTemplateId })
+      const values: Record<ParamKey, string> = {
+        first_name: waName,
+        review_link: input.link,
+        business_name: input.businessName,
+        owner_name: input.messaging.ownerFirstName || input.businessName,
+      }
       const pick = isFollow ? custom.followup : photo ? custom.initial_image : custom.initial
       if (pick) {
         template = pick.name

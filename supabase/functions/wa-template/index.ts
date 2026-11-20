@@ -9,7 +9,7 @@
 //  - submit_standard: submits whichever of the 4 standard templates don't exist yet, then returns their status.
 // Only the WABA ID + access token are needed. The app ID for the sample-photo upload is read from the token.
 
-import { adminClient, getUser, isMember } from '../_shared/supabase.ts'
+import { adminClient, getUser, isAgency, isMember } from '../_shared/supabase.ts'
 import { json, preflight } from '../_shared/http.ts'
 import {
   buildTemplateBody,
@@ -40,7 +40,7 @@ interface Messaging {
 /** WhatsApp template names: lowercase letters, numbers and underscores. */
 const cleanName = (v?: string) => (v ?? '').toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60)
 
-const COLS = 'id, kind, name, language, body, status, reason, category, created_at, updated_at'
+const COLS = 'id, business_id, kind, name, language, body, params, status, reason, category, created_at, updated_at, businesses(name)'
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 /** One sample-photo upload per request, shared by every photo template submitted in it. */
@@ -68,6 +68,8 @@ Deno.serve(async (req) => {
   if (!(await isMember(admin, user.id, businessId))) return json({ error: 'Not allowed' }, 403)
 
   const cfg = await metaConfig(admin, businessId)
+  // Agency accounts work with the shared template library (every business's custom templates)
+  const agency = await isAgency(admin, user.id)
   if (!cfg.wabaId || !cfg.token) return json({ error: 'WhatsApp is not connected yet (WHATSAPP_WABA_ID / WHATSAPP_ACCESS_TOKEN missing)' }, 400)
 
   const getPhoto = photoHandle(cfg)
@@ -130,7 +132,9 @@ Deno.serve(async (req) => {
 
   // Delete a custom template (this business's own only): from WhatsApp first, then from the app
   if (action === 'delete') {
-    const { data: t } = await admin.from('whatsapp_templates').select('id, name, meta_template_id').eq('id', templateId ?? '').eq('business_id', businessId).maybeSingle()
+    let q = admin.from('whatsapp_templates').select('id, name, meta_template_id').eq('id', templateId ?? '')
+    if (!agency) q = q.eq('business_id', businessId) // clients: only their own business's templates
+    const { data: t } = await q.maybeSingle()
     if (!t) return json({ error: 'Template not found' }, 404)
     // Only delete in Meta if no other business row uses the same template name (the WhatsApp account is shared)
     const { count } = await admin.from('whatsapp_templates').select('id', { count: 'exact', head: true }).eq('name', t.name).neq('id', t.id)
@@ -143,11 +147,12 @@ Deno.serve(async (req) => {
   }
 
   // Check every template that isn't final yet (also runs right after submit)
-  const { data: open } = await admin
+  let openQ = admin
     .from('whatsapp_templates')
     .select('id, name')
-    .eq('business_id', businessId)
     .or('status.in.(not_created,pending,paused),and(status.eq.approved,category.is.null)')
+  if (!agency) openQ = openQ.eq('business_id', businessId)
+  const { data: open } = await openQ
   for (const t of open ?? []) {
     try {
       const found = await findTemplateByName(cfg, t.name)
@@ -159,6 +164,8 @@ Deno.serve(async (req) => {
     }
   }
 
-  const { data: rows } = await admin.from('whatsapp_templates').select(COLS).eq('business_id', businessId).order('created_at', { ascending: false }).limit(30)
+  let listQ = admin.from('whatsapp_templates').select(COLS).order('created_at', { ascending: false }).limit(agency ? 200 : 30)
+  if (!agency) listQ = listQ.eq('business_id', businessId)
+  const { data: rows } = await listQ
   return json({ ok: true, templates: rows ?? [], warnings: [...new Set(warnings)] })
 })

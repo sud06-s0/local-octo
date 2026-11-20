@@ -226,17 +226,30 @@ function WhatsAppApproval({
       setDeleting(false)
     }
   }
-  const latest = kinds.map((k) => ({ kind: k, t: templates.find((x) => x.kind === k) }))
-  const anyOpen = latest.some((l) => l.t)
-  const anyBad = latest.some((l) => l.t && ['rejected', 'failed', 'disabled'].includes(l.t.status))
+  const { state, activeBusinessId, updateSettings } = useStore()
+  const m = state.settings.messaging
+  // Shared library: every custom template the agency made, in any business
+  const list = templates.filter((t) => kinds.includes(t.kind))
+  const anyOpen = list.some((t) => ['pending', 'not_created', 'paused'].includes(t.status))
+  const anyBad = list.some((t) => ['rejected', 'failed', 'disabled'].includes(t.status))
+  // Which one this business sends with: the one it picked, else its own latest approved
+  const inUse = (kind: 'initial' | 'followup') => {
+    const picked = kind === 'initial' ? m.waTemplateId : m.waFollowUpTemplateId
+    if (picked && templates.some((t) => t.id === picked && t.status === 'approved')) return picked
+    return templates.find((t) => t.kind === kind && t.status === 'approved' && t.businessId === activeBusinessId)?.id ?? null
+  }
+  const use = (t: WaTemplate) => {
+    updateSettings('messaging', t.kind === 'initial' ? { waTemplateId: t.id } : { waFollowUpTemplateId: t.id })
+    toast(`${t.name} is now used for this business`)
+  }
   return (
     <div className="mt-5 rounded-xl border border-line bg-canvas/60 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="flex items-center gap-2 text-[15px] font-semibold">
-          <MessageCircle className="size-4 text-brand-800" /> WhatsApp approval
+          <MessageCircle className="size-4 text-brand-800" /> Template library
         </p>
         <div className="flex gap-2">
-          {anyOpen && (
+          {list.length > 0 && (
             <Button size="sm" variant="outline" icon={RefreshCw} disabled={busy} onClick={onRefresh}>
               Check WhatsApp
             </Button>
@@ -244,50 +257,60 @@ function WhatsAppApproval({
         </div>
       </div>
       <p className="mt-1 text-xs text-muted">
-        WhatsApp only sends messages Meta has approved. Until yours is approved, customers get the standard message.
+        Templates from all businesses. Pick the approved one this business should send; until one is approved, customers get the
+        standard message.
+        {anyOpen && <span className="mt-1 block">Waiting for WhatsApp — press Check WhatsApp to update.</span>}
         {anyBad && <span className="mt-1 block text-red-600">To submit again, change the template name above and save. WhatsApp doesn't reuse a name.</span>}
       </p>
-      <ul className="mt-3 space-y-2.5">
-        {latest.map(({ kind, t }) => (
-          <li key={kind} className="rounded-lg bg-white p-3 ring-1 ring-line">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-sm font-medium">{KIND_LABEL[kind]}</span>
-              {t ? (
-                <span className="flex flex-wrap gap-1.5">
-                  <CategoryBadge category={t.category} />
-                  <Badge tone={STATUS_STYLE[t.status].tone}>{STATUS_STYLE[t.status].label}</Badge>
-                </span>
-              ) : (
-                <Badge tone="gray">Not submitted yet</Badge>
-              )}
-            </div>
-            {t && (
-              <>
+      {!list.length ? (
+        <p className="mt-3 rounded-lg bg-white p-3 text-sm text-muted ring-1 ring-line">No templates yet</p>
+      ) : (
+        <ul className="mt-3 max-h-[520px] space-y-2.5 overflow-y-auto">
+          {list.map((t) => {
+            const primary = t.kind === 'initial' || t.kind === 'followup'
+            const active = primary && inUse(t.kind as 'initial' | 'followup') === t.id
+            return (
+              <li key={t.id} className={cn('rounded-lg bg-white p-3 ring-1', active ? 'ring-brand-400' : 'ring-line')}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm font-medium">{KIND_LABEL[t.kind]}</span>
+                  <span className="flex flex-wrap gap-1.5">
+                    {active && <Badge tone="green">In use here</Badge>}
+                    <CategoryBadge category={t.category} />
+                    <Badge tone={STATUS_STYLE[t.status].tone}>{STATUS_STYLE[t.status].label}</Badge>
+                  </span>
+                </div>
                 <p className="mt-1.5 whitespace-pre-line text-xs leading-relaxed text-muted">{t.body}</p>
                 {t.reason && <p className={cn('mt-1.5 text-xs', t.status === 'approved' ? 'text-muted' : 'text-red-600')}>{t.reason}</p>}
-                <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+                <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
                   <p className="text-[11px] text-muted">
-                    Submitted {timeAgo(t.createdAt)} · {t.name}
+                    {t.name} · made in {t.businessId === activeBusinessId ? 'this business' : t.businessName || 'another business'} · {timeAgo(t.createdAt)}
                   </p>
-                  {confirmId === t.id ? (
-                    <span className="flex items-center gap-2 text-xs">
-                      <span className="text-red-700">Delete from WhatsApp too?</span>
-                      <button type="button" disabled={deleting} onClick={() => remove(t)} className="rounded-md bg-red-600 px-2 py-1 font-medium text-white hover:bg-red-700 disabled:opacity-60">
-                        {deleting ? 'Deleting…' : 'Delete'}
+                  <span className="flex items-center gap-1">
+                    {primary && t.status === 'approved' && !active && (
+                      <button type="button" onClick={() => use(t)} className="rounded-md px-2 py-1 text-xs font-medium text-brand-800 hover:bg-brand-50">
+                        Use for this business
                       </button>
-                      <button type="button" disabled={deleting} onClick={() => setConfirmId(null)} className="rounded-md px-2 py-1 font-medium text-muted hover:bg-canvas">Cancel</button>
-                    </span>
-                  ) : (
-                    <button type="button" onClick={() => setConfirmId(t.id)} className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-muted hover:bg-red-50 hover:text-red-700">
-                      <Trash2 className="size-3.5" /> Delete
-                    </button>
-                  )}
+                    )}
+                    {confirmId === t.id ? (
+                      <span className="flex items-center gap-2 text-xs">
+                        <span className="text-red-700">Delete from WhatsApp too?</span>
+                        <button type="button" disabled={deleting} onClick={() => remove(t)} className="rounded-md bg-red-600 px-2 py-1 font-medium text-white hover:bg-red-700 disabled:opacity-60">
+                          {deleting ? 'Deleting…' : 'Delete'}
+                        </button>
+                        <button type="button" disabled={deleting} onClick={() => setConfirmId(null)} className="rounded-md px-2 py-1 font-medium text-muted hover:bg-canvas">Cancel</button>
+                      </span>
+                    ) : (
+                      <button type="button" onClick={() => setConfirmId(t.id)} className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-muted hover:bg-red-50 hover:text-red-700">
+                        <Trash2 className="size-3.5" /> Delete
+                      </button>
+                    )}
+                  </span>
                 </div>
-              </>
-            )}
-          </li>
-        ))}
-      </ul>
+              </li>
+            )
+          })}
+        </ul>
+      )}
     </div>
   )
 }
