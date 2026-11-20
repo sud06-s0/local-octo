@@ -1,6 +1,6 @@
 // src/pages/Messaging.tsx
 import { forwardRef, useEffect, useRef, useState } from 'react'
-import { Bell, CircleCheck, Clock, Calendar, ImagePlus, Mail, MessageCircle, MessageSquare, RefreshCw, Smartphone, Sparkles, TrendingUp, Trash2, CircleStop } from 'lucide-react'
+import { Bell, CircleCheck, Clock, Calendar, ImagePlus, Mail, MessageCircle, MessageSquare, RefreshCw, Reply, Send, Smartphone, Sparkles, TrendingUp, Trash2, CircleStop } from 'lucide-react'
 import { Badge, Button, Card, Input, Label, PageHeader, Segmented, Textarea, Toggle } from '../components/ui/primitives'
 import { IncomingBubble, OutgoingBubble, PhoneMockup } from '../components/ui/PhoneMockup'
 import { Modal } from '../components/ui/Modal'
@@ -318,14 +318,14 @@ function WhatsAppApproval({
 const cleanName = (v: string) => v.replace(/^_+|_+$/g, '')
 
 /** Name the business gives its WhatsApp template (shown in WhatsApp Manager). */
-function TemplateNameField({ id, value, onChange, placeholder }: { id: string; value: string; onChange: (v: string) => void; placeholder: string }) {
+function TemplateNameField({ id, value, onChange, placeholder, photo = true }: { id: string; value: string; onChange: (v: string) => void; placeholder: string; photo?: boolean }) {
   const n = cleanName(value)
   return (
     <div className="mt-4">
       <Label htmlFor={id}>Template name</Label>
       <Input id={id} value={value} placeholder={placeholder} onChange={(e) => onChange(toTemplateName(e.target.value))} />
       <p className="mt-1 text-xs text-muted">
-        Lowercase letters, numbers and _ only.{n && <> The photo version is named <span className="font-mono">{n}_photo</span>.</>}
+        Lowercase letters, numbers and _ only.{photo && n && <> The photo version is named <span className="font-mono">{n}_photo</span>.</>}
       </p>
     </div>
   )
@@ -433,6 +433,7 @@ export default function Messaging() {
   const [waFollow, setWaFollow] = useState(m.waFollowUp)
   const [waName, setWaName] = useState(m.waTemplateName ?? '')
   const [waFollowName, setWaFollowName] = useState(m.waFollowUpTemplateName ?? '')
+  const [waFor, setWaFor] = useState<'initial' | 'followup'>('initial')
   const [waCat, setWaCat] = useState<'marketing' | 'utility'>(m.waCategory ?? 'marketing')
   const [waFollowCat, setWaFollowCat] = useState<'marketing' | 'utility'>(m.waFollowUpCategory ?? 'marketing')
   const [waBusy, setWaBusy] = useState(false)
@@ -617,7 +618,24 @@ export default function Messaging() {
                 <div className="mb-6 border-b border-line pb-6">
                   <h2 className="text-lg font-semibold">Custom WhatsApp Template</h2>
                   <p className="mt-0.5 text-[15px] text-muted">{'Write the template and send it to WhatsApp for approval'}</p>
-                  <>
+                  {/* Which message this template is for: first message (text + photo versions) or follow-up (one text-only template) */}
+                  <p className="mb-1.5 mt-4 text-sm font-medium">Template for</p>
+                  <Segmented
+                    className="w-full sm:w-full sm:[&>button]:flex-1"
+                    value={waFor}
+                    onChange={setWaFor}
+                    options={[
+                      { value: 'initial', label: 'First message', icon: Send },
+                      { value: 'followup', label: 'Follow-up', icon: Reply },
+                    ]}
+                  />
+                  <p className="mt-1.5 text-xs text-muted">
+                    {waFor === 'initial'
+                      ? 'First message: sent as 2 templates, with photo and without (the photo one is used while Personalized Image is on).'
+                      : `Follow-up: one text-only template, sent if the customer hasn't clicked the review link.${m.followUpsEnabled ? '' : ' Follow-ups are off right now (Contacts → Schedule Requests).'}`}
+                  </p>
+                  {waFor === 'initial' ? (
+                    <>
                       <TemplateNameField id="wa-name" value={waName} onChange={setWaName} placeholder="e.g. review_request_localocto" />
                       <CategoryPicker value={waCat} onChange={setWaCat} />
                       <TokenChips onInsert={(t) => setWaMsg((v) => (v + ' ' + t).slice(0, MAX_CHARS))} />
@@ -638,6 +656,28 @@ export default function Messaging() {
                       </Button>
                       <WhatsAppApproval kinds={['initial', 'initial_image']} templates={waTemplates} busy={waBusy} onRefresh={refreshWa} />
                     </>
+                  ) : (
+                    <>
+                    <TemplateNameField id="wa-follow-name" value={waFollowName} onChange={setWaFollowName} placeholder="e.g. review_followup_localocto" photo={false} />
+                    <CategoryPicker value={waFollowCat} onChange={setWaFollowCat} />
+                    <TokenChips onInsert={(t) => setWaFollow((v) => (v + ' ' + t).slice(0, MAX_CHARS))} />
+                    <CounterTextarea value={waFollow} onChange={setWaFollow} rows={4} />
+                    <Button
+                      className="mt-4 w-full"
+                      disabled={
+                        !waFollow.trim() || !waFollow.includes('{review_link}') || !cleanName(waFollowName) ||
+                        (waFollow === m.waFollowUp && cleanName(waFollowName) === (m.waFollowUpTemplateName ?? '') && waFollowCat === (m.waFollowUpCategory ?? 'marketing')) || waBusy
+                      }
+                      onClick={() => {
+                        setWaFollowName(cleanName(waFollowName))
+                        saveAndSubmit({ waFollowUp: waFollow, waFollowUpTemplateName: cleanName(waFollowName), waFollowUpCategory: waFollowCat }, ['followup'], 'Follow-up template saved')
+                      }}
+                    >
+                      {waBusy ? 'Submitting…' : 'Save & Submit for Approval'}
+                    </Button>
+                    <WhatsAppApproval kinds={['followup']} templates={waTemplates} busy={waBusy} onRefresh={refreshWa} />
+                    </>
+                  )}
                 </div>
               ) : null
             ) : m.mode === 'smart' ? (
@@ -788,36 +828,6 @@ export default function Messaging() {
               </p>
               <p className="mt-1 pl-7 text-[15px] text-brand-800">We'll send gentle reminders to customers who haven't left a review yet.</p>
             </div>
-            {/* Always shown in custom mode, so follow-up templates can be made even while follow-ups are off */}
-            {channel === 'whatsapp' && isAgency && m.waMode === 'custom' && (
-              <div className="mt-6 border-t border-line pt-5">
-                <p className="text-[16px] font-semibold">Custom WhatsApp Follow-up Template</p>
-                <p className="mt-0.5 text-[15px] text-muted">
-                  Text only (one template, no photo). Sent if the customer hasn't clicked your review link
-                  {!m.followUpsEnabled && ' — follow-ups are off right now (Contacts → Schedule Requests)'}.
-                </p>
-                <>
-                    <TemplateNameField id="wa-follow-name" value={waFollowName} onChange={setWaFollowName} placeholder="e.g. review_followup_localocto" />
-                    <CategoryPicker value={waFollowCat} onChange={setWaFollowCat} />
-                    <TokenChips onInsert={(t) => setWaFollow((v) => (v + ' ' + t).slice(0, MAX_CHARS))} />
-                    <CounterTextarea value={waFollow} onChange={setWaFollow} rows={4} />
-                    <Button
-                      className="mt-4 w-full"
-                      disabled={
-                        !waFollow.trim() || !waFollow.includes('{review_link}') || !cleanName(waFollowName) ||
-                        (waFollow === m.waFollowUp && cleanName(waFollowName) === (m.waFollowUpTemplateName ?? '') && waFollowCat === (m.waFollowUpCategory ?? 'marketing')) || waBusy
-                      }
-                      onClick={() => {
-                        setWaFollowName(cleanName(waFollowName))
-                        saveAndSubmit({ waFollowUp: waFollow, waFollowUpTemplateName: cleanName(waFollowName), waFollowUpCategory: waFollowCat }, ['followup'], 'Follow-up template saved')
-                      }}
-                    >
-                      {waBusy ? 'Submitting…' : 'Save & Submit for Approval'}
-                    </Button>
-                    <WhatsAppApproval kinds={['followup']} templates={waTemplates} busy={waBusy} onRefresh={refreshWa} />
-                  </>
-              </div>
-            )}
             {channel !== 'whatsapp' && m.mode === 'custom' && m.followUpsEnabled && (
               <div className="mt-6 border-t border-line pt-5">
                 <p className="text-[16px] font-semibold">Custom Follow-up Message</p>
