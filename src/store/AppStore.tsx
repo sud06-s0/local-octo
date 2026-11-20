@@ -60,6 +60,8 @@ interface AppStore {
   addContacts: (items: NewContact[], source?: 'manual' | 'csv') => Promise<AddResult>
   updateContact: (id: string, patch: Partial<Contact>) => void
   requestsThisMonth: number
+  /** Reload contacts from the database (used for auto-refresh on the Contacts page) */
+  refreshContacts: () => Promise<void>
   /** Reload the list of businesses this login can open (e.g. after creating one for a client) */
   refreshBusinesses: () => Promise<BusinessSummary[]>
   deleteContact: (id: string) => void
@@ -459,6 +461,18 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     [activeId, check, toast, updateSettings],
   )
 
+  /** Re-reads contacts + this month's count (sending happens on the server, so the list would otherwise go stale). */
+  const refreshContacts = useCallback(async () => {
+    if (!isLive || !activeId) return
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+    const [contacts, monthSent] = await Promise.all([
+      db().from('contacts').select('*').eq('business_id', activeId).order('created_at', { ascending: false }).limit(2000),
+      db().from('messages').select('id', { count: 'exact', head: true }).eq('business_id', activeId).in('kind', ['initial', 'follow_up']).neq('status', 'failed').gte('created_at', monthStart),
+    ])
+    if (!contacts.error) setState((st) => ({ ...st, contacts: (contacts.data ?? []).map(toContact) }))
+    if (!monthSent.error) setRequestsThisMonth(monthSent.count ?? 0)
+  }, [activeId])
+
   /** Uploads a file to the business's storage folder and returns its public URL (demo: data URL). */
   const uploadBusinessAsset = useCallback(
     async (file: File, prefix: string) => {
@@ -685,6 +699,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       addContacts,
       updateContact,
       requestsThisMonth,
+      refreshContacts,
       refreshBusinesses: loadBusinesses,
       deleteContact,
       updateSettings,
@@ -698,7 +713,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       refresh,
       resetDemo,
     }),
-    [loading, state, businesses, activeId, keys, feedback, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, submitStandardTemplates, switchBusiness, createBusiness, importFromGoogle, google, refreshGoogle, connectGoogle, googleLocations, selectGoogleLocation, syncGoogleReviews, disconnectGoogle, postReviewReply, deleteReviewReply, addContacts, updateContact, requestsThisMonth, loadBusinesses, deleteContact, updateSettings, setReviewReply, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, refresh, resetDemo],
+    [loading, state, businesses, activeId, keys, feedback, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, submitStandardTemplates, switchBusiness, createBusiness, importFromGoogle, google, refreshGoogle, connectGoogle, googleLocations, selectGoogleLocation, syncGoogleReviews, disconnectGoogle, postReviewReply, deleteReviewReply, addContacts, updateContact, requestsThisMonth, refreshContacts, loadBusinesses, deleteContact, updateSettings, setReviewReply, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, refresh, resetDemo],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

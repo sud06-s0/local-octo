@@ -1,5 +1,5 @@
 // src/pages/Contacts.tsx
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { Ban, CalendarClock, CircleStop, Ellipsis, Filter, Reply, Search, Send, Trash2, UserPlus, Users } from 'lucide-react'
 import { Badge, Button, Card, Checkbox, EmptyState, PageHeader, Segmented } from '../components/ui/primitives'
@@ -28,7 +28,21 @@ export default function Contacts() {
   const tabParam = params.get('tab')
   const tab: Tab = tabParam === 'add' || tabParam === 'schedule' ? tabParam : 'list'
   const setTab = (t: Tab) => setParams(t === 'list' ? {} : { tab: t }, { replace: true })
-  const { state, mode, updateContact, deleteContact, requestsThisMonth } = useStore()
+  const { state, mode, updateContact, deleteContact, requestsThisMonth, refreshContacts } = useStore()
+
+  // Messages go out in the background, so keep the list fresh: every 20 s while open, and when you come back to the tab
+  useEffect(() => {
+    if (mode !== 'live') return
+    const tick = () => { if (document.visibilityState === 'visible') void refreshContacts() }
+    const timer = window.setInterval(tick, 20_000)
+    document.addEventListener('visibilitychange', tick)
+    window.addEventListener('focus', tick)
+    return () => {
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', tick)
+      window.removeEventListener('focus', tick)
+    }
+  }, [mode, refreshContacts])
   const anytime = !!state.settings.scheduling.sendAnytime
   const toast = useToast()
   const [query, setQuery] = useState('')
