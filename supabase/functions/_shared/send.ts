@@ -3,7 +3,7 @@
 // Every provider needs PRE-APPROVED templates — see SETUP.md for the exact template text.
 
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
-import { approvedTemplates, type ParamKey } from './waTemplates.ts'
+import { approvedTemplates, defaultFollowUp, type ParamKey } from './waTemplates.ts'
 
 type Kind = 'initial' | 'follow_up' | 'test'
 type Channel = 'whatsapp' | 'sms' | 'email'
@@ -225,21 +225,26 @@ export async function deliver(input: DeliverInput): Promise<DeliverResult> {
     const header = photo
     let lang: string | undefined
 
-    // WhatsApp custom mode: the agency's own approved template, when there is one (otherwise the standard one)
-    if (input.messaging.waMode === 'custom') {
-      const custom = await approvedTemplates(input.admin, input.businessId, { initial: input.messaging.waTemplateId, followup: input.messaging.waFollowUpTemplateId })
-      const values: Record<ParamKey, string> = {
-        first_name: waName,
-        review_link: input.link,
-        business_name: input.businessName,
-        owner_name: input.messaging.ownerFirstName || input.businessName,
-      }
-      const pick = isFollow ? custom.followup : photo ? custom.initial_image : custom.initial
-      if (pick) {
-        template = pick.name
-        lang = pick.language
-        params = pick.params.map((p) => values[p] ?? '')
-      }
+    const values: Record<ParamKey, string> = {
+      first_name: waName,
+      review_link: input.link,
+      business_name: input.businessName,
+      owner_name: input.messaging.ownerFirstName || input.businessName,
+    }
+    // WhatsApp custom mode: the agency's approved custom templates (otherwise the standard ones).
+    // Follow-ups also use the agency's "default for all businesses" follow-up in Standard mode.
+    const pick =
+      input.messaging.waMode === 'custom'
+        ? (await approvedTemplates(input.admin, input.businessId, { initial: input.messaging.waTemplateId, followup: input.messaging.waFollowUpTemplateId }))[
+            isFollow ? 'followup' : photo ? 'initial_image' : 'initial'
+          ]
+        : isFollow
+          ? await defaultFollowUp(input.admin)
+          : undefined
+    if (pick) {
+      template = pick.name
+      lang = pick.language
+      params = pick.params.map((p) => values[p] ?? '')
     }
 
     attempts.push({

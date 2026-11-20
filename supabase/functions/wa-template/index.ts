@@ -40,7 +40,7 @@ interface Messaging {
 /** WhatsApp template names: lowercase letters, numbers and underscores. */
 const cleanName = (v?: string) => (v ?? '').toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60)
 
-const COLS = 'id, business_id, kind, name, language, body, params, status, reason, category, created_at, updated_at, businesses(name)'
+const COLS = 'id, business_id, kind, name, language, body, params, status, reason, category, is_default, created_at, updated_at, businesses(name)'
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 /** One sample-photo upload per request, shared by every photo template submitted in it. */
@@ -58,10 +58,12 @@ Deno.serve(async (req) => {
   const user = await getUser(req, admin)
   if (!user) return json({ error: 'Sign in required' }, 401)
 
-  const { businessId, action = 'refresh', kinds, templateId } = (await req.json().catch(() => ({}))) as {
+  const { businessId, action = 'refresh', kinds, templateId, standardKinds } = (await req.json().catch(() => ({}))) as {
     businessId?: string
     templateId?: string
-    action?: 'submit' | 'refresh' | 'standard' | 'submit_standard' | 'delete'
+    action?: 'submit' | 'refresh' | 'standard' | 'submit_standard' | 'delete' | 'set_default' | 'delete_standard'
+    /** submit_standard / delete_standard: which standard templates (follow-up is optional, only when asked) */
+    standardKinds?: TemplateKind[]
     kinds?: Array<'initial' | 'followup'>
   }
   if (!businessId) return json({ error: 'businessId is required' }, 400)
@@ -75,7 +77,21 @@ Deno.serve(async (req) => {
   const getPhoto = photoHandle(cfg)
   const warnings: string[] = []
 
-  if (action === 'standard' || action === 'submit_standard') {
+  // Delete a standard template from WhatsApp (agency only) — e.g. the optional marketing follow-up
+  if (action === 'delete_standard') {
+    if (!agency) return json({ error: 'Only the agency can delete templates' }, 403)
+    const { data: ch } = await admin.from('business_channels').select('*').eq('business_id', businessId).maybeSingle()
+    for (const t of STANDARD_TEMPLATES.filter((x) => standardKinds?.includes(x.kind))) {
+      const name = (ch?.[t.col] as string) || (Deno.env.get(t.key) ?? '') || t.def
+      try {
+        await deleteTemplate(cfg, name)
+      } catch (e) {
+        return json({ error: `WhatsApp could not delete ${name}: ${errText(e)}` }, 400)
+      }
+    }
+  }
+
+  if (action === 'standard' || action === 'submit_standard' || action === 'delete_standard') {
     const { data: ch } = await admin.from('business_channels').select('*').eq('business_id', businessId).maybeSingle()
     const env = (k: string) => Deno.env.get(k) ?? ''
     const standard = []
@@ -83,7 +99,9 @@ Deno.serve(async (req) => {
       const name = (ch?.[t.col] as string) || env(t.key) || t.def
       try {
         let found = await findTemplateByName(cfg, name)
-        if (!found && action === 'submit_standard') {
+        // The standard follow-up is optional: only submitted when asked for (the default follow-up is a custom one)
+        const wanted = standardKinds?.length ? standardKinds.includes(t.kind) : t.kind !== 'followup'
+        if (!found && action === 'submit_standard' && wanted) {
           const header = t.kind.endsWith('_image') ? await getPhoto() : undefined
           const created = await createTemplate(cfg, name, t.body, STANDARD_EXAMPLE, header)
           found = { id: created.id, status: created.status, reason: null, language: cfg.lang, category: created.category }
@@ -144,6 +162,15 @@ Deno.serve(async (req) => {
       return json({ error: `WhatsApp could not delete it: ${errText(e)}` }, 400)
     }
     await admin.from('whatsapp_templates').delete().eq('id', t.id)
+  }
+
+  // Make one follow-up the default for all businesses (agency only); pressing it again on the default turns it off
+  if (action === 'set_default') {
+    if (!agency) return json({ error: 'Only the agency can set the default' }, 403)
+    const { data: t } = await admin.from('whatsapp_templates').select('id, kind, is_default').eq('id', templateId ?? '').maybeSingle()
+    if (!t) return json({ error: 'Template not found' }, 404)
+    await admin.from('whatsapp_templates').update({ is_default: false }).eq('kind', t.kind).neq('id', t.id)
+    await admin.from('whatsapp_templates').update({ is_default: !t.is_default }).eq('id', t.id)
   }
 
   // Check every template that isn't final yet (also runs right after submit)

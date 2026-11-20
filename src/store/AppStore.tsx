@@ -42,7 +42,11 @@ interface AppStore {
   submitWhatsAppTemplates: (kinds: Array<'initial' | 'followup'>) => Promise<string[]>
   refreshWhatsAppTemplates: () => Promise<string[]>
   checkStandardTemplates: () => Promise<WaStandardTemplate[]>
-  submitStandardTemplates: () => Promise<WaStandardTemplate[]>
+  submitStandardTemplates: (kinds?: WaTemplateKind[]) => Promise<WaStandardTemplate[]>
+  /** Delete standard templates from WhatsApp (agency), e.g. the optional marketing follow-up */
+  deleteStandardTemplates: (kinds: WaTemplateKind[]) => Promise<WaStandardTemplate[]>
+  /** Make a follow-up the default for all businesses (again on the default = turn off) */
+  setDefaultTemplate: (templateId: string) => Promise<void>
   switchBusiness: (id: string) => void
   createBusiness: (input: { name: string; address?: string; reviewLink?: string; mapsUrl?: string }) => Promise<void>
   importFromGoogle: (placeId: string) => Promise<{ added: number; imported: number }>
@@ -124,6 +128,7 @@ const toWaTemplate = (r: Row): WaTemplate => ({
   createdAt: r.created_at,
   businessId: r.business_id,
   businessName: (r.businesses as Row | null)?.name ?? undefined,
+  isDefault: !!r.is_default,
 })
 
 const toFeedback = (r: Row): CustomerFeedback => {
@@ -575,14 +580,36 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     return res.standard
   }, [activeId])
 
-  const submitStandardTemplates = useCallback(async (): Promise<WaStandardTemplate[]> => {
+  const submitStandardTemplates = useCallback(async (kinds?: WaTemplateKind[]): Promise<WaStandardTemplate[]> => {
     if (!isLive) {
       const list = await checkStandardTemplates()
-      return list.map((t) => (t.status === 'not_created' || t.status === 'failed' ? { ...t, status: 'pending', reason: null, category: 'marketing' } : t))
+      const want = (k: WaTemplateKind) => (kinds?.length ? kinds.includes(k) : k !== 'followup')
+      return list.map((t) => ((t.status === 'not_created' || t.status === 'failed') && want(t.kind) ? { ...t, status: 'pending', reason: null, category: 'marketing' } : t))
     }
-    const res = await invokeFn<{ standard: WaStandardTemplate[] }>('wa-template', { businessId: activeId, action: 'submit_standard' })
+    const res = await invokeFn<{ standard: WaStandardTemplate[] }>('wa-template', { businessId: activeId, action: 'submit_standard', standardKinds: kinds })
     return res.standard
   }, [activeId, checkStandardTemplates])
+
+  const deleteStandardTemplates = useCallback(async (kinds: WaTemplateKind[]): Promise<WaStandardTemplate[]> => {
+    if (!isLive) {
+      const list = await checkStandardTemplates()
+      return list.map((t) => (kinds.includes(t.kind) ? { ...t, status: 'not_created', reason: null, category: null } : t))
+    }
+    const res = await invokeFn<{ standard: WaStandardTemplate[] }>('wa-template', { businessId: activeId, action: 'delete_standard', standardKinds: kinds })
+    return res.standard
+  }, [activeId, checkStandardTemplates])
+
+  const setDefaultTemplate = useCallback(async (templateId: string) => {
+    if (!isLive) {
+      setWaTemplates((list) => {
+        const t = list.find((x) => x.id === templateId)
+        return list.map((x) => (x.kind === t?.kind ? { ...x, isDefault: x.id === templateId ? !x.isDefault : false } : x))
+      })
+      return
+    }
+    const res = await invokeFn<{ templates: Row[] }>('wa-template', { businessId: activeId, action: 'set_default', templateId })
+    setWaTemplates(res.templates.map(toWaTemplate))
+  }, [activeId])
 
   /* ---------- Google Business Profile (OAuth) ---------- */
   const [google, setGoogle] = useState<GoogleConnection | null>(null)
@@ -711,6 +738,8 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       refreshWhatsAppTemplates,
       checkStandardTemplates,
       submitStandardTemplates,
+      deleteStandardTemplates,
+      setDefaultTemplate,
       switchBusiness,
       createBusiness,
       importFromGoogle,
@@ -742,7 +771,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       refresh,
       resetDemo,
     }),
-    [loading, state, businesses, activeId, keys, feedback, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, submitStandardTemplates, switchBusiness, createBusiness, importFromGoogle, google, refreshGoogle, connectGoogle, googleLocations, selectGoogleLocation, syncGoogleReviews, disconnectGoogle, postReviewReply, deleteReviewReply, addContacts, updateContact, requestsThisMonth, deleteWhatsAppTemplate, deleteContacts, refreshContacts, loadBusinesses, deleteContact, updateSettings, setReviewReply, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, refresh, resetDemo],
+    [loading, state, businesses, activeId, keys, feedback, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, submitStandardTemplates, deleteStandardTemplates, setDefaultTemplate, switchBusiness, createBusiness, importFromGoogle, google, refreshGoogle, connectGoogle, googleLocations, selectGoogleLocation, syncGoogleReviews, disconnectGoogle, postReviewReply, deleteReviewReply, addContacts, updateContact, requestsThisMonth, deleteWhatsAppTemplate, deleteContacts, refreshContacts, loadBusinesses, deleteContact, updateSettings, setReviewReply, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, refresh, resetDemo],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

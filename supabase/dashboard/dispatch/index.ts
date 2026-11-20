@@ -30,7 +30,7 @@ function functionsUrl() {
 
 // supabase/functions/_shared/waTemplates.ts
 async function approvedTemplates(admin, businessId, chosen = {}) {
-  const { data } = await admin.from("whatsapp_templates").select("id, business_id, kind, name, language, params").eq("status", "approved").order("created_at", { ascending: false }).limit(500);
+  const { data } = await admin.from("whatsapp_templates").select("id, business_id, kind, name, language, params, is_default").eq("status", "approved").order("created_at", { ascending: false }).limit(500);
   const rows = data ?? [];
   const as = (r) => ({ name: r.name, language: r.language, params: r.params ?? [] });
   const out = {};
@@ -43,9 +43,14 @@ async function approvedTemplates(admin, businessId, chosen = {}) {
     const photo = rows.find((r) => r.kind === "initial_image" && r.name === `${initial.name}_photo`) ?? (pickedInitial ? void 0 : own.find((r) => r.kind === "initial_image"));
     if (photo) out.initial_image = as(photo);
   }
-  const follow = pickedFollow ?? own.find((r) => r.kind === "followup");
+  const defaultFollow = rows.find((r) => r.kind === "followup" && r.is_default);
+  const follow = pickedFollow ?? defaultFollow ?? own.find((r) => r.kind === "followup");
   if (follow) out.followup = as(follow);
   return out;
+}
+async function defaultFollowUp(admin) {
+  const { data } = await admin.from("whatsapp_templates").select("name, language, params").eq("kind", "followup").eq("status", "approved").eq("is_default", true).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  return data ? { name: data.name, language: data.language, params: data.params ?? [] } : null;
 }
 
 // supabase/functions/_shared/send.ts
@@ -164,20 +169,17 @@ async function deliver(input) {
     let params = [waName, input.businessName, input.link];
     const header = photo;
     let lang;
-    if (input.messaging.waMode === "custom") {
-      const custom = await approvedTemplates(input.admin, input.businessId, { initial: input.messaging.waTemplateId, followup: input.messaging.waFollowUpTemplateId });
-      const values = {
-        first_name: waName,
-        review_link: input.link,
-        business_name: input.businessName,
-        owner_name: input.messaging.ownerFirstName || input.businessName
-      };
-      const pick = isFollow ? custom.followup : photo ? custom.initial_image : custom.initial;
-      if (pick) {
-        template = pick.name;
-        lang = pick.language;
-        params = pick.params.map((p) => values[p] ?? "");
-      }
+    const values = {
+      first_name: waName,
+      review_link: input.link,
+      business_name: input.businessName,
+      owner_name: input.messaging.ownerFirstName || input.businessName
+    };
+    const pick = input.messaging.waMode === "custom" ? (await approvedTemplates(input.admin, input.businessId, { initial: input.messaging.waTemplateId, followup: input.messaging.waFollowUpTemplateId }))[isFollow ? "followup" : photo ? "initial_image" : "initial"] : isFollow ? await defaultFollowUp(input.admin) : void 0;
+    if (pick) {
+      template = pick.name;
+      lang = pick.language;
+      params = pick.params.map((p) => values[p] ?? "");
     }
     attempts.push({
       channel: "whatsapp",

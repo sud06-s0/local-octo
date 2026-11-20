@@ -82,6 +82,8 @@ export interface WaTemplate {
   /** Business it was made in (templates are a shared library for the agency) */
   businessId?: string
   businessName?: string
+  /** The follow-up every business uses by default */
+  isDefault?: boolean
 }
 
 export type WaTemplateKind = 'initial' | 'initial_image' | 'followup' | 'followup_image'

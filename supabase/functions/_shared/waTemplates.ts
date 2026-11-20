@@ -195,7 +195,7 @@ export async function approvedTemplates(
 ): Promise<Partial<Record<TemplateKind, ApprovedTemplate>>> {
   const { data } = await admin
     .from('whatsapp_templates')
-    .select('id, business_id, kind, name, language, params')
+    .select('id, business_id, kind, name, language, params, is_default')
     .eq('status', 'approved')
     .order('created_at', { ascending: false })
     .limit(500)
@@ -214,7 +214,23 @@ export async function approvedTemplates(
       ?? (pickedInitial ? undefined : own.find((r) => r.kind === 'initial_image'))
     if (photo) out.initial_image = as(photo)
   }
-  const follow = pickedFollow ?? own.find((r) => r.kind === 'followup')
+  // Follow-up: the business's own pick → the agency's default for all businesses → its own latest approved
+  const defaultFollow = rows.find((r) => r.kind === 'followup' && r.is_default)
+  const follow = pickedFollow ?? defaultFollow ?? own.find((r) => r.kind === 'followup')
   if (follow) out.followup = as(follow)
   return out
+}
+
+/** The follow-up "default for all businesses" (approved), used even when a business is on Standard templates. */
+export async function defaultFollowUp(admin: SupabaseClient): Promise<ApprovedTemplate | null> {
+  const { data } = await admin
+    .from('whatsapp_templates')
+    .select('name, language, params')
+    .eq('kind', 'followup')
+    .eq('status', 'approved')
+    .eq('is_default', true)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  return data ? { name: data.name, language: data.language, params: (data.params ?? []) as ParamKey[] } : null
 }

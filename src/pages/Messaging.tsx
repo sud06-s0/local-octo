@@ -69,16 +69,26 @@ function PreviewImage({ src, name }: { src: string; name: string }) {
 
 /** The 4 standard templates: submitted to Meta from here, with their approval status. */
 function StandardTemplates({ canSubmit }: { canSubmit: boolean }) {
-  const { mode, checkStandardTemplates, submitStandardTemplates } = useStore()
+  const { mode, checkStandardTemplates, submitStandardTemplates, deleteStandardTemplates } = useStore()
+  const [confirmDel, setConfirmDel] = useState(false)
   const [list, setList] = useState<WaStandardTemplate[] | null>(null)
   const [busy, setBusy] = useState<'' | 'check' | 'submit'>('')
   const [error, setError] = useState('')
 
-  const run = async (what: 'check' | 'submit') => {
-    setBusy(what)
+  const run = async (what: 'check' | 'submit' | 'submit_followup' | 'delete_followup') => {
+    setBusy(what === 'check' ? 'check' : 'submit')
     setError('')
     try {
-      setList(await (what === 'submit' ? submitStandardTemplates() : checkStandardTemplates()))
+      setList(
+        await (what === 'submit'
+          ? submitStandardTemplates()
+          : what === 'submit_followup'
+            ? submitStandardTemplates(['followup'])
+            : what === 'delete_followup'
+              ? deleteStandardTemplates(['followup'])
+              : checkStandardTemplates()),
+      )
+      setConfirmDel(false)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not reach WhatsApp')
     } finally {
@@ -86,7 +96,8 @@ function StandardTemplates({ canSubmit }: { canSubmit: boolean }) {
     }
   }
   const check = () => run('check')
-  const missing = canSubmit && list?.some((t) => t.status === 'not_created' || t.status === 'failed')
+  // The standard follow-up is optional (the agency's default follow-up is used), so it doesn't count as missing
+  const missing = canSubmit && list?.some((t) => t.kind !== 'followup' && (t.status === 'not_created' || t.status === 'failed'))
   // Clients only see what's approved
   const shown = canSubmit ? list : list?.filter((t) => t.status === 'approved')
 
@@ -132,6 +143,7 @@ function StandardTemplates({ canSubmit }: { canSubmit: boolean }) {
                   {KIND_LABEL[t.kind]} <span className="font-mono text-xs text-muted">· {t.name}</span>
                 </span>
                 <span className="flex flex-wrap gap-1.5">
+                  {t.kind === 'followup' && <Badge tone="gray">Optional</Badge>}
                   <CategoryBadge category={t.category} />
                   <Badge tone={STATUS_STYLE[t.status].tone}>{STATUS_STYLE[t.status].label}</Badge>
                 </span>
@@ -141,6 +153,28 @@ function StandardTemplates({ canSubmit }: { canSubmit: boolean }) {
                 {STANDARD_BODY[t.kind]}
               </p>
               {t.reason && <p className="mt-1.5 text-xs text-red-600">{t.reason}</p>}
+              {t.kind === 'followup' && canSubmit && (
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-[11px] text-muted">Only used when no follow-up is set as default for all businesses.</p>
+                  {t.status === 'not_created' || t.status === 'failed' ? (
+                    <button type="button" disabled={!!busy} onClick={() => run('submit_followup')} className="rounded-md px-2 py-1 text-xs font-medium text-brand-800 hover:bg-brand-50 disabled:opacity-60">
+                      Submit to WhatsApp
+                    </button>
+                  ) : confirmDel ? (
+                    <span className="flex items-center gap-2 text-xs">
+                      <span className="text-red-700">Delete from WhatsApp?</span>
+                      <button type="button" disabled={!!busy} onClick={() => run('delete_followup')} className="rounded-md bg-red-600 px-2 py-1 font-medium text-white hover:bg-red-700 disabled:opacity-60">
+                        {busy ? 'Deleting…' : 'Delete'}
+                      </button>
+                      <button type="button" disabled={!!busy} onClick={() => setConfirmDel(false)} className="rounded-md px-2 py-1 font-medium text-muted hover:bg-canvas">Cancel</button>
+                    </span>
+                  ) : (
+                    <button type="button" onClick={() => setConfirmDel(true)} className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-muted hover:bg-red-50 hover:text-red-700">
+                      <Trash2 className="size-3.5" /> Delete
+                    </button>
+                  )}
+                </div>
+              )}
             </li>
           ))}
         </ul>
@@ -226,7 +260,7 @@ function WhatsAppApproval({
       setDeleting(false)
     }
   }
-  const { state, activeBusinessId, updateSettings } = useStore()
+  const { state, activeBusinessId, updateSettings, setDefaultTemplate } = useStore()
   const m = state.settings.messaging
   // Shared library: every custom template the agency made, in any business
   const list = templates.filter((t) => kinds.includes(t.kind))
@@ -236,7 +270,18 @@ function WhatsAppApproval({
   const inUse = (kind: 'initial' | 'followup') => {
     const picked = kind === 'initial' ? m.waTemplateId : m.waFollowUpTemplateId
     if (picked && templates.some((t) => t.id === picked && t.status === 'approved')) return picked
+    // follow-up: the agency's default for all businesses comes next
+    const def = kind === 'followup' ? templates.find((t) => t.kind === 'followup' && t.status === 'approved' && t.isDefault) : undefined
+    if (def) return def.id
     return templates.find((t) => t.kind === kind && t.status === 'approved' && t.businessId === activeBusinessId)?.id ?? null
+  }
+  const toggleDefault = async (t: WaTemplate) => {
+    try {
+      await setDefaultTemplate(t.id)
+      toast(t.isDefault ? `${t.name} is no longer the default` : `${t.name} is now the follow-up for all businesses`)
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not change the default', 'error')
+    }
   }
   const use = (t: WaTemplate) => {
     updateSettings('messaging', t.kind === 'initial' ? { waTemplateId: t.id } : { waFollowUpTemplateId: t.id })
@@ -274,6 +319,7 @@ function WhatsAppApproval({
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-sm font-medium">{KIND_LABEL[t.kind]}</span>
                   <span className="flex flex-wrap gap-1.5">
+                    {t.isDefault && <Badge tone="green">Default for all businesses</Badge>}
                     {active && <Badge tone="green">In use here</Badge>}
                     <CategoryBadge category={t.category} />
                     <Badge tone={STATUS_STYLE[t.status].tone}>{STATUS_STYLE[t.status].label}</Badge>
@@ -285,7 +331,12 @@ function WhatsAppApproval({
                   <p className="text-[11px] text-muted">
                     {t.name} · made in {t.businessId === activeBusinessId ? 'this business' : t.businessName || 'another business'} · {timeAgo(t.createdAt)}
                   </p>
-                  <span className="flex items-center gap-1">
+                  <span className="flex flex-wrap items-center gap-1">
+                    {t.kind === 'followup' && t.status === 'approved' && (
+                      <button type="button" onClick={() => toggleDefault(t)} className="rounded-md px-2 py-1 text-xs font-medium text-brand-800 hover:bg-brand-50">
+                        {t.isDefault ? 'Remove default' : 'Make default for all'}
+                      </button>
+                    )}
                     {primary && t.status === 'approved' && !active && (
                       <button type="button" onClick={() => use(t)} className="rounded-md px-2 py-1 text-xs font-medium text-brand-800 hover:bg-brand-50">
                         Use for this business

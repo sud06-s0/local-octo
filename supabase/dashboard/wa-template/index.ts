@@ -178,7 +178,7 @@ async function findTemplateByName(cfg, name) {
 
 // supabase/functions/wa-template/index.ts
 var cleanName = (v) => (v ?? "").toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "").slice(0, 60);
-var COLS = "id, business_id, kind, name, language, body, params, status, reason, category, created_at, updated_at, businesses(name)";
+var COLS = "id, business_id, kind, name, language, body, params, status, reason, category, is_default, created_at, updated_at, businesses(name)";
 var errText = (e) => e instanceof Error ? e.message : String(e);
 function photoHandle(cfg) {
   let p = null;
@@ -191,7 +191,7 @@ Deno.serve(async (req) => {
   const admin = adminClient();
   const user = await getUser(req, admin);
   if (!user) return json({ error: "Sign in required" }, 401);
-  const { businessId, action = "refresh", kinds, templateId } = await req.json().catch(() => ({}));
+  const { businessId, action = "refresh", kinds, templateId, standardKinds } = await req.json().catch(() => ({}));
   if (!businessId) return json({ error: "businessId is required" }, 400);
   if (!await isMember(admin, user.id, businessId)) return json({ error: "Not allowed" }, 403);
   const cfg = await metaConfig(admin, businessId);
@@ -199,7 +199,19 @@ Deno.serve(async (req) => {
   if (!cfg.wabaId || !cfg.token) return json({ error: "WhatsApp is not connected yet (WHATSAPP_WABA_ID / WHATSAPP_ACCESS_TOKEN missing)" }, 400);
   const getPhoto = photoHandle(cfg);
   const warnings = [];
-  if (action === "standard" || action === "submit_standard") {
+  if (action === "delete_standard") {
+    if (!agency) return json({ error: "Only the agency can delete templates" }, 403);
+    const { data: ch } = await admin.from("business_channels").select("*").eq("business_id", businessId).maybeSingle();
+    for (const t of STANDARD_TEMPLATES.filter((x) => standardKinds?.includes(x.kind))) {
+      const name = ch?.[t.col] || (Deno.env.get(t.key) ?? "") || t.def;
+      try {
+        await deleteTemplate(cfg, name);
+      } catch (e) {
+        return json({ error: `WhatsApp could not delete ${name}: ${errText(e)}` }, 400);
+      }
+    }
+  }
+  if (action === "standard" || action === "submit_standard" || action === "delete_standard") {
     const { data: ch } = await admin.from("business_channels").select("*").eq("business_id", businessId).maybeSingle();
     const env2 = (k) => Deno.env.get(k) ?? "";
     const standard = [];
@@ -207,7 +219,8 @@ Deno.serve(async (req) => {
       const name = ch?.[t.col] || env2(t.key) || t.def;
       try {
         let found = await findTemplateByName(cfg, name);
-        if (!found && action === "submit_standard") {
+        const wanted = standardKinds?.length ? standardKinds.includes(t.kind) : t.kind !== "followup";
+        if (!found && action === "submit_standard" && wanted) {
           const header = t.kind.endsWith("_image") ? await getPhoto() : void 0;
           const created = await createTemplate(cfg, name, t.body, STANDARD_EXAMPLE, header);
           found = { id: created.id, status: created.status, reason: null, language: cfg.lang, category: created.category };
@@ -258,6 +271,13 @@ Deno.serve(async (req) => {
       return json({ error: `WhatsApp could not delete it: ${errText(e)}` }, 400);
     }
     await admin.from("whatsapp_templates").delete().eq("id", t.id);
+  }
+  if (action === "set_default") {
+    if (!agency) return json({ error: "Only the agency can set the default" }, 403);
+    const { data: t } = await admin.from("whatsapp_templates").select("id, kind, is_default").eq("id", templateId ?? "").maybeSingle();
+    if (!t) return json({ error: "Template not found" }, 404);
+    await admin.from("whatsapp_templates").update({ is_default: false }).eq("kind", t.kind).neq("id", t.id);
+    await admin.from("whatsapp_templates").update({ is_default: !t.is_default }).eq("id", t.id);
   }
   let openQ = admin.from("whatsapp_templates").select("id, name").or("status.in.(not_created,pending,paused),and(status.eq.approved,category.is.null)");
   if (!agency) openQ = openQ.eq("business_id", businessId);
