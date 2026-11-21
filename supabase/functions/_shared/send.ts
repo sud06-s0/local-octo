@@ -143,6 +143,22 @@ async function sendWhatsApp(
   return { ok: true, id }
 }
 
+/**
+ * SMS variables for the MSG91 template. DLT allows at most 40 characters per variable, so the review link
+ * (≈51 characters) is split over two variables written back to back in the template: ##link1####link2##.
+ * `link` (whole) is sent too, for templates that use a single short variable.
+ */
+export function smsVars(firstName: string, businessName: string, link: string): Record<string, string> {
+  const cut = (v: string) => Array.from(v).slice(0, 40).join('')
+  return {
+    name: cut(firstName),
+    business: cut(businessName),
+    link: link,
+    link1: link.slice(0, 40),
+    link2: link.slice(40, 80),
+  }
+}
+
 async function sendSms(ch: NonNullable<Channels['sms']>, to: string, templateId: string, vars: Record<string, string>): Promise<SendResult> {
   const res = await fetch('https://control.msg91.com/api/v5/flow', {
     method: 'POST',
@@ -259,7 +275,7 @@ export async function deliver(input: DeliverInput): Promise<DeliverResult> {
     attempts.push({
       channel: 'sms',
       recipient: input.phone,
-      run: () => sendSms(sms, input.phone, isFollow ? sms.followUp : sms.initial, { name: input.firstName, business: input.businessName, link: input.link }),
+      run: () => sendSms(sms, input.phone, isFollow ? sms.followUp : sms.initial, smsVars(input.firstName, input.businessName, input.link)),
     })
   }
   if (input.email && ch.email) {

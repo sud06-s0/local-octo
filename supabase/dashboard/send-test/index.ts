@@ -137,6 +137,16 @@ async function sendWhatsApp(ch, to, template, params, headerImage, lang) {
   }
   return { ok: true, id };
 }
+function smsVars(firstName, businessName, link) {
+  const cut = (v) => Array.from(v).slice(0, 40).join("");
+  return {
+    name: cut(firstName),
+    business: cut(businessName),
+    link,
+    link1: link.slice(0, 40),
+    link2: link.slice(40, 80)
+  };
+}
 async function sendSms(ch, to, templateId, vars) {
   const res = await fetch("https://control.msg91.com/api/v5/flow", {
     method: "POST",
@@ -207,7 +217,7 @@ async function deliver(input) {
     attempts.push({
       channel: "sms",
       recipient: input.phone,
-      run: () => sendSms(sms, input.phone, isFollow ? sms.followUp : sms.initial, { name: input.firstName, business: input.businessName, link: input.link })
+      run: () => sendSms(sms, input.phone, isFollow ? sms.followUp : sms.initial, smsVars(input.firstName, input.businessName, input.link))
     });
   }
   if (input.email && ch.email) {
