@@ -141,7 +141,8 @@ async function sendSms(ch, to, templateId, vars) {
   const res = await fetch("https://control.msg91.com/api/v5/flow", {
     method: "POST",
     headers: { authkey: ch.authKey, accept: "application/json", "content-type": "application/json" },
-    body: JSON.stringify({ template_id: templateId, short_url: "0", recipients: [{ mobiles: to, ...vars }] })
+    // MSG91 wants the country code without '+' (e.g. 919876543210); numbers are stored as +919876543210
+    body: JSON.stringify({ template_id: templateId, short_url: "0", recipients: [{ mobiles: to.replace(/\D/g, ""), ...vars }] })
   });
   const body = await readJson(res);
   if (!res.ok || body.type === "error") return { ok: false, error: String(body.message ?? `MSG91 SMS HTTP ${res.status}`) };
