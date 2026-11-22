@@ -261,7 +261,8 @@ async function deliver(input) {
         fromName: input.businessName,
         subject: emailSubject(input.kind, input.messaging, input.firstName, input.businessName),
         text,
-        html: reviewEmailHtml({ businessName: input.businessName, message: text, link: input.link, imageUrl: input.imageUrl })
+        // Emails never carry the photo (WhatsApp only)
+        html: reviewEmailHtml({ businessName: input.businessName, message: text, link: input.link })
       })
     });
   }

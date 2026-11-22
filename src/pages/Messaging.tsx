@@ -441,7 +441,6 @@ function ChannelPreview({
             <p className="text-xs text-muted"><span className="font-medium text-ink">{businessName}</span> · to customer</p>
             <p className="mt-0.5 text-sm font-semibold">How was your visit to {businessName}?</p>
           </div>
-          {image && <div className="px-4 pt-4"><PreviewImage src={image} name={name} /></div>}
           <div className="px-4 py-4 text-sm leading-relaxed"><Rendered text={text} /></div>
           <div className="px-4 pb-5">
             <span className="block rounded-lg bg-brand-700 py-2.5 text-center text-sm font-semibold text-white">Leave a review</span>
@@ -852,12 +851,12 @@ export default function Messaging() {
               </Button>
             </div>
 
-            {channel !== 'sms' && (<>
+            {channel === 'whatsapp' && (<>
             <div className="mt-6 flex items-center justify-between gap-4">
               <div>
                 <p className="text-[15px] font-medium">Personalized Image</p>
                 <p className="text-sm text-muted">Add a custom image to your messages</p>
-                <p className="mt-0.5 text-xs text-muted">Sent above the message on WhatsApp and email, with each customer's name on it</p>
+                <p className="mt-0.5 text-xs text-muted">Sent above the WhatsApp message, with each customer's name on it (not in SMS or email)</p>
               </div>
               <Toggle checked={m.personalizedImage} onChange={(v) => updateSettings('messaging', { personalizedImage: v })} label="Personalized image" />
             </div>
