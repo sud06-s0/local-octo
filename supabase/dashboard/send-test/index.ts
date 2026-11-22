@@ -166,7 +166,15 @@ async function sendSms(ch, to, templateId, vars) {
     method: "POST",
     headers: { authkey: ch.authKey, accept: "application/json", "content-type": "application/json" },
     // MSG91 wants the country code without '+' (e.g. 919876543210); numbers are stored as +919876543210
-    body: JSON.stringify({ template_id: templateId, short_url: "0", recipients: [{ mobiles: to.replace(/\D/g, ""), ...vars }] })
+    // DLT templates are Promotional on numeric header 677650: MSG91 needs route 1 (promotional), otherwise it uses
+    // the transactional route and the SMS fails. MSG91_SMS_ROUTE / MSG91_SMS_SENDER secrets override.
+    body: JSON.stringify({
+      template_id: templateId,
+      short_url: "0",
+      route: env("MSG91_SMS_ROUTE") || "1",
+      sender: env("MSG91_SMS_SENDER") || "677650",
+      recipients: [{ mobiles: to.replace(/\D/g, ""), ...vars }]
+    })
   });
   const body = await readJson(res);
   if (!res.ok || body.type === "error") return { ok: false, error: String(body.message ?? `MSG91 SMS HTTP ${res.status}`) };
