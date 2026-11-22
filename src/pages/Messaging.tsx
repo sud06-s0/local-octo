@@ -415,7 +415,7 @@ function Rendered({ text }: { text: string }) {
 
 type Channel = 'whatsapp' | 'sms' | 'email'
 
-/** Message preview for the selected channel. SMS and Email show a demo until their APIs are connected. */
+/** Message preview for the selected channel. */
 function ChannelPreview({
   channel,
   image,
@@ -435,11 +435,6 @@ function ChannelPreview({
 }) {
   return (
     <>
-      {channel !== 'whatsapp' && (
-        <p className="mx-auto mb-4 max-w-[360px] rounded-lg bg-brand-50 px-3 py-2 text-center text-xs text-brand-800 ring-1 ring-brand-200">
-          {channel === 'sms' ? 'SMS' : 'Email'} API not connected · demo preview
-        </p>
-      )}
       {channel === 'email' ? (
         <div className="mx-auto w-full max-w-[360px] overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-line">
           <div className="border-b border-line px-4 py-3">
@@ -527,9 +522,23 @@ export default function Messaging() {
   const smartFollow = `Hey ${sample}, just wanted to quickly follow up. We'd really appreciate your feedback! {review_link}`
   const { isAgency } = useAuth()
   const waCustom = channel === 'whatsapp' && m.waMode === 'custom'
-  const useCustom = channel !== 'whatsapp' && m.mode === 'custom'
-  const initialText = waCustom ? fillTemplate(m.waMessage, vars) : useCustom ? fillTemplate(m.customMessage, vars) : smartFirst
-  const followText = waCustom ? fillTemplate(m.waFollowUp, vars) : useCustom ? fillTemplate(m.customFollowUp, vars) : smartFollow
+  const useCustom = channel === 'email' && m.mode === 'custom'
+  // SMS text is fixed by the DLT-approved templates
+  const smsBiz = m.businessName || state.settings.business.name
+  const smsFirst = `Hi ${sample}, Thank you for visiting ${smsBiz}. Please share your feedback here: {review_link} - Local Octo`
+  const smsFollow = `Hi ${sample}, a gentle reminder to share your feedback on your visit to ${smsBiz}: {review_link} - Local Octo`
+  const initialText = channel === 'sms' ? smsFirst : waCustom ? fillTemplate(m.waMessage, vars) : useCustom ? fillTemplate(m.customMessage, vars) : smartFirst
+  const followText = channel === 'sms' ? smsFollow : waCustom ? fillTemplate(m.waFollowUp, vars) : useCustom ? fillTemplate(m.customFollowUp, vars) : smartFollow
+
+  // Channels each review request goes out on (WhatsApp only until saved). At least one stays on.
+  const on = m.channels ?? { whatsapp: true, sms: false, email: false }
+  const channelLabel = { whatsapp: 'WhatsApp', sms: 'SMS', email: 'Email' }
+  const setChannelOn = (c: Channel, v: boolean) => {
+    const next = { ...on, [c]: v }
+    if (!next.whatsapp && !next.sms && !next.email) return toast('Keep at least one channel on', 'error')
+    updateSettings('messaging', { channels: next })
+    toast(`${channelLabel[c]} ${v ? 'turned on' : 'turned off'}`)
+  }
 
   const onImage = async (file: File) => {
     if (!file.type.startsWith('image/') && !/\.(heic|heif)$/i.test(file.name)) return toast('Please choose an image file', 'error')
@@ -592,6 +601,18 @@ export default function Messaging() {
               { value: 'email', label: 'Email', icon: Mail },
             ]}
           />
+          <Card className="p-5">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-[16px] font-semibold">Send review requests by {channelLabel[channel]}</p>
+                <p className="mt-0.5 text-sm text-muted">
+                  On now: {(['whatsapp', 'sms', 'email'] as const).filter((c) => on[c]).map((c) => channelLabel[c]).join(' + ')}.
+                  {' '}Every channel that's on is sent to each contact who has that detail (phone or email).
+                </p>
+              </div>
+              <Toggle checked={on[channel]} onChange={(v) => setChannelOn(channel, v)} label={`Send by ${channelLabel[channel]}`} />
+            </div>
+          </Card>
           {channel === 'whatsapp' ? (
           <Card className="border-brand-200 bg-brand-50/60 p-5">
             <div className="flex items-start gap-3">
@@ -610,7 +631,7 @@ export default function Messaging() {
               </div>
             </div>
           </Card>
-          ) : (
+          ) : channel === 'sms' ? null : (
           <>
           <Card className="border-brand-200 bg-brand-50/60 p-5">
             <div className="flex items-start gap-3">
@@ -731,6 +752,22 @@ export default function Messaging() {
                   )}
                 </div>
               ) : null
+            ) : channel === 'sms' ? (
+              <>
+                <h2 className="flex items-center gap-2 text-lg font-semibold"><Smartphone className="size-5 text-brand-800" /> SMS Templates</h2>
+                <p className="mt-1 text-[15px] text-muted">Approved on DLT, so the wording is fixed. Customer name, business name and review link are filled in for each customer.</p>
+                <div className="mt-4 space-y-3 text-[15px]">
+                  <div className="rounded-xl border border-line bg-canvas p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted">First message</p>
+                    <p className="mt-1"><Rendered text={smsFirst} /></p>
+                  </div>
+                  <div className="rounded-xl border border-line bg-canvas p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted">Follow-up</p>
+                    <p className="mt-1"><Rendered text={smsFollow} /></p>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-muted">SMS only go out between 10 AM and 9 PM, and don't reach numbers on Do Not Disturb.</p>
+              </>
             ) : m.mode === 'smart' ? (
               <>
                 <h2 className="flex items-center gap-2 text-lg font-semibold"><Sparkles className="size-5 text-brand-800" /> Smart Messaging</h2>
@@ -755,7 +792,7 @@ export default function Messaging() {
             ) : (
               <>
                 <h2 className="text-lg font-semibold">Custom Message</h2>
-                <p className="mt-0.5 text-[15px] text-muted">{'Write your own message for SMS and email'}</p>
+                <p className="mt-0.5 text-[15px] text-muted">{'Write your own email message'}</p>
                 <>
                     <TokenChips onInsert={insertToken} />
                     <CounterTextarea ref={customRef} value={custom} onChange={setCustom} rows={5} />
@@ -796,6 +833,7 @@ export default function Messaging() {
               </Button>
             </div>
 
+            {channel !== 'sms' && (<>
             <div className="mt-6 flex items-center justify-between gap-4">
               <div>
                 <p className="text-[15px] font-medium">Personalized Image</p>
@@ -817,12 +855,13 @@ export default function Messaging() {
                 <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => e.target.files?.[0] && onImage(e.target.files[0])} />
               </div>
             )}
+            </>)}
 
-            {channel === 'whatsapp' && (
+            {channel !== 'email' && (
               <div className="mt-6 flex items-center justify-between gap-4">
                 <div>
                   <p className="text-[15px] font-medium">Sir / Ma'am after first name</p>
-                  <p className="text-sm text-muted">"Adarsh Sir", "Varsha Ma'am" in WhatsApp messages and on the image</p>
+                  <p className="text-sm text-muted">"Adarsh Sir", "Varsha Ma'am" in WhatsApp and SMS messages and on the image</p>
                   <p className="mt-0.5 text-xs text-muted">Uses each contact's gender; contacts without a gender get just their first name</p>
                 </div>
                 <Toggle checked={m.useTitle !== false} onChange={(v) => updateSettings('messaging', { useTitle: v })} label="Sir / Ma'am after first name" />
@@ -879,7 +918,7 @@ export default function Messaging() {
               </p>
               <p className="mt-1 pl-7 text-[15px] text-brand-800">We'll send gentle reminders to customers who haven't left a review yet.</p>
             </div>
-            {channel !== 'whatsapp' && m.mode === 'custom' && m.followUpsEnabled && (
+            {channel === 'email' && m.mode === 'custom' && m.followUpsEnabled && (
               <div className="mt-6 border-t border-line pt-5">
                 <p className="text-[16px] font-semibold">Custom Follow-up Message</p>
                 <p className="mt-0.5 text-[15px] text-muted">Sent if the customer hasn't clicked your review link</p>

@@ -56,5 +56,7 @@ Deno.serve(async (req) => {
     imageUrl,
   })
 
-  return result.ok ? json({ ok: true, channel: result.channel }) : json({ ok: false, error: result.error }, 502)
+  return result.ok
+    ? json({ ok: true, channel: (result.channels ?? [result.channel]).join(' + '), warning: result.error })
+    : json({ ok: false, error: result.error }, 502)
 })

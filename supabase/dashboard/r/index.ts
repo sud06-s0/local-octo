@@ -2,7 +2,6 @@
 // Self-contained copy of supabase/functions/r for pasting into the Supabase dashboard editor.
 // Function name in Supabase must be exactly: r   ·   Turn OFF "Verify JWT" for this function.
 // @ts-nocheck  (bundled JavaScript — the typed source lives in supabase/functions)
-
 // supabase/functions/_shared/supabase.ts
 import { createClient } from "npm:@supabase/supabase-js@2";
 function secretKey() {
@@ -32,10 +31,18 @@ function toReviewPage(token) {
   return new Response(null, { status: 302, headers: { Location: `${appUrl}/review?t=${encodeURIComponent(token)}`, "Cache-Control": "no-store" } });
 }
 Deno.serve(async (req) => {
-  const token = new URL(req.url).searchParams.get("t") ?? "";
+  const raw = new URL(req.url).searchParams.get("t") ?? "";
+  const token = raw.split("-").pop() ?? "";
   if (!/^[a-f0-9]{8,64}$/.test(token)) return toReviewPage(token);
   const admin = adminClient();
   const { data: contact } = await admin.from("contacts").select("id, business_id, first_name, last_name, status, clicked_at, businesses(review_link)").eq("token", token).maybeSingle();
+  if (!contact) {
+    const { data: biz } = await admin.from("businesses").select("public_key").eq("public_key", token).maybeSingle();
+    if (biz) {
+      const appUrl = (Deno.env.get("APP_URL") || "https://review.localocto.com").replace(/\/+$/, "");
+      return new Response(null, { status: 302, headers: { Location: `${appUrl}/review?b=${encodeURIComponent(token)}`, "Cache-Control": "no-store" } });
+    }
+  }
   const business = contact?.businesses;
   if (!contact || !business?.review_link) return toReviewPage(token);
   const isBot = BOT.test(req.headers.get("user-agent") ?? "");

@@ -156,6 +156,8 @@ export interface Settings {
     waFollowUpTemplateId?: string | null
     waFollowUpCategory?: 'marketing' | 'utility'
     followUpsEnabled: boolean
+    /** channels each review request goes out on; not saved yet = WhatsApp only */
+    channels?: { whatsapp: boolean; sms: boolean; email: boolean }
   }
   scheduling: {
     active: boolean

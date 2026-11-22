@@ -23,6 +23,15 @@ export interface Messaging {
   waTemplateId?: string | null
   waFollowUpTemplateId?: string | null
   followUpsEnabled?: boolean
+  /** Which channels each review request goes out on (set on the Messaging page). Default: WhatsApp only */
+  channels?: { whatsapp?: boolean; sms?: boolean; email?: boolean }
+}
+
+/** Channels turned on for this business (WhatsApp only when nothing has been saved yet). */
+export function enabledChannels(m: Messaging): Record<Channel, boolean> {
+  const c = m.channels
+  if (!c) return { whatsapp: true, sms: false, email: false }
+  return { whatsapp: c.whatsapp === true, sms: c.sms === true, email: c.email === true }
 }
 
 interface Channels {
@@ -55,7 +64,8 @@ export async function loadChannels(admin: SupabaseClient, businessId: string): P
   const waId = pick('whatsapp_phone_number_id', 'WHATSAPP_PHONE_NUMBER_ID')
   const waToken = pick('whatsapp_access_token', 'WHATSAPP_ACCESS_TOKEN')
   const msgKey = env('MSG91_AUTH_KEY')
-  const smsInitial = pick('msg91_sms_template_initial', 'MSG91_SMS_TEMPLATE_INITIAL')
+  // DLT-approved MSG91 templates (lo_review_request_p / lo_review_followup_p); secrets override them
+  const smsInitial = pick('msg91_sms_template_initial', 'MSG91_SMS_TEMPLATE_INITIAL', '6b02bf24e1174c82ca0e0792')
   const emailTemplate = pick('msg91_email_template_id', 'MSG91_EMAIL_TEMPLATE_ID')
   const emailFrom = pick('email_from', 'MSG91_EMAIL_FROM')
   const emailDomain = pick('email_domain', 'MSG91_EMAIL_DOMAIN')
@@ -75,7 +85,7 @@ export async function loadChannels(admin: SupabaseClient, businessId: string): P
         : null,
     sms:
       msgKey && smsInitial
-        ? { authKey: msgKey, initial: smsInitial, followUp: pick('msg91_sms_template_followup', 'MSG91_SMS_TEMPLATE_FOLLOWUP', smsInitial) }
+        ? { authKey: msgKey, initial: smsInitial, followUp: pick('msg91_sms_template_followup', 'MSG91_SMS_TEMPLATE_FOLLOWUP', '6b02be340483eded070eb952') }
         : null,
     email:
       msgKey && emailTemplate && emailFrom && emailDomain
@@ -144,19 +154,34 @@ async function sendWhatsApp(
 }
 
 /**
- * SMS variables for the MSG91 template. DLT allows at most 40 characters per variable, so the review link
- * (≈51 characters) is split over two variables written back to back in the template: ##link1####link2##.
- * `link` (whole) is sent too, for templates that use a single short variable.
+ * SMS variables for the MSG91 templates. The DLT text is fixed:
+ *   Hi ##name##, Thank you for visiting ##business##. Please share your feedback here: https://review.localocto.com/r?t=##token## - Local Octo
+ * DLT allows at most 40 characters per variable. ##token## = short business name + "-" + the code from the
+ * review link (contact token, or the business public key for test messages), e.g. "sirmvpu-fffb3b123db020e63e".
+ * The `r` function ignores the part before the "-".
  */
 export function smsVars(firstName: string, businessName: string, link: string): Record<string, string> {
   const cut = (v: string) => Array.from(v).slice(0, 40).join('')
+  let code = ''
+  try {
+    const u = new URL(link)
+    code = u.searchParams.get('t') || u.searchParams.get('b') || ''
+  } catch {
+    /* not a URL */
+  }
+  const slug = businessName.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12)
   return {
     name: cut(firstName),
     business: cut(businessName),
-    link: link,
-    link1: link.slice(0, 40),
-    link2: link.slice(40, 80),
+    token: cut(slug && code ? `${slug}-${code}` : code),
   }
+}
+
+/** Promotional SMS on DLT are only delivered 10 AM–9 PM India time. */
+export function smsWindowOpen(now = new Date()): boolean {
+  const ist = new Date(now.getTime() + 330 * 60_000)
+  const mins = ist.getUTCHours() * 60 + ist.getUTCMinutes()
+  return mins >= 10 * 60 && mins < 21 * 60
 }
 
 async function sendSms(ch: NonNullable<Channels['sms']>, to: string, templateId: string, vars: Record<string, string>): Promise<SendResult> {
@@ -217,21 +242,25 @@ export function withTitle(firstName: string, gender?: string): string {
 export interface DeliverResult {
   ok: boolean
   channel?: Channel
+  /** every channel that went out */
+  channels?: Channel[]
   error?: string
   noChannel?: boolean
 }
 
 /**
- * Phone first (WhatsApp, then SMS as fallback), email if there is no phone or phone sending failed.
- * Every attempt is logged in `messages`.
+ * Sends on every channel the business turned on (Messaging page): WhatsApp, SMS and/or email.
+ * Test messages to an email address always go by email. Every attempt is logged in `messages`.
  */
 export async function deliver(input: DeliverInput): Promise<DeliverResult> {
   const ch = await loadChannels(input.admin, input.businessId)
   const isFollow = input.kind === 'follow_up'
   const text = buildText(input.kind, input.messaging, input.firstName, input.businessName, input.link)
+  const on = enabledChannels(input.messaging)
+  if (input.kind === 'test' && input.email) on.email = true
   const attempts: Array<{ channel: Channel; recipient: string; run: () => Promise<SendResult> }> = []
 
-  if (input.phone && ch.whatsapp) {
+  if (input.phone && on.whatsapp && ch.whatsapp) {
     const wa = ch.whatsapp
     // Only approved templates go out on WhatsApp. Standard ones: {{1}} first name, {{2}} business name, {{3}} review link.
     // First message carries the personalised photo when enabled; follow-ups are text only.
@@ -270,15 +299,18 @@ export async function deliver(input: DeliverInput): Promise<DeliverResult> {
       run: () => sendWhatsApp(wa, input.phone, template, params, header, lang),
     })
   }
-  if (input.phone && ch.sms) {
+  if (input.phone && on.sms && ch.sms) {
     const sms = ch.sms
     attempts.push({
       channel: 'sms',
       recipient: input.phone,
-      run: () => sendSms(sms, input.phone, isFollow ? sms.followUp : sms.initial, smsVars(input.firstName, input.businessName, input.link)),
+      run: async () =>
+        !smsWindowOpen()
+          ? { ok: false, error: 'SMS not sent: promotional SMS only go out 10 AM–9 PM' }
+          : await sendSms(sms, input.phone, isFollow ? sms.followUp : sms.initial, smsVars(input.messaging.useTitle === false ? input.firstName : withTitle(input.firstName, input.gender), input.businessName, input.link)),
     })
   }
-  if (input.email && ch.email) {
+  if (input.email && on.email && ch.email) {
     const em = ch.email
     attempts.push({
       channel: 'email',
@@ -294,9 +326,23 @@ export async function deliver(input: DeliverInput): Promise<DeliverResult> {
     })
   }
 
-  if (attempts.length === 0) return { ok: false, noChannel: true, error: 'No sending channel configured for this contact' }
+  if (attempts.length === 0) {
+    const missing = [
+      on.whatsapp && input.phone && !ch.whatsapp && 'WhatsApp',
+      on.sms && input.phone && !ch.sms && 'SMS',
+      on.email && input.email && !ch.email && 'Email',
+    ].filter(Boolean)
+    return {
+      ok: false,
+      noChannel: true,
+      error: missing.length
+        ? `${missing.join(', ')} not connected yet`
+        : 'No channel turned on for this contact (Messaging page: WhatsApp / SMS / Email)',
+    }
+  }
 
   let lastError = ''
+  const sentOn: Channel[] = []
   for (const a of attempts) {
     let result: SendResult
     try {
@@ -315,8 +361,9 @@ export async function deliver(input: DeliverInput): Promise<DeliverResult> {
       error: result.error ?? null,
       sent_at: result.ok ? new Date().toISOString() : null,
     })
-    if (result.ok) return { ok: true, channel: a.channel }
-    lastError = result.error ?? 'Unknown error'
+    if (result.ok) sentOn.push(a.channel)
+    else lastError = `${a.channel === 'whatsapp' ? 'WhatsApp' : a.channel === 'sms' ? 'SMS' : 'Email'}: ${result.error ?? 'Unknown error'}`
   }
+  if (sentOn.length) return { ok: true, channel: sentOn[0], channels: sentOn, error: lastError || undefined }
   return { ok: false, error: lastError }
 }

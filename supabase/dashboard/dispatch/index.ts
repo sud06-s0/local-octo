@@ -2,7 +2,6 @@
 // Self-contained copy of supabase/functions/dispatch for pasting into the Supabase dashboard editor.
 // Function name in Supabase must be exactly: dispatch   ·   Turn OFF "Verify JWT" for this function.
 // @ts-nocheck  (bundled JavaScript — the typed source lives in supabase/functions)
-
 // supabase/functions/_shared/supabase.ts
 import { createClient } from "npm:@supabase/supabase-js@2";
 function secretKey() {
@@ -54,6 +53,11 @@ async function defaultFollowUp(admin) {
 }
 
 // supabase/functions/_shared/send.ts
+function enabledChannels(m) {
+  const c = m.channels;
+  if (!c) return { whatsapp: true, sms: false, email: false };
+  return { whatsapp: c.whatsapp === true, sms: c.sms === true, email: c.email === true };
+}
 var env = (k) => Deno.env.get(k) ?? "";
 async function loadChannels(admin, businessId) {
   const { data: row } = await admin.from("business_channels").select("*").eq("business_id", businessId).maybeSingle();
@@ -61,7 +65,7 @@ async function loadChannels(admin, businessId) {
   const waId = pick("whatsapp_phone_number_id", "WHATSAPP_PHONE_NUMBER_ID");
   const waToken = pick("whatsapp_access_token", "WHATSAPP_ACCESS_TOKEN");
   const msgKey = env("MSG91_AUTH_KEY");
-  const smsInitial = pick("msg91_sms_template_initial", "MSG91_SMS_TEMPLATE_INITIAL");
+  const smsInitial = pick("msg91_sms_template_initial", "MSG91_SMS_TEMPLATE_INITIAL", "6b02bf24e1174c82ca0e0792");
   const emailTemplate = pick("msg91_email_template_id", "MSG91_EMAIL_TEMPLATE_ID");
   const emailFrom = pick("email_from", "MSG91_EMAIL_FROM");
   const emailDomain = pick("email_domain", "MSG91_EMAIL_DOMAIN");
@@ -75,7 +79,7 @@ async function loadChannels(admin, businessId) {
       lang: pick("whatsapp_template_lang", "WHATSAPP_TEMPLATE_LANG", "en"),
       version: env("WHATSAPP_API_VERSION") || "v23.0"
     } : null,
-    sms: msgKey && smsInitial ? { authKey: msgKey, initial: smsInitial, followUp: pick("msg91_sms_template_followup", "MSG91_SMS_TEMPLATE_FOLLOWUP", smsInitial) } : null,
+    sms: msgKey && smsInitial ? { authKey: msgKey, initial: smsInitial, followUp: pick("msg91_sms_template_followup", "MSG91_SMS_TEMPLATE_FOLLOWUP", "6b02be340483eded070eb952") } : null,
     email: msgKey && emailTemplate && emailFrom && emailDomain ? { authKey: msgKey, from: emailFrom, fromName: pick("email_from_name", "MSG91_EMAIL_FROM_NAME", "Local Octo"), domain: emailDomain, templateId: emailTemplate } : null
   };
 }
@@ -125,13 +129,23 @@ async function sendWhatsApp(ch, to, template, params, headerImage, lang) {
 }
 function smsVars(firstName, businessName, link) {
   const cut = (v) => Array.from(v).slice(0, 40).join("");
+  let code = "";
+  try {
+    const u = new URL(link);
+    code = u.searchParams.get("t") || u.searchParams.get("b") || "";
+  } catch {
+  }
+  const slug = businessName.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 12);
   return {
     name: cut(firstName),
     business: cut(businessName),
-    link,
-    link1: link.slice(0, 40),
-    link2: link.slice(40, 80)
+    token: cut(slug && code ? `${slug}-${code}` : code)
   };
+}
+function smsWindowOpen(now = /* @__PURE__ */ new Date()) {
+  const ist = new Date(now.getTime() + 330 * 6e4);
+  const mins = ist.getUTCHours() * 60 + ist.getUTCMinutes();
+  return mins >= 10 * 60 && mins < 21 * 60;
 }
 async function sendSms(ch, to, templateId, vars) {
   const res = await fetch("https://control.msg91.com/api/v5/flow", {
@@ -171,8 +185,10 @@ async function deliver(input) {
   const ch = await loadChannels(input.admin, input.businessId);
   const isFollow = input.kind === "follow_up";
   const text = buildText(input.kind, input.messaging, input.firstName, input.businessName, input.link);
+  const on = enabledChannels(input.messaging);
+  if (input.kind === "test" && input.email) on.email = true;
   const attempts = [];
-  if (input.phone && ch.whatsapp) {
+  if (input.phone && on.whatsapp && ch.whatsapp) {
     const wa = ch.whatsapp;
     const photo = isFollow ? void 0 : input.imageUrl;
     let template = isFollow ? wa.followUp : photo ? wa.initialImage : wa.initial;
@@ -198,15 +214,15 @@ async function deliver(input) {
       run: () => sendWhatsApp(wa, input.phone, template, params, header, lang)
     });
   }
-  if (input.phone && ch.sms) {
+  if (input.phone && on.sms && ch.sms) {
     const sms = ch.sms;
     attempts.push({
       channel: "sms",
       recipient: input.phone,
-      run: () => sendSms(sms, input.phone, isFollow ? sms.followUp : sms.initial, smsVars(input.firstName, input.businessName, input.link))
+      run: async () => !smsWindowOpen() ? { ok: false, error: "SMS not sent: promotional SMS only go out 10 AM\u20139 PM" } : await sendSms(sms, input.phone, isFollow ? sms.followUp : sms.initial, smsVars(input.messaging.useTitle === false ? input.firstName : withTitle(input.firstName, input.gender), input.businessName, input.link))
     });
   }
-  if (input.email && ch.email) {
+  if (input.email && on.email && ch.email) {
     const em = ch.email;
     attempts.push({
       channel: "email",
@@ -220,8 +236,20 @@ async function deliver(input) {
       })
     });
   }
-  if (attempts.length === 0) return { ok: false, noChannel: true, error: "No sending channel configured for this contact" };
+  if (attempts.length === 0) {
+    const missing = [
+      on.whatsapp && input.phone && !ch.whatsapp && "WhatsApp",
+      on.sms && input.phone && !ch.sms && "SMS",
+      on.email && input.email && !ch.email && "Email"
+    ].filter(Boolean);
+    return {
+      ok: false,
+      noChannel: true,
+      error: missing.length ? `${missing.join(", ")} not connected yet` : "No channel turned on for this contact (Messaging page: WhatsApp / SMS / Email)"
+    };
+  }
   let lastError = "";
+  const sentOn = [];
   for (const a of attempts) {
     let result;
     try {
@@ -240,9 +268,10 @@ async function deliver(input) {
       error: result.error ?? null,
       sent_at: result.ok ? (/* @__PURE__ */ new Date()).toISOString() : null
     });
-    if (result.ok) return { ok: true, channel: a.channel };
-    lastError = result.error ?? "Unknown error";
+    if (result.ok) sentOn.push(a.channel);
+    else lastError = `${a.channel === "whatsapp" ? "WhatsApp" : a.channel === "sms" ? "SMS" : "Email"}: ${result.error ?? "Unknown error"}`;
   }
+  if (sentOn.length) return { ok: true, channel: sentOn[0], channels: sentOn, error: lastError || void 0 };
   return { ok: false, error: lastError };
 }
 

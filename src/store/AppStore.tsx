@@ -439,8 +439,9 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const sendTest = useCallback(
     async (to: string) => {
       if (!isLive) return 'demo'
-      const res = await invokeFn<{ ok: boolean; channel?: string }>('send-test', { businessId: activeId, to })
-      return res.channel ?? 'sent'
+      const res = await invokeFn<{ ok: boolean; channel?: string; warning?: string }>('send-test', { businessId: activeId, to })
+      // e.g. "whatsapp + email", plus why another channel didn't go (SMS outside 10 AM–9 PM…)
+      return `${res.channel ?? 'sent'}${res.warning ? ` (${res.warning})` : ''}`
     },
     [activeId],
   )
