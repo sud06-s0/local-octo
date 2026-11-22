@@ -470,6 +470,8 @@ export default function Messaging() {
   const [biz, setBiz] = useState(m.businessName)
   const [custom, setCustom] = useState(m.customMessage)
   const [customFollow, setCustomFollow] = useState(m.customFollowUp)
+  const [subject, setSubject] = useState(m.emailSubject ?? '')
+  const [followSubject, setFollowSubject] = useState(m.emailFollowUpSubject ?? '')
   const [testOpen, setTestOpen] = useState(false)
   const [testTo, setTestTo] = useState('')
   const [sending, setSending] = useState(false)
@@ -640,14 +642,14 @@ export default function Messaging() {
               </span>
               <div className="flex-1">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted">Current Sending Mode</p>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted">Email Template</p>
                   <Badge className="bg-brand-700 text-white ring-brand-700"><CircleCheck className="size-3.5" /> Enabled</Badge>
                 </div>
-                <p className="mt-1 text-[17px] font-semibold">{m.mode === 'smart' ? 'Smart messaging is enabled' : 'Custom message is enabled'}</p>
+                <p className="mt-1 text-[17px] font-semibold">{m.mode === 'smart' ? 'Default template is in use' : 'Custom template is in use'}</p>
                 <p className="mt-1 text-[15px] text-muted">
                   {m.mode === 'smart'
-                    ? `Review requests will use optimized ${brand.appName} message templates.`
-                    : 'Review requests will use the message you wrote below.'}
+                    ? 'Emails use the ready-made subject and message below.'
+                    : 'Emails use the subject and message you wrote below.'}
                 </p>
               </div>
             </div>
@@ -658,11 +660,11 @@ export default function Messaging() {
             value={m.mode}
             onChange={(v) => {
               updateSettings('messaging', { mode: v })
-              toast(v === 'smart' ? 'Smart messaging enabled' : 'Custom message enabled')
+              toast(v === 'smart' ? 'Default email template in use' : 'Custom email template in use')
             }}
             options={[
-              { value: 'smart', label: 'Smart Message', icon: Sparkles },
-              { value: 'custom', label: 'Custom Message', icon: MessageSquare },
+              { value: 'smart', label: 'Default Template', icon: Sparkles },
+              { value: 'custom', label: 'Custom Template', icon: MessageSquare },
             ]}
           />
           </>
@@ -788,42 +790,41 @@ export default function Messaging() {
               </>
             ) : m.mode === 'smart' ? (
               <>
-                <h2 className="flex items-center gap-2 text-lg font-semibold"><Sparkles className="size-5 text-brand-800" /> Smart Messaging</h2>
-                <p className="mt-1 text-[15px] text-muted">AI-optimized messages that continuously improve your response rates</p>
-                <div className="mt-5 rounded-xl border border-line bg-canvas p-5">
-                  <div className="flex items-start gap-3">
-                    <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-100/70">
-                      <TrendingUp className="size-5 text-brand-800" />
-                    </span>
-                    <div>
-                      <p className="text-[16px] font-semibold">Highest Converting Messages</p>
-                      <p className="mt-1 text-[15px] text-muted">We test different message variations across thousands of review requests to find what works best.</p>
-                    </div>
+                <h2 className="flex items-center gap-2 text-lg font-semibold"><Sparkles className="size-5 text-brand-800" /> Default Email Template</h2>
+                <p className="mt-1 text-[15px] text-muted">Ready to use. Customer name, business name and review link are filled in for each customer.</p>
+                <div className="mt-4 space-y-3 text-[15px]">
+                  <div className="rounded-xl border border-line bg-canvas p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted">First email</p>
+                    <p className="mt-1 font-semibold">Subject: How was your visit to {smsBiz}?</p>
+                    <p className="mt-1"><Rendered text={smartFirst} /></p>
                   </div>
-                  <ul className="mt-4 space-y-2.5 text-[15px] text-ink/85">
-                    {['Multiple message styles tested automatically', 'Learns which tone resonates with your customers', 'Continuously optimized for higher click rates'].map((t) => (
-                      <li key={t} className="flex items-center gap-2"><CircleCheck className="size-4 text-brand-600" /> {t}</li>
-                    ))}
-                  </ul>
+                  <div className="rounded-xl border border-line bg-canvas p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted">Follow-up</p>
+                    <p className="mt-1 font-semibold">Subject: A quick reminder from {smsBiz}</p>
+                    <p className="mt-1"><Rendered text={smartFollow} /></p>
+                  </div>
                 </div>
               </>
             ) : (
               <>
-                <h2 className="text-lg font-semibold">Custom Message</h2>
-                <p className="mt-0.5 text-[15px] text-muted">{'Write your own email message'}</p>
+                <h2 className="text-lg font-semibold">Custom Email Template</h2>
+                <p className="mt-0.5 text-[15px] text-muted">{'Write your own subject and message'}</p>
                 <>
+                    <div className="mt-4"><Label htmlFor="email-subject">Subject</Label></div>
+                    <Input id="email-subject" value={subject} placeholder={`How was your visit to ${smsBiz}?`} onChange={(e) => setSubject(e.target.value)} />
+                    <p className="mt-1 text-xs text-muted">You can use {'{first_name}'} and {'{business_name}'}. Empty = the default subject.</p>
                     <TokenChips onInsert={insertToken} />
                     <CounterTextarea ref={customRef} value={custom} onChange={setCustom} rows={5} />
                     {!custom.includes('{review_link}') && <p className="mt-1.5 text-xs text-red-600">Add the Review Link so customers can leave a review</p>}
                     <Button
                       className="mt-4 w-full"
-                      disabled={!custom.trim() || !custom.includes('{review_link}') || custom === m.customMessage}
+                      disabled={!custom.trim() || !custom.includes('{review_link}') || (custom === m.customMessage && subject.trim() === (m.emailSubject ?? ''))}
                       onClick={async () => {
-                        await updateSettings('messaging', { customMessage: custom })
-                        toast('Custom message saved')
+                        await updateSettings('messaging', { customMessage: custom, emailSubject: subject.trim() })
+                        toast('Email template saved')
                       }}
                     >
-                      Save Message
+                      Save Template
                     </Button>
                   </>
               </>
@@ -938,16 +939,18 @@ export default function Messaging() {
             </div>
             {channel === 'email' && m.mode === 'custom' && m.followUpsEnabled && (
               <div className="mt-6 border-t border-line pt-5">
-                <p className="text-[16px] font-semibold">Custom Follow-up Message</p>
+                <p className="text-[16px] font-semibold">Custom Follow-up Email</p>
                 <p className="mt-0.5 text-[15px] text-muted">Sent if the customer hasn't clicked your review link</p>
                 <>
+                    <div className="mt-4"><Label htmlFor="email-follow-subject">Subject</Label></div>
+                    <Input id="email-follow-subject" value={followSubject} placeholder={`A quick reminder from ${smsBiz}`} onChange={(e) => setFollowSubject(e.target.value)} />
                     <TokenChips onInsert={(t) => setCustomFollow((v) => (v + ' ' + t).slice(0, MAX_CHARS))} />
                     <CounterTextarea value={customFollow} onChange={setCustomFollow} rows={4} />
                     <Button
                       className="mt-4 w-full"
-                      disabled={!customFollow.trim() || !customFollow.includes('{review_link}') || customFollow === m.customFollowUp}
+                      disabled={!customFollow.trim() || !customFollow.includes('{review_link}') || (customFollow === m.customFollowUp && followSubject.trim() === (m.emailFollowUpSubject ?? ''))}
                       onClick={async () => {
-                        await updateSettings('messaging', { customFollowUp: customFollow })
+                        await updateSettings('messaging', { customFollowUp: customFollow, emailFollowUpSubject: followSubject.trim() })
                         toast('Follow-up message saved')
                       }}
                     >

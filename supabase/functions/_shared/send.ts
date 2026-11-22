@@ -28,6 +28,9 @@ export interface Messaging {
   channels?: { whatsapp?: boolean; sms?: boolean; email?: boolean }
   /** SMS timing: 'window' = only 10 AM–9 PM India time (default), 'now' = send straight away */
   smsTiming?: 'now' | 'window'
+  /** Custom email template subjects; empty = default subject */
+  emailSubject?: string
+  emailFollowUpSubject?: string
 }
 
 /** Channels turned on for this business (WhatsApp only when nothing has been saved yet). */
@@ -96,6 +99,13 @@ export async function loadChannels(admin: SupabaseClient, businessId: string): P
 
 function fill(template: string, vars: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (m, k: string) => vars[k] ?? m)
+}
+
+/** Email subject: the custom template's subject when Custom is on and one is written, else the default. */
+export function emailSubject(kind: Kind, m: Messaging, firstName: string, businessName: string): string {
+  const custom = m.mode === 'custom' ? (kind === 'follow_up' ? m.emailFollowUpSubject : m.emailSubject)?.trim() : ''
+  if (custom) return fill(custom, { first_name: firstName, business_name: businessName, owner_name: m.ownerFirstName ?? '' })
+  return kind === 'follow_up' ? `A quick reminder from ${businessName}` : `How was your visit to ${businessName}?`
 }
 
 /** Full text used for email (WhatsApp/SMS text is fixed by their approved templates). */
@@ -311,7 +321,7 @@ export async function deliver(input: DeliverInput): Promise<DeliverResult> {
         sendGmail(em, {
           to: input.email,
           fromName: input.businessName,
-          subject: isFollow ? `A quick reminder from ${input.businessName}` : `How was your visit to ${input.businessName}?`,
+          subject: emailSubject(input.kind, input.messaging, input.firstName, input.businessName),
           text,
           html: reviewEmailHtml({ businessName: input.businessName, message: text, link: input.link, imageUrl: input.imageUrl }),
         }),

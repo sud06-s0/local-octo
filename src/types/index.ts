@@ -160,6 +160,9 @@ export interface Settings {
     channels?: { whatsapp: boolean; sms: boolean; email: boolean }
     /** SMS: 'window' = only 10 AM–9 PM (default), 'now' = send straight away */
     smsTiming?: 'now' | 'window'
+    /** Custom email template subjects ({first_name}, {business_name}); empty = default subject */
+    emailSubject?: string
+    emailFollowUpSubject?: string
   }
   scheduling: {
     active: boolean

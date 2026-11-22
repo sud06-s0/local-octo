@@ -121,6 +121,11 @@ async function loadChannels(admin, businessId) {
 function fill(template, vars) {
   return template.replace(/\{(\w+)\}/g, (m, k) => vars[k] ?? m);
 }
+function emailSubject(kind, m, firstName, businessName) {
+  const custom = m.mode === "custom" ? (kind === "follow_up" ? m.emailFollowUpSubject : m.emailSubject)?.trim() : "";
+  if (custom) return fill(custom, { first_name: firstName, business_name: businessName, owner_name: m.ownerFirstName ?? "" });
+  return kind === "follow_up" ? `A quick reminder from ${businessName}` : `How was your visit to ${businessName}?`;
+}
 function buildText(kind, m, firstName, businessName, link) {
   const vars = { first_name: firstName, business_name: businessName, owner_name: m.ownerFirstName ?? "", review_link: link };
   if (m.mode === "custom") {
@@ -254,7 +259,7 @@ async function deliver(input) {
       run: () => sendGmail(em, {
         to: input.email,
         fromName: input.businessName,
-        subject: isFollow ? `A quick reminder from ${input.businessName}` : `How was your visit to ${input.businessName}?`,
+        subject: emailSubject(input.kind, input.messaging, input.firstName, input.businessName),
         text,
         html: reviewEmailHtml({ businessName: input.businessName, message: text, link: input.link, imageUrl: input.imageUrl })
       })
