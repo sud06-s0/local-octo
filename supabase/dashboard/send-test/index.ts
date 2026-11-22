@@ -66,6 +66,42 @@ async function defaultFollowUp(admin) {
   return data ? { name: data.name, language: data.language, params: data.params ?? [] } : null;
 }
 
+// supabase/functions/_shared/email.ts
+import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+var esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+function reviewEmailHtml(opts) {
+  const { businessName, message, link, imageUrl } = opts;
+  const linkHtml = `<a href="${esc(link)}" style="color:#7c3aed;font-weight:600">Leave a review</a>`;
+  const body = message.split(link).map((part) => esc(part).replace(/\n/g, "<br>")).join(linkHtml);
+  return `<!DOCTYPE html><html><body style="margin:0;background:#f6f5fa;font-family:Arial,Helvetica,sans-serif;color:#1f1b2e">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f5fa;padding:24px 12px"><tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden">
+${imageUrl ? `<tr><td><img src="${esc(imageUrl)}" alt="" width="520" style="display:block;width:100%;height:auto;border:0"></td></tr>` : ""}
+<tr><td style="padding:28px 28px 8px;font-size:16px;line-height:1.6">${body}</td></tr>
+<tr><td align="center" style="padding:16px 28px 32px">
+<a href="${esc(link)}" style="display:inline-block;background:#7c3aed;color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;padding:14px 32px;border-radius:10px">Leave a review</a>
+</td></tr>
+<tr><td style="padding:0 28px 24px;font-size:12px;color:#8a8597;text-align:center">${esc(businessName)}</td></tr>
+</table></td></tr></table></body></html>`;
+}
+async function sendGmail(cfg, msg) {
+  const client = new SMTPClient({
+    connection: { hostname: "smtp.gmail.com", port: 465, tls: true, auth: { username: cfg.user, password: cfg.pass } }
+  });
+  try {
+    const name = msg.fromName.replace(/["\r\n]/g, "").trim() || "Reviews";
+    await client.send({ from: `"${name}" <${cfg.user}>`, to: msg.to, subject: msg.subject, content: msg.text, html: msg.html });
+    return { ok: true, id: "" };
+  } catch (e) {
+    return { ok: false, error: `Gmail: ${e instanceof Error ? e.message : String(e)}` };
+  } finally {
+    try {
+      await client.close();
+    } catch {
+    }
+  }
+}
+
 // supabase/functions/_shared/send.ts
 function enabledChannels(m) {
   const c = m.channels;
@@ -80,9 +116,8 @@ async function loadChannels(admin, businessId) {
   const waToken = pick("whatsapp_access_token", "WHATSAPP_ACCESS_TOKEN");
   const msgKey = env("MSG91_AUTH_KEY");
   const smsInitial = pick("msg91_sms_template_initial", "MSG91_SMS_TEMPLATE_INITIAL", "6b02bf24e1174c82ca0e0792");
-  const emailTemplate = pick("msg91_email_template_id", "MSG91_EMAIL_TEMPLATE_ID");
-  const emailFrom = pick("email_from", "MSG91_EMAIL_FROM");
-  const emailDomain = pick("email_domain", "MSG91_EMAIL_DOMAIN");
+  const gmailUser = env("GMAIL_USER");
+  const gmailPass = env("GMAIL_APP_PASSWORD").replace(/\s/g, "");
   return {
     whatsapp: waId && waToken ? {
       phoneNumberId: waId,
@@ -94,7 +129,7 @@ async function loadChannels(admin, businessId) {
       version: env("WHATSAPP_API_VERSION") || "v23.0"
     } : null,
     sms: msgKey && smsInitial ? { authKey: msgKey, initial: smsInitial, followUp: pick("msg91_sms_template_followup", "MSG91_SMS_TEMPLATE_FOLLOWUP", "6b02be340483eded070eb952") } : null,
-    email: msgKey && emailTemplate && emailFrom && emailDomain ? { authKey: msgKey, from: emailFrom, fromName: pick("email_from_name", "MSG91_EMAIL_FROM_NAME", "Local Octo"), domain: emailDomain, templateId: emailTemplate } : null
+    email: gmailUser && gmailPass ? { user: gmailUser, pass: gmailPass } : null
   };
 }
 function fill(template, vars) {
@@ -180,24 +215,6 @@ async function sendSms(ch, to, templateId, vars) {
   if (!res.ok || body.type === "error") return { ok: false, error: String(body.message ?? `MSG91 SMS HTTP ${res.status}`) };
   return { ok: true, id: String(body.message ?? "") };
 }
-async function sendEmail(ch, to, name, vars) {
-  const res = await fetch("https://control.msg91.com/api/v5/email/send", {
-    method: "POST",
-    headers: { authkey: ch.authKey, accept: "application/json", "content-type": "application/json" },
-    body: JSON.stringify({
-      recipients: [{ to: [{ email: to, name: name || to }], variables: vars }],
-      from: { email: ch.from, name: ch.fromName },
-      domain: ch.domain,
-      template_id: ch.templateId
-    })
-  });
-  const body = await readJson(res);
-  if (!res.ok || body.hasError === true || body.status === "fail") {
-    return { ok: false, error: String(body.errors ?? body.message ?? `MSG91 email HTTP ${res.status}`) };
-  }
-  const data = body.data;
-  return { ok: true, id: data?.unique_id ?? "" };
-}
 function withTitle(firstName, gender) {
   if (gender === "male") return `${firstName} Sir`;
   if (gender === "female") return `${firstName} Ma'am`;
@@ -248,12 +265,12 @@ async function deliver(input) {
     attempts.push({
       channel: "email",
       recipient: input.email,
-      run: () => sendEmail(em, input.email, input.firstName, {
-        first_name: input.firstName,
-        business_name: input.businessName,
-        message: text,
-        review_link: input.link,
-        image_url: input.imageUrl ?? ""
+      run: () => sendGmail(em, {
+        to: input.email,
+        fromName: input.businessName,
+        subject: isFollow ? `A quick reminder from ${input.businessName}` : `How was your visit to ${input.businessName}?`,
+        text,
+        html: reviewEmailHtml({ businessName: input.businessName, message: text, link: input.link, imageUrl: input.imageUrl })
       })
     });
   }

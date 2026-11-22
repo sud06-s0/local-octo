@@ -1,9 +1,10 @@
 // supabase/functions/_shared/send.ts
-// Message delivery: WhatsApp (Meta Cloud API), SMS and email (MSG91).
+// Message delivery: WhatsApp (Meta Cloud API), SMS (MSG91) and email (Google Workspace / Gmail).
 // Every provider needs PRE-APPROVED templates — see SETUP.md for the exact template text.
 
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 import { approvedTemplates, defaultFollowUp, type ParamKey } from './waTemplates.ts'
+import { reviewEmailHtml, sendGmail, type GmailConfig } from './email.ts'
 
 type Kind = 'initial' | 'follow_up' | 'test'
 type Channel = 'whatsapp' | 'sms' | 'email'
@@ -47,7 +48,7 @@ interface Channels {
     version: string
   }
   sms: null | { authKey: string; initial: string; followUp: string }
-  email: null | { authKey: string; from: string; fromName: string; domain: string; templateId: string }
+  email: null | GmailConfig
 }
 
 interface SendResult {
@@ -68,9 +69,9 @@ export async function loadChannels(admin: SupabaseClient, businessId: string): P
   const msgKey = env('MSG91_AUTH_KEY')
   // DLT-approved MSG91 templates (lo_review_request_p / lo_review_followup_p); secrets override them
   const smsInitial = pick('msg91_sms_template_initial', 'MSG91_SMS_TEMPLATE_INITIAL', '6b02bf24e1174c82ca0e0792')
-  const emailTemplate = pick('msg91_email_template_id', 'MSG91_EMAIL_TEMPLATE_ID')
-  const emailFrom = pick('email_from', 'MSG91_EMAIL_FROM')
-  const emailDomain = pick('email_domain', 'MSG91_EMAIL_DOMAIN')
+  const gmailUser = env('GMAIL_USER')
+  // app passwords are shown as 4 groups of 4 letters; spaces don't belong in it
+  const gmailPass = env('GMAIL_APP_PASSWORD').replace(/\s/g, '')
 
   return {
     whatsapp:
@@ -89,10 +90,7 @@ export async function loadChannels(admin: SupabaseClient, businessId: string): P
       msgKey && smsInitial
         ? { authKey: msgKey, initial: smsInitial, followUp: pick('msg91_sms_template_followup', 'MSG91_SMS_TEMPLATE_FOLLOWUP', '6b02be340483eded070eb952') }
         : null,
-    email:
-      msgKey && emailTemplate && emailFrom && emailDomain
-        ? { authKey: msgKey, from: emailFrom, fromName: pick('email_from_name', 'MSG91_EMAIL_FROM_NAME', 'Local Octo'), domain: emailDomain, templateId: emailTemplate }
-        : null,
+    email: gmailUser && gmailPass ? { user: gmailUser, pass: gmailPass } : null,
   }
 }
 
@@ -206,25 +204,6 @@ async function sendSms(ch: NonNullable<Channels['sms']>, to: string, templateId:
   return { ok: true, id: String(body.message ?? '') }
 }
 
-async function sendEmail(ch: NonNullable<Channels['email']>, to: string, name: string, vars: Record<string, string>): Promise<SendResult> {
-  const res = await fetch('https://control.msg91.com/api/v5/email/send', {
-    method: 'POST',
-    headers: { authkey: ch.authKey, accept: 'application/json', 'content-type': 'application/json' },
-    body: JSON.stringify({
-      recipients: [{ to: [{ email: to, name: name || to }], variables: vars }],
-      from: { email: ch.from, name: ch.fromName },
-      domain: ch.domain,
-      template_id: ch.templateId,
-    }),
-  })
-  const body = await readJson(res)
-  if (!res.ok || body.hasError === true || body.status === 'fail') {
-    return { ok: false, error: String((body.errors as unknown) ?? body.message ?? `MSG91 email HTTP ${res.status}`) }
-  }
-  const data = body.data as { unique_id?: string } | undefined
-  return { ok: true, id: data?.unique_id ?? '' }
-}
-
 export interface DeliverInput {
   admin: SupabaseClient
   businessId: string
@@ -329,12 +308,12 @@ export async function deliver(input: DeliverInput): Promise<DeliverResult> {
       channel: 'email',
       recipient: input.email,
       run: () =>
-        sendEmail(em, input.email, input.firstName, {
-          first_name: input.firstName,
-          business_name: input.businessName,
-          message: text,
-          review_link: input.link,
-          image_url: input.imageUrl ?? '',
+        sendGmail(em, {
+          to: input.email,
+          fromName: input.businessName,
+          subject: isFollow ? `A quick reminder from ${input.businessName}` : `How was your visit to ${input.businessName}?`,
+          text,
+          html: reviewEmailHtml({ businessName: input.businessName, message: text, link: input.link, imageUrl: input.imageUrl }),
         }),
     })
   }
