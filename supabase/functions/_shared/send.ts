@@ -90,7 +90,7 @@ export async function loadChannels(admin: SupabaseClient, businessId: string): P
       msgKey && smsInitial
         ? { authKey: msgKey, initial: smsInitial, followUp: pick('msg91_sms_template_followup', 'MSG91_SMS_TEMPLATE_FOLLOWUP', '6b02be340483eded070eb952') }
         : null,
-    email: gmailUser && gmailPass ? { user: gmailUser, pass: gmailPass } : null,
+    email: gmailUser && gmailPass ? { user: gmailUser, pass: gmailPass, from: env('GMAIL_FROM') || undefined } : null,
   }
 }
 

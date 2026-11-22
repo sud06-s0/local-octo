@@ -1,6 +1,8 @@
 // supabase/functions/_shared/email.ts
 // Review-request emails through Google Workspace (Gmail SMTP, port 465 — Edge Functions block ports 25 and 587).
-// Secrets: GMAIL_USER (e.g. reviews@localocto.com) and GMAIL_APP_PASSWORD (Google Account → Security → App passwords).
+// Secrets: GMAIL_USER + GMAIL_APP_PASSWORD = the account that signs in (Google Account → Security → App passwords).
+// Optional GMAIL_FROM = a different address customers see (e.g. reviews@localocto.com). It must be added to that
+// account in Gmail → Settings → Accounts → "Send mail as" (or as a Workspace alias), otherwise Gmail uses GMAIL_USER.
 // The sender name shown to the customer is the business name.
 
 import { SMTPClient } from 'https://deno.land/x/denomailer@1.6.0/mod.ts'
@@ -8,6 +10,8 @@ import { SMTPClient } from 'https://deno.land/x/denomailer@1.6.0/mod.ts'
 export interface GmailConfig {
   user: string
   pass: string
+  /** address shown as the sender; defaults to user */
+  from?: string
 }
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -42,7 +46,7 @@ export async function sendGmail(
   try {
     // Quotes keep commas etc. in the business name from breaking the From header
     const name = msg.fromName.replace(/["\r\n]/g, '').trim() || 'Reviews'
-    await client.send({ from: `"${name}" <${cfg.user}>`, to: msg.to, subject: msg.subject, content: msg.text, html: msg.html })
+    await client.send({ from: `"${name}" <${cfg.from || cfg.user}>`, to: msg.to, subject: msg.subject, content: msg.text, html: msg.html })
     return { ok: true, id: '' }
   } catch (e) {
     return { ok: false, error: `Gmail: ${e instanceof Error ? e.message : String(e)}` }

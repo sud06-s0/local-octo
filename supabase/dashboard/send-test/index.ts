@@ -90,7 +90,7 @@ async function sendGmail(cfg, msg) {
   });
   try {
     const name = msg.fromName.replace(/["\r\n]/g, "").trim() || "Reviews";
-    await client.send({ from: `"${name}" <${cfg.user}>`, to: msg.to, subject: msg.subject, content: msg.text, html: msg.html });
+    await client.send({ from: `"${name}" <${cfg.from || cfg.user}>`, to: msg.to, subject: msg.subject, content: msg.text, html: msg.html });
     return { ok: true, id: "" };
   } catch (e) {
     return { ok: false, error: `Gmail: ${e instanceof Error ? e.message : String(e)}` };
@@ -129,7 +129,7 @@ async function loadChannels(admin, businessId) {
       version: env("WHATSAPP_API_VERSION") || "v23.0"
     } : null,
     sms: msgKey && smsInitial ? { authKey: msgKey, initial: smsInitial, followUp: pick("msg91_sms_template_followup", "MSG91_SMS_TEMPLATE_FOLLOWUP", "6b02be340483eded070eb952") } : null,
-    email: gmailUser && gmailPass ? { user: gmailUser, pass: gmailPass } : null
+    email: gmailUser && gmailPass ? { user: gmailUser, pass: gmailPass, from: env("GMAIL_FROM") || void 0 } : null
   };
 }
 function fill(template, vars) {
