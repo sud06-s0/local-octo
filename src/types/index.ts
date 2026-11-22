@@ -158,6 +158,8 @@ export interface Settings {
     followUpsEnabled: boolean
     /** channels each review request goes out on; not saved yet = WhatsApp only */
     channels?: { whatsapp: boolean; sms: boolean; email: boolean }
+    /** SMS: 'window' = only 10 AM–9 PM (default), 'now' = send straight away */
+    smsTiming?: 'now' | 'window'
   }
   scheduling: {
     active: boolean

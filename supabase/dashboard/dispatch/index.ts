@@ -219,7 +219,7 @@ async function deliver(input) {
     attempts.push({
       channel: "sms",
       recipient: input.phone,
-      run: async () => !smsWindowOpen() ? { ok: false, error: "SMS not sent: promotional SMS only go out 10 AM\u20139 PM" } : await sendSms(sms, input.phone, isFollow ? sms.followUp : sms.initial, smsVars(input.messaging.useTitle === false ? input.firstName : withTitle(input.firstName, input.gender), input.businessName, input.link))
+      run: async () => input.messaging.smsTiming !== "now" && !smsWindowOpen() ? { ok: false, error: "SMS not sent: promotional SMS only go out 10 AM\u20139 PM" } : await sendSms(sms, input.phone, isFollow ? sms.followUp : sms.initial, smsVars(input.messaging.useTitle === false ? input.firstName : withTitle(input.firstName, input.gender), input.businessName, input.link))
     });
   }
   if (input.email && on.email && ch.email) {

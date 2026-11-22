@@ -766,7 +766,25 @@ export default function Messaging() {
                     <p className="mt-1"><Rendered text={smsFollow} /></p>
                   </div>
                 </div>
-                <p className="mt-3 text-xs text-muted">SMS only go out between 10 AM and 9 PM, and don't reach numbers on Do Not Disturb.</p>
+                <p className="mb-1.5 mt-5 text-sm font-medium">When to send SMS</p>
+                <Segmented
+                  className="w-full sm:w-full sm:[&>button]:flex-1"
+                  value={m.smsTiming ?? 'window'}
+                  onChange={(v) => {
+                    updateSettings('messaging', { smsTiming: v })
+                    toast(v === 'now' ? 'SMS will be sent right away' : 'SMS only between 10 AM and 9 PM')
+                  }}
+                  options={[
+                    { value: 'now', label: 'Right now', icon: Send },
+                    { value: 'window', label: '10 AM – 9 PM', icon: Clock },
+                  ]}
+                />
+                <p className="mt-1.5 text-xs text-muted">
+                  {(m.smsTiming ?? 'window') === 'now'
+                    ? 'Sent the moment the request goes out. Promotional SMS sent outside 10 AM–9 PM may not be delivered by the phone network.'
+                    : 'Outside 10 AM–9 PM, SMS is skipped and the other channels still go out.'}
+                  {' '}SMS don't reach numbers on Do Not Disturb.
+                </p>
               </>
             ) : m.mode === 'smart' ? (
               <>

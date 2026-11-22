@@ -25,6 +25,8 @@ export interface Messaging {
   followUpsEnabled?: boolean
   /** Which channels each review request goes out on (set on the Messaging page). Default: WhatsApp only */
   channels?: { whatsapp?: boolean; sms?: boolean; email?: boolean }
+  /** SMS timing: 'window' = only 10 AM–9 PM India time (default), 'now' = send straight away */
+  smsTiming?: 'now' | 'window'
 }
 
 /** Channels turned on for this business (WhatsApp only when nothing has been saved yet). */
@@ -305,7 +307,7 @@ export async function deliver(input: DeliverInput): Promise<DeliverResult> {
       channel: 'sms',
       recipient: input.phone,
       run: async () =>
-        !smsWindowOpen()
+        input.messaging.smsTiming !== 'now' && !smsWindowOpen()
           ? { ok: false, error: 'SMS not sent: promotional SMS only go out 10 AM–9 PM' }
           : await sendSms(sms, input.phone, isFollow ? sms.followUp : sms.initial, smsVars(input.messaging.useTitle === false ? input.firstName : withTitle(input.firstName, input.gender), input.businessName, input.link)),
     })
