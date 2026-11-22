@@ -185,8 +185,7 @@ async function deliver(input) {
   const ch = await loadChannels(input.admin, input.businessId);
   const isFollow = input.kind === "follow_up";
   const text = buildText(input.kind, input.messaging, input.firstName, input.businessName, input.link);
-  const on = enabledChannels(input.messaging);
-  if (input.kind === "test" && input.email) on.email = true;
+  const on = input.only ? { whatsapp: input.only === "whatsapp", sms: input.only === "sms", email: input.only === "email" } : enabledChannels(input.messaging);
   const attempts = [];
   if (input.phone && on.whatsapp && ch.whatsapp) {
     const wa = ch.whatsapp;
@@ -242,6 +241,8 @@ async function deliver(input) {
       on.sms && input.phone && !ch.sms && "SMS",
       on.email && input.email && !ch.email && "Email"
     ].filter(Boolean);
+    if (input.only === "email" && !input.email) return { ok: false, noChannel: true, error: "Enter an email address to test email" };
+    if (input.only && input.only !== "email" && !input.phone) return { ok: false, noChannel: true, error: "Enter a phone number to test WhatsApp or SMS" };
     return {
       ok: false,
       noChannel: true,

@@ -75,7 +75,7 @@ interface AppStore {
   setReviewReply: (id: string, reply: ReviewReply | undefined) => void
   markNotificationRead: (id: string) => void
   markAllNotificationsRead: () => void
-  sendTest: (to: string) => Promise<string>
+  sendTest: (to: string, channel?: 'whatsapp' | 'sms' | 'email') => Promise<string>
   draftReply: (review: Review) => Promise<string>
   uploadMessageImage: (file: File) => Promise<void>
   uploadBusinessAsset: (file: File, prefix: string) => Promise<string>
@@ -437,9 +437,9 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   }, [activeId, check])
 
   const sendTest = useCallback(
-    async (to: string) => {
+    async (to: string, channel?: 'whatsapp' | 'sms' | 'email') => {
       if (!isLive) return 'demo'
-      const res = await invokeFn<{ ok: boolean; channel?: string; warning?: string }>('send-test', { businessId: activeId, to })
+      const res = await invokeFn<{ ok: boolean; channel?: string; warning?: string }>('send-test', { businessId: activeId, to, channel })
       // e.g. "whatsapp + email", plus why another channel didn't go (SMS outside 10 AM–9 PM…)
       return `${res.channel ?? 'sent'}${res.warning ? ` (${res.warning})` : ''}`
     },

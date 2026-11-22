@@ -199,8 +199,7 @@ async function deliver(input) {
   const ch = await loadChannels(input.admin, input.businessId);
   const isFollow = input.kind === "follow_up";
   const text = buildText(input.kind, input.messaging, input.firstName, input.businessName, input.link);
-  const on = enabledChannels(input.messaging);
-  if (input.kind === "test" && input.email) on.email = true;
+  const on = input.only ? { whatsapp: input.only === "whatsapp", sms: input.only === "sms", email: input.only === "email" } : enabledChannels(input.messaging);
   const attempts = [];
   if (input.phone && on.whatsapp && ch.whatsapp) {
     const wa = ch.whatsapp;
@@ -256,6 +255,8 @@ async function deliver(input) {
       on.sms && input.phone && !ch.sms && "SMS",
       on.email && input.email && !ch.email && "Email"
     ].filter(Boolean);
+    if (input.only === "email" && !input.email) return { ok: false, noChannel: true, error: "Enter an email address to test email" };
+    if (input.only && input.only !== "email" && !input.phone) return { ok: false, noChannel: true, error: "Enter a phone number to test WhatsApp or SMS" };
     return {
       ok: false,
       noChannel: true,
@@ -338,7 +339,8 @@ Deno.serve(async (req) => {
   const admin = adminClient();
   const user = await getUser(req, admin);
   if (!user) return json({ error: "Sign in required" }, 401);
-  const { businessId, to } = await req.json().catch(() => ({}));
+  const { businessId, to, channel } = await req.json().catch(() => ({}));
+  const only = channel === "whatsapp" || channel === "sms" || channel === "email" ? channel : void 0;
   if (!businessId || !to) return json({ error: "businessId and to are required" }, 400);
   if (!await isMember(admin, user.id, businessId)) return json({ error: "Not allowed" }, 403);
   const { data: b } = await admin.from("businesses").select("name, review_link, public_key, messaging, country_code").eq("id", businessId).single();
@@ -366,7 +368,8 @@ Deno.serve(async (req) => {
     businessName: messaging.businessName || b.name,
     messaging,
     link: reviewPageLink,
-    imageUrl
+    imageUrl,
+    only
   });
   return result.ok ? json({ ok: true, channel: (result.channels ?? [result.channel]).join(" + "), warning: result.error }) : json({ ok: false, error: result.error }, 502);
 });

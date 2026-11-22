@@ -1,5 +1,6 @@
 // supabase/functions/send-test/index.ts
-// "Send Test Message" button. Body: { businessId, to } where `to` is a phone number or email.
+// "Send Test Message" button. Body: { businessId, to, channel } — `to` is a phone number or email,
+// `channel` the Messaging tab it was sent from (whatsapp | sms | email); the test goes on that channel only.
 
 import { adminClient, getUser, isMember } from '../_shared/supabase.ts'
 import { deliver, type Messaging } from '../_shared/send.ts'
@@ -15,7 +16,8 @@ Deno.serve(async (req) => {
   const user = await getUser(req, admin)
   if (!user) return json({ error: 'Sign in required' }, 401)
 
-  const { businessId, to } = (await req.json().catch(() => ({}))) as { businessId?: string; to?: string }
+  const { businessId, to, channel } = (await req.json().catch(() => ({}))) as { businessId?: string; to?: string; channel?: string }
+  const only = channel === 'whatsapp' || channel === 'sms' || channel === 'email' ? channel : undefined
   if (!businessId || !to) return json({ error: 'businessId and to are required' }, 400)
   if (!(await isMember(admin, user.id, businessId))) return json({ error: 'Not allowed' }, 403)
 
@@ -54,6 +56,7 @@ Deno.serve(async (req) => {
     messaging,
     link: reviewPageLink,
     imageUrl,
+    only,
   })
 
   return result.ok

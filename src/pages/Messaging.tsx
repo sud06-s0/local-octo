@@ -585,7 +585,7 @@ export default function Messaging() {
             time="9:41 AM"
           />
           <div className="mt-5 text-center">
-            <Button onClick={() => setTestOpen(true)}>Send Test Message</Button>
+            <Button onClick={() => setTestOpen(true)}>Send Test {channel === 'whatsapp' ? 'WhatsApp' : channel === 'sms' ? 'SMS' : 'Email'}</Button>
           </div>
         </div>
 
@@ -985,17 +985,17 @@ export default function Messaging() {
       <Modal
         open={testOpen}
         onClose={() => setTestOpen(false)}
-        title="Send Test Message"
+        title={`Send Test ${channel === 'whatsapp' ? 'WhatsApp' : channel === 'sms' ? 'SMS' : 'Email'}`}
         footer={
           <>
             <Button variant="outline" onClick={() => setTestOpen(false)}>Cancel</Button>
             <Button
-              disabled={!(isEmail(testTo) || isPhone(testTo)) || sending}
+              disabled={!(channel === 'email' ? isEmail(testTo) : isPhone(testTo)) || sending}
               onClick={async () => {
                 setSending(true)
                 try {
-                  const channel = await sendTest(testTo.trim())
-                  toast(mode === 'live' ? `Test sent to ${testTo} by ${channel}` : `Test message queued to ${testTo}`)
+                  const sentBy = await sendTest(testTo.trim(), channel)
+                  toast(mode === 'live' ? `Test sent to ${testTo} by ${sentBy}` : `Test message queued to ${testTo}`)
                   setTestOpen(false)
                   setTestTo('')
                 } catch (e) {
@@ -1010,10 +1010,15 @@ export default function Messaging() {
           </>
         }
       >
-        <Label htmlFor="test-to">Phone number or email</Label>
-        <Input id="test-to" placeholder="+91 98xxxxxxx or you@business.com" value={testTo} onChange={(e) => setTestTo(e.target.value)} />
+        <Label htmlFor="test-to">{channel === 'email' ? 'Email' : 'Phone number'}</Label>
+        <Input id="test-to" placeholder={channel === 'email' ? 'you@business.com' : '+91 98xxxxxxx'} value={testTo} onChange={(e) => setTestTo(e.target.value)} />
         <p className="mt-2 text-sm text-muted">
-          We'll send the current message so you can see exactly what customers receive. On WhatsApp, a Custom Message is used once Meta approves it; until then the standard message is sent.
+          {channel === 'whatsapp'
+            ? 'Sent by WhatsApp only. A Custom template is used once Meta approves it; until then the standard one is sent.'
+            : channel === 'sms'
+              ? 'Sent by SMS only, with the DLT-approved text.'
+              : 'Sent by email only, with the current email message.'}
+          {' '}The test goes even if this channel is switched off.
         </p>
       </Modal>
     </div>
