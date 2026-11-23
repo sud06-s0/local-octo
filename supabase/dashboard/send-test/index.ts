@@ -51,11 +51,10 @@ async function approvedTemplates(admin, businessId, chosen = {}) {
   const pickedFollow = chosen.followup ? rows.find((r) => r.id === chosen.followup && r.kind === "followup") : void 0;
   const own = rows.filter((r) => r.business_id === businessId);
   const initial = pickedInitial ?? own.find((r) => r.kind === "initial");
-  if (initial) {
-    out.initial = as(initial);
-    const photo = rows.find((r) => r.kind === "initial_image" && r.name === `${initial.name}_photo`) ?? (pickedInitial ? void 0 : own.find((r) => r.kind === "initial_image"));
-    if (photo) out.initial_image = as(photo);
-  }
+  if (initial) out.initial = as(initial);
+  const pickedSecond = chosen.second ? rows.find((r) => r.id === chosen.second && r.kind === "initial_image") : void 0;
+  const second = pickedSecond ?? own.find((r) => r.kind === "initial_image");
+  if (second) out.initial_image = as(second);
   const defaultFollow = rows.find((r) => r.kind === "followup" && r.is_default);
   const follow = pickedFollow ?? defaultFollow ?? own.find((r) => r.kind === "followup");
   if (follow) out.followup = as(follow);
@@ -250,8 +249,8 @@ async function deliver(input) {
   const attempts = [];
   if (input.phone && on.whatsapp && ch.whatsapp) {
     const wa = ch.whatsapp;
-    const photo = isFollow ? void 0 : input.imageUrl;
-    let template = isFollow ? wa.followUp : photo ? wa.initialImage : wa.initial;
+    const photo = input.imageUrl;
+    let template = photo ? wa.initialImage : isFollow ? wa.followUp : wa.initial;
     const waName = input.messaging.useTitle === false ? input.firstName : withTitle(input.firstName, input.gender);
     let params = [waName, input.businessName, input.link];
     const header = photo;
@@ -262,7 +261,11 @@ async function deliver(input) {
       business_name: input.businessName,
       owner_name: input.messaging.ownerFirstName || input.businessName
     };
-    const pick = input.messaging.waMode === "custom" ? (await approvedTemplates(input.admin, input.businessId, { initial: input.messaging.waTemplateId, followup: input.messaging.waFollowUpTemplateId }))[isFollow ? "followup" : photo ? "initial_image" : "initial"] : isFollow ? await defaultFollowUp(input.admin) : void 0;
+    const pick = input.messaging.waMode === "custom" ? (await approvedTemplates(input.admin, input.businessId, {
+      initial: input.messaging.waTemplateId,
+      second: input.messaging.waSecondTemplateId,
+      followup: input.messaging.waFollowUpTemplateId
+    }))[photo ? "initial_image" : isFollow ? "followup" : "initial"] : isFollow && !photo ? await defaultFollowUp(input.admin) : void 0;
     if (pick) {
       template = pick.name;
       lang = pick.language;
@@ -409,7 +412,7 @@ Deno.serve(async (req) => {
   const messaging = b.messaging ?? {};
   const firstName = messaging.ownerFirstName?.trim().split(/\s+/)[0] || user.user_metadata?.full_name?.trim().split(/\s+/)[0] || messaging.businessName?.trim() || b.name;
   const imageUrl = messaging.personalizedImage ? await testImageUrl(businessId, firstName, messaging.imageDataUrl) : void 0;
-  const result = await deliver({
+  const common = {
     admin,
     businessId,
     contactId: null,
@@ -420,8 +423,12 @@ Deno.serve(async (req) => {
     businessName: messaging.businessName || b.name,
     messaging,
     link: reviewPageLink,
-    imageUrl,
     only
-  });
+  };
+  let result = await deliver(common);
+  if (result.ok && imageUrl && only === "whatsapp") {
+    const second = await deliver({ ...common, imageUrl });
+    if (!second.ok) result = { ...result, error: `Second message (photo): ${second.error ?? "failed"}` };
+  }
   return result.ok ? json({ ok: true, channel: (result.channels ?? [result.channel]).join(" + "), warning: result.error }) : json({ ok: false, error: result.error }, 502);
 });

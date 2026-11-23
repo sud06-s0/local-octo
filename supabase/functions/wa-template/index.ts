@@ -2,7 +2,7 @@
 // WhatsApp templates. Body: { businessId, action, kinds? }
 //  - submit:          Custom Message / Custom Follow-up → submitted to Meta as text AND photo (Image header) templates,
 //                     uses the WhatsApp template fields (waMessage / waFollowUp, named waTemplateName /
-//                     waFollowUpTemplateName). First message: text + photo ("_photo") versions; follow-up: text only.
+//                     waFollowUpTemplateName). First message: text only; second message: photo + text; follow-up: text only.
 //  - refresh:         "Check WhatsApp" — looks every custom template up by name and updates its status.
 //  - standard:        approval status of the 3 standard templates (review_request, review_request_image, review_followup).
 // Any member of the business (agency or client login) can submit and check templates.
@@ -35,6 +35,10 @@ interface Messaging {
   /** WhatsApp category to request for the custom templates ('marketing' default, or 'utility') */
   waCategory?: 'marketing' | 'utility'
   waFollowUpCategory?: 'marketing' | 'utility'
+  /** second message (photo + text) */
+  waSecondMessage?: string
+  waSecondTemplateName?: string
+  waSecondCategory?: 'marketing' | 'utility'
 }
 
 /** WhatsApp template names: lowercase letters, numbers and underscores. */
@@ -64,7 +68,7 @@ Deno.serve(async (req) => {
     action?: 'submit' | 'refresh' | 'standard' | 'submit_standard' | 'delete' | 'set_default' | 'delete_standard'
     /** submit_standard / delete_standard: which standard templates (follow-up is optional, only when asked) */
     standardKinds?: TemplateKind[]
-    kinds?: Array<'initial' | 'followup'>
+    kinds?: Array<'initial' | 'second' | 'followup'>
   }
   if (!businessId) return json({ error: 'businessId is required' }, 400)
   if (!(await isMember(admin, user.id, businessId))) return json({ error: 'Not allowed' }, 403)
@@ -124,21 +128,20 @@ Deno.serve(async (req) => {
     const cat = (c?: string) => (c === 'utility' ? 'UTILITY' : 'MARKETING') as 'MARKETING' | 'UTILITY'
     const jobs: Array<{ kind: TemplateKind; source: string; name: string; category: 'MARKETING' | 'UTILITY' }> = []
     if (want.has('initial') && m.waMessage) jobs.push({ kind: 'initial', source: m.waMessage, name: cleanName(m.waTemplateName), category: cat(m.waCategory) })
+    // Second message = the photo message (Image header + text), sent one follow-up gap after the first
+    if (want.has('second') && m.waSecondMessage) jobs.push({ kind: 'initial_image', source: m.waSecondMessage, name: cleanName(m.waSecondTemplateName), category: cat(m.waSecondCategory) })
     if (want.has('followup') && m.waFollowUp) jobs.push({ kind: 'followup', source: m.waFollowUp, name: cleanName(m.waFollowUpTemplateName), category: cat(m.waFollowUpCategory) })
 
     for (const job of jobs) {
       const built = buildTemplateBody(job.source, vars)
       const base = { business_id: businessId, language: cfg.lang, body: built.body, params: built.params }
-      // First message: text + photo versions. Follow-up: text only.
-      const photoKind: TemplateKind | null = job.kind === 'initial' ? 'initial_image' : null
-
-      // Text version and photo version (same text + Image header), both submitted to Meta.
-      // Names come from the business ("my_name" and "my_name_photo"); generated if none was given.
-      for (const kind of photoKind ? [job.kind, photoKind] : [job.kind]) {
-        const name = job.name ? `${job.name}${kind === photoKind ? '_photo' : ''}` : templateName(businessId, kind)
+      // One template per job: first message and follow-up are text only; the second message carries the photo.
+      // Name comes from the business; generated if none was given.
+      for (const kind of [job.kind]) {
+        const name = job.name || templateName(businessId, kind)
         try {
           if (!built.params.includes('review_link')) throw new Error('The message must include the Review Link')
-          const header = kind === photoKind ? await getPhoto() : undefined
+          const header = kind === 'initial_image' ? await getPhoto() : undefined
           const created = await createTemplate(cfg, name, built.body, built.example, header, job.category)
           await admin.from('whatsapp_templates').insert({ ...base, kind, name, status: created.status, category: created.category, meta_template_id: created.id })
         } catch (e) {

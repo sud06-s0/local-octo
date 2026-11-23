@@ -23,6 +23,8 @@ export interface Messaging {
   /** chosen templates from the shared library (row ids); empty = this business's own latest approved */
   waTemplateId?: string | null
   waFollowUpTemplateId?: string | null
+  /** second message (photo + text) template picked from the library */
+  waSecondTemplateId?: string | null
   followUpsEnabled?: boolean
   /** Which channels each review request goes out on (set on the Messaging page). Default: WhatsApp only */
   channels?: { whatsapp?: boolean; sms?: boolean; email?: boolean }
@@ -294,9 +296,10 @@ export async function deliver(input: DeliverInput): Promise<DeliverResult> {
   if (input.phone && on.whatsapp && ch.whatsapp) {
     const wa = ch.whatsapp
     // Only approved templates go out on WhatsApp. Standard ones: {{1}} first name, {{2}} business name, {{3}} review link.
-    // First message carries the personalised photo when enabled; follow-ups are text only.
-    const photo = isFollow ? undefined : input.imageUrl
-    let template = isFollow ? wa.followUp : photo ? wa.initialImage : wa.initial
+    // Order: first message (text) → second message (photo + text, one follow-up gap later) → follow-ups (text).
+    // The caller passes imageUrl only for the second message.
+    const photo = input.imageUrl
+    let template = photo ? wa.initialImage : isFollow ? wa.followUp : wa.initial
     const waName = input.messaging.useTitle === false ? input.firstName : withTitle(input.firstName, input.gender)
     let params = [waName, input.businessName, input.link]
     const header = photo
@@ -312,10 +315,14 @@ export async function deliver(input: DeliverInput): Promise<DeliverResult> {
     // Follow-ups also use the agency's "default for all businesses" follow-up in Standard mode.
     const pick =
       input.messaging.waMode === 'custom'
-        ? (await approvedTemplates(input.admin, input.businessId, { initial: input.messaging.waTemplateId, followup: input.messaging.waFollowUpTemplateId }))[
-            isFollow ? 'followup' : photo ? 'initial_image' : 'initial'
-          ]
-        : isFollow
+        ? (
+            await approvedTemplates(input.admin, input.businessId, {
+              initial: input.messaging.waTemplateId,
+              second: input.messaging.waSecondTemplateId,
+              followup: input.messaging.waFollowUpTemplateId,
+            })
+          )[photo ? 'initial_image' : isFollow ? 'followup' : 'initial']
+        : isFollow && !photo
           ? await defaultFollowUp(input.admin)
           : undefined
     if (pick) {

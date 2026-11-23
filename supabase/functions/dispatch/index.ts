@@ -68,9 +68,9 @@ Deno.serve(async (req) => {
       businessName: row.business_name,
       messaging: row.messaging ?? {},
       link: `${linkBase}?t=${row.token}`,
-      // Photo with the customer's name (business photo, or the demo photo if none uploaded)
-      // Personalised photo on the first message only; follow-ups are text
-      imageUrl: kind === 'initial' && row.messaging?.personalizedImage ? contactImageUrl(row.token, row.messaging?.imageDataUrl, row.messaging?.useTitle === false ? '' : row.gender) : undefined,
+      // Photo with the customer's name (business photo, or the demo photo if none uploaded) on the WhatsApp SECOND
+      // message: the first send after the first message. First message and later follow-ups are text only.
+      imageUrl: kind === 'follow_up' && row.requests_sent === 1 && row.messaging?.personalizedImage ? contactImageUrl(row.token, row.messaging?.imageDataUrl, row.messaging?.useTitle === false ? '' : row.gender) : undefined,
     })
 
     const now = new Date()

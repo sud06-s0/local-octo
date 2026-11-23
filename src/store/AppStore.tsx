@@ -47,7 +47,7 @@ interface AppStore {
   feedback: CustomerFeedback[]
   /** WhatsApp custom templates of the active business (agency submits; clients see approved ones) */
   waTemplates: WaTemplate[]
-  submitWhatsAppTemplates: (kinds: Array<'initial' | 'followup'>) => Promise<string[]>
+  submitWhatsAppTemplates: (kinds: Array<'initial' | 'second' | 'followup'>) => Promise<string[]>
   refreshWhatsAppTemplates: () => Promise<string[]>
   checkStandardTemplates: () => Promise<WaStandardTemplate[]>
   submitStandardTemplates: (kinds?: WaTemplateKind[]) => Promise<WaStandardTemplate[]>
@@ -525,28 +525,29 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   )
 
   const submitWhatsAppTemplates = useCallback(
-    async (kinds: Array<'initial' | 'followup'>) => {
+    async (kinds: Array<'initial' | 'second' | 'followup'>) => {
       if (!isLive) {
         // Demo: pretend they were submitted and are waiting for Meta
         const m = stateRef.current.settings.messaging
         const now = new Date().toISOString()
         const make = (kind: WaTemplateKind, body: string, status: WaTemplate['status'] = 'pending'): WaTemplate => {
-          const base = (kind.startsWith('initial') ? m.waTemplateName : m.waFollowUpTemplateName)?.replace(/^_+|_+$/g, '')
+          const base = (kind === 'initial' ? m.waTemplateName : kind === 'initial_image' ? m.waSecondTemplateName : m.waFollowUpTemplateName)?.replace(/^_+|_+$/g, '')
           return {
           id: uid('t'),
           kind,
-          name: base ? `${base}${kind.endsWith('_image') ? '_photo' : ''}` : `lo_demo_${kind}_${Date.now().toString(36)}`,
+          name: base || `lo_demo_${kind}_${Date.now().toString(36)}`,
           language: 'en',
           body,
           status,
           reason: null,
-          category: (kind.startsWith('initial') ? m.waCategory : m.waFollowUpCategory) ?? 'marketing',
+          category: (kind === 'initial' ? m.waCategory : kind === 'initial_image' ? m.waSecondCategory : m.waFollowUpCategory) ?? 'marketing',
           createdAt: now,
           businessId: activeId ?? undefined,
           }
         }
         const rows: WaTemplate[] = []
-        if (kinds.includes('initial')) rows.push(make('initial', m.waMessage), make('initial_image', m.waMessage))
+        if (kinds.includes('initial')) rows.push(make('initial', m.waMessage))
+        if (kinds.includes('second')) rows.push(make('initial_image', m.waSecondMessage ?? ''))
         if (kinds.includes('followup')) rows.push(make('followup', m.waFollowUp)) // follow-ups are text only
         setWaTemplates((t) => [...rows, ...t])
         return []

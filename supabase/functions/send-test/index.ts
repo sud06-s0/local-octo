@@ -44,20 +44,25 @@ Deno.serve(async (req) => {
     b.name
   const imageUrl = messaging.personalizedImage ? await testImageUrl(businessId, firstName, messaging.imageDataUrl) : undefined
 
-  const result = await deliver({
+  const common = {
     admin,
     businessId,
     contactId: null,
-    kind: 'test',
+    kind: 'test' as const,
     firstName,
     email: isEmail ? to.trim() : '',
     phone,
     businessName: messaging.businessName || b.name,
     messaging,
     link: reviewPageLink,
-    imageUrl,
     only,
-  })
+  }
+  // WhatsApp: first message (text), then the second message with the photo when Personalized Image is on
+  let result = await deliver(common)
+  if (result.ok && imageUrl && only === 'whatsapp') {
+    const second = await deliver({ ...common, imageUrl })
+    if (!second.ok) result = { ...result, error: `Second message (photo): ${second.error ?? 'failed'}` }
+  }
 
   return result.ok
     ? json({ ok: true, channel: (result.channels ?? [result.channel]).join(' + '), warning: result.error })

@@ -186,12 +186,12 @@ export interface ApprovedTemplate {
 /**
  * The custom templates a business sends with. Templates are a shared library (made by the agency in any business):
  * a business uses the ones it picked (messaging.waTemplateId / waFollowUpTemplateId), otherwise its own latest approved.
- * The photo version of a first message is the template with the same name + "_photo".
+ * Kinds: 'initial' = first message (text), 'initial_image' = second message (photo + text), 'followup'.
  */
 export async function approvedTemplates(
   admin: SupabaseClient,
   businessId: string,
-  chosen: { initial?: string | null; followup?: string | null } = {},
+  chosen: { initial?: string | null; second?: string | null; followup?: string | null } = {},
 ): Promise<Partial<Record<TemplateKind, ApprovedTemplate>>> {
   const { data } = await admin
     .from('whatsapp_templates')
@@ -208,12 +208,11 @@ export async function approvedTemplates(
   const own = rows.filter((r) => r.business_id === businessId)
 
   const initial = pickedInitial ?? own.find((r) => r.kind === 'initial')
-  if (initial) {
-    out.initial = as(initial)
-    const photo = rows.find((r) => r.kind === 'initial_image' && r.name === `${initial.name}_photo`)
-      ?? (pickedInitial ? undefined : own.find((r) => r.kind === 'initial_image'))
-    if (photo) out.initial_image = as(photo)
-  }
+  if (initial) out.initial = as(initial)
+  // Second message (photo): the business's pick, else its own latest approved
+  const pickedSecond = chosen.second ? rows.find((r) => r.id === chosen.second && r.kind === 'initial_image') : undefined
+  const second = pickedSecond ?? own.find((r) => r.kind === 'initial_image')
+  if (second) out.initial_image = as(second)
   // Follow-up: the business's own pick → the agency's default for all businesses → its own latest approved
   const defaultFollow = rows.find((r) => r.kind === 'followup' && r.is_default)
   const follow = pickedFollow ?? defaultFollow ?? own.find((r) => r.kind === 'followup')

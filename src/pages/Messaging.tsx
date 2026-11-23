@@ -42,7 +42,7 @@ function TokenChips({ onInsert }: { onInsert: (token: string) => void }) {
 
 const KIND_LABEL: Record<WaTemplateKind, string> = {
   initial: 'First message',
-  initial_image: 'First message with photo',
+  initial_image: 'Second message (photo)',
   followup: 'Follow-up',
   followup_image: 'Follow-up with photo',
 }
@@ -267,8 +267,8 @@ function WhatsAppApproval({
   const anyOpen = list.some((t) => ['pending', 'not_created', 'paused'].includes(t.status))
   const anyBad = list.some((t) => ['rejected', 'failed', 'disabled'].includes(t.status))
   // Which one this business sends with: the one it picked, else its own latest approved
-  const inUse = (kind: 'initial' | 'followup') => {
-    const picked = kind === 'initial' ? m.waTemplateId : m.waFollowUpTemplateId
+  const inUse = (kind: 'initial' | 'initial_image' | 'followup') => {
+    const picked = kind === 'initial' ? m.waTemplateId : kind === 'initial_image' ? m.waSecondTemplateId : m.waFollowUpTemplateId
     if (picked && templates.some((t) => t.id === picked && t.status === 'approved')) return picked
     // follow-up: the agency's default for all businesses comes next
     const def = kind === 'followup' ? templates.find((t) => t.kind === 'followup' && t.status === 'approved' && t.isDefault) : undefined
@@ -284,7 +284,10 @@ function WhatsAppApproval({
     }
   }
   const use = (t: WaTemplate) => {
-    updateSettings('messaging', t.kind === 'initial' ? { waTemplateId: t.id } : { waFollowUpTemplateId: t.id })
+    updateSettings(
+      'messaging',
+      t.kind === 'initial' ? { waTemplateId: t.id } : t.kind === 'initial_image' ? { waSecondTemplateId: t.id } : { waFollowUpTemplateId: t.id },
+    )
     toast(`${t.name} is now used for this business`)
   }
   return (
@@ -424,6 +427,7 @@ function ChannelPreview({
   text,
   time,
   reply,
+  second,
 }: {
   channel: Channel
   image: string | null
@@ -432,6 +436,8 @@ function ChannelPreview({
   text: string
   time: string
   reply?: string
+  /** WhatsApp second message (photo + text), shown under the first */
+  second?: { image: string; text: string }
 }) {
   return (
     <>
@@ -452,6 +458,15 @@ function ChannelPreview({
           <OutgoingBubble time={time}>
             <Rendered text={text} />
           </OutgoingBubble>
+          {channel === 'whatsapp' && second && (
+            <>
+              <p className="my-1 text-center text-[11px] text-muted">Second message · after the follow-up gap</p>
+              <PreviewImage src={second.image} name={name} />
+              <OutgoingBubble time={time}>
+                <Rendered text={second.text} />
+              </OutgoingBubble>
+            </>
+          )}
           {reply && <IncomingBubble time="2:45 PM">{reply}</IncomingBubble>}
         </PhoneMockup>
       )}
@@ -480,13 +495,16 @@ export default function Messaging() {
   const [waFollow, setWaFollow] = useState(m.waFollowUp)
   const [waName, setWaName] = useState(m.waTemplateName ?? '')
   const [waFollowName, setWaFollowName] = useState(m.waFollowUpTemplateName ?? '')
-  const [waFor, setWaFor] = useState<'initial' | 'followup'>('initial')
+  const [waFor, setWaFor] = useState<'initial' | 'second' | 'followup'>('initial')
+  const [waSecond, setWaSecond] = useState(m.waSecondMessage ?? '')
+  const [waSecondName, setWaSecondName] = useState(m.waSecondTemplateName ?? '')
+  const [waSecondCat, setWaSecondCat] = useState<'marketing' | 'utility'>(m.waSecondCategory ?? 'marketing')
   const [waCat, setWaCat] = useState<'marketing' | 'utility'>(m.waCategory ?? 'marketing')
   const [waFollowCat, setWaFollowCat] = useState<'marketing' | 'utility'>(m.waFollowUpCategory ?? 'marketing')
   const [waBusy, setWaBusy] = useState(false)
 
   /** Saves first (the Edge Function reads the saved text), then submits to WhatsApp. */
-  const saveAndSubmit = async (patch: Partial<typeof m>, kinds: Array<'initial' | 'followup'>, savedMsg: string) => {
+  const saveAndSubmit = async (patch: Partial<typeof m>, kinds: Array<'initial' | 'second' | 'followup'>, savedMsg: string) => {
     setWaBusy(true)
     try {
       await updateSettings('messaging', patch)
@@ -579,11 +597,17 @@ export default function Messaging() {
           {/* The business's own photo, or the built-in demo photo until they upload one */}
           <ChannelPreview
             channel={channel}
-            image={m.personalizedImage ? m.imageDataUrl || DEFAULT_IMAGE : null}
+            // WhatsApp: first message is text only; the photo goes with the second message
+            image={channel !== 'whatsapp' && m.personalizedImage ? m.imageDataUrl || DEFAULT_IMAGE : null}
             name={sample}
             businessName={m.businessName || state.settings.business.name}
             text={initialText}
             time="9:41 AM"
+            second={
+              channel === 'whatsapp' && m.personalizedImage
+                ? { image: m.imageDataUrl || DEFAULT_IMAGE, text: waCustom && m.waSecondMessage ? fillTemplate(m.waSecondMessage, vars) : smartFirst }
+                : undefined
+            }
           />
           <div className="mt-5 text-center">
             <Button onClick={() => setTestOpen(true)}>Send Test {channel === 'whatsapp' ? 'WhatsApp' : channel === 'sms' ? 'SMS' : 'Email'}</Button>
@@ -691,7 +715,7 @@ export default function Messaging() {
                 <div className="mb-6 border-b border-line pb-6">
                   <h2 className="text-lg font-semibold">Custom WhatsApp Template</h2>
                   <p className="mt-0.5 text-[15px] text-muted">{'Write the template and send it to WhatsApp for approval'}</p>
-                  {/* Which message this template is for: first message (text + photo versions) or follow-up (one text-only template) */}
+                  {/* Which message this template is for: first (text), second (photo + text) or follow-up (text) */}
                   <p className="mb-1.5 mt-4 text-sm font-medium">Template for</p>
                   <Segmented
                     className="w-full sm:w-full sm:[&>button]:flex-1"
@@ -699,17 +723,20 @@ export default function Messaging() {
                     onChange={setWaFor}
                     options={[
                       { value: 'initial', label: 'First message', icon: Send },
+                      { value: 'second', label: 'Second (photo)', icon: ImagePlus },
                       { value: 'followup', label: 'Follow-up', icon: Reply },
                     ]}
                   />
                   <p className="mt-1.5 text-xs text-muted">
                     {waFor === 'initial'
-                      ? 'First message: sent as 2 templates, with photo and without (the photo one is used while Personalized Image is on).'
-                      : `Follow-up: one text-only template, sent if the customer hasn't clicked the review link.${m.followUpsEnabled ? '' : ' Follow-ups are off right now (Contacts → Schedule Requests).'}`}
+                      ? 'First message: text only.'
+                      : waFor === 'second'
+                        ? 'Second message: the photo with the customer\'s name + this text, sent one follow-up gap after the first message (while Personalized Image is on).'
+                        : `Follow-up: text only, sent if the customer hasn't clicked the review link.${m.followUpsEnabled ? '' : ' Follow-ups are off right now (Contacts → Schedule Requests).'}`}
                   </p>
                   {waFor === 'initial' ? (
                     <>
-                      <TemplateNameField id="wa-name" value={waName} onChange={setWaName} placeholder="e.g. review_request_localocto" />
+                      <TemplateNameField id="wa-name" value={waName} onChange={setWaName} placeholder="e.g. review_request_localocto" photo={false} />
                       <CategoryPicker value={waCat} onChange={setWaCat} />
                       <TokenChips onInsert={(t) => setWaMsg((v) => (v + ' ' + t).slice(0, MAX_CHARS))} />
                       <CounterTextarea ref={waRef} value={waMsg} onChange={setWaMsg} rows={5} />
@@ -727,7 +754,29 @@ export default function Messaging() {
                       >
                         {waBusy ? 'Submitting…' : 'Save & Submit for Approval'}
                       </Button>
-                      <WhatsAppApproval kinds={['initial', 'initial_image']} templates={waTemplates} busy={waBusy} onRefresh={refreshWa} />
+                      <WhatsAppApproval kinds={['initial']} templates={waTemplates} busy={waBusy} onRefresh={refreshWa} />
+                    </>
+                  ) : waFor === 'second' ? (
+                    <>
+                      <TemplateNameField id="wa-second-name" value={waSecondName} onChange={setWaSecondName} placeholder="e.g. review_photo_localocto" photo={false} />
+                      <CategoryPicker value={waSecondCat} onChange={setWaSecondCat} />
+                      <TokenChips onInsert={(t) => setWaSecond((v) => (v + ' ' + t).slice(0, MAX_CHARS))} />
+                      <CounterTextarea value={waSecond} onChange={setWaSecond} rows={5} />
+                      {!waSecond.includes('{review_link}') && <p className="mt-1.5 text-xs text-red-600">Add the Review Link so customers can leave a review</p>}
+                      <Button
+                        className="mt-4 w-full"
+                        disabled={
+                          !waSecond.trim() || !waSecond.includes('{review_link}') || !cleanName(waSecondName) ||
+                          (waSecond === (m.waSecondMessage ?? '') && cleanName(waSecondName) === (m.waSecondTemplateName ?? '') && waSecondCat === (m.waSecondCategory ?? 'marketing')) || waBusy
+                        }
+                        onClick={() => {
+                          setWaSecondName(cleanName(waSecondName))
+                          saveAndSubmit({ waSecondMessage: waSecond, waSecondTemplateName: cleanName(waSecondName), waSecondCategory: waSecondCat }, ['second'], 'Second message saved')
+                        }}
+                      >
+                        {waBusy ? 'Submitting…' : 'Save & Submit for Approval'}
+                      </Button>
+                      <WhatsAppApproval kinds={['initial_image']} templates={waTemplates} busy={waBusy} onRefresh={refreshWa} />
                     </>
                   ) : (
                     <>
@@ -856,7 +905,7 @@ export default function Messaging() {
               <div>
                 <p className="text-[15px] font-medium">Personalized Image</p>
                 <p className="text-sm text-muted">Add a custom image to your messages</p>
-                <p className="mt-0.5 text-xs text-muted">Sent above the WhatsApp message, with each customer's name on it (not in SMS or email)</p>
+                <p className="mt-0.5 text-xs text-muted">Sent with the second WhatsApp message, with each customer's name on it (not in SMS or email)</p>
               </div>
               <Toggle checked={m.personalizedImage} onChange={(v) => updateSettings('messaging', { personalizedImage: v })} label="Personalized image" />
             </div>

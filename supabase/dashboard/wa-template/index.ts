@@ -2,7 +2,6 @@
 // Self-contained copy of supabase/functions/wa-template for pasting into the Supabase dashboard editor.
 // Function name in Supabase must be exactly: wa-template   ·   Turn OFF "Verify JWT" for this function.
 // @ts-nocheck  (bundled JavaScript — the typed source lives in supabase/functions)
-
 // supabase/functions/_shared/supabase.ts
 import { createClient } from "npm:@supabase/supabase-js@2";
 function secretKey() {
@@ -241,16 +240,16 @@ Deno.serve(async (req) => {
     const cat = (c) => c === "utility" ? "UTILITY" : "MARKETING";
     const jobs = [];
     if (want.has("initial") && m.waMessage) jobs.push({ kind: "initial", source: m.waMessage, name: cleanName(m.waTemplateName), category: cat(m.waCategory) });
+    if (want.has("second") && m.waSecondMessage) jobs.push({ kind: "initial_image", source: m.waSecondMessage, name: cleanName(m.waSecondTemplateName), category: cat(m.waSecondCategory) });
     if (want.has("followup") && m.waFollowUp) jobs.push({ kind: "followup", source: m.waFollowUp, name: cleanName(m.waFollowUpTemplateName), category: cat(m.waFollowUpCategory) });
     for (const job of jobs) {
       const built = buildTemplateBody(job.source, vars);
       const base = { business_id: businessId, language: cfg.lang, body: built.body, params: built.params };
-      const photoKind = job.kind === "initial" ? "initial_image" : null;
-      for (const kind of photoKind ? [job.kind, photoKind] : [job.kind]) {
-        const name = job.name ? `${job.name}${kind === photoKind ? "_photo" : ""}` : templateName(businessId, kind);
+      for (const kind of [job.kind]) {
+        const name = job.name || templateName(businessId, kind);
         try {
           if (!built.params.includes("review_link")) throw new Error("The message must include the Review Link");
-          const header = kind === photoKind ? await getPhoto() : void 0;
+          const header = kind === "initial_image" ? await getPhoto() : void 0;
           const created = await createTemplate(cfg, name, built.body, built.example, header, job.category);
           await admin.from("whatsapp_templates").insert({ ...base, kind, name, status: created.status, category: created.category, meta_template_id: created.id });
         } catch (e) {

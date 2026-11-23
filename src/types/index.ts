@@ -155,6 +155,11 @@ export interface Settings {
     waTemplateId?: string | null
     waFollowUpTemplateId?: string | null
     waFollowUpCategory?: 'marketing' | 'utility'
+    /** WhatsApp second message: photo + text, sent one follow-up gap after the first (text-only) message */
+    waSecondMessage?: string
+    waSecondTemplateName?: string
+    waSecondCategory?: 'marketing' | 'utility'
+    waSecondTemplateId?: string | null
     followUpsEnabled: boolean
     /** channels each review request goes out on; not saved yet = WhatsApp only */
     channels?: { whatsapp: boolean; sms: boolean; email: boolean }
