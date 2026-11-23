@@ -166,12 +166,13 @@ async function sendWhatsApp(
 /**
  * SMS variables for the MSG91 templates. The DLT text is fixed:
  *   Hi ##name##, Thank you for visiting ##business##. Please share your feedback here: https://review.localocto.com/r?t=##token## - Local Octo
- * DLT allows at most 40 characters per variable. ##token## = short business name + "-" + the code from the
+ * DLT allows at most 30 characters per variable. ##token## = short business name + "-" + the code from the
  * review link (contact token, or the business public key for test messages), e.g. "sirmvpu-fffb3b123db020e63e".
  * The `r` function ignores the part before the "-".
  */
 export function smsVars(firstName: string, businessName: string, link: string): Record<string, string> {
-  const cut = (v: string) => Array.from(v).slice(0, 40).join('')
+  // DLT: each {#var#} holds at most 30 characters, or the SMS no longer matches the template and fails
+  const cut = (v: string) => Array.from(v).slice(0, 30).join('')
   let code = ''
   try {
     const u = new URL(link)
@@ -179,7 +180,9 @@ export function smsVars(firstName: string, businessName: string, link: string): 
   } catch {
     /* not a URL */
   }
-  const slug = businessName.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12)
+  // short business name in front only when it fits: slug + "-" + code <= 30
+  const room = 30 - code.length - 1
+  const slug = room >= 3 ? businessName.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, room) : ''
   return {
     name: cut(firstName),
     business: cut(businessName),

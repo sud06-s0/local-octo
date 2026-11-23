@@ -182,14 +182,15 @@ async function sendWhatsApp(ch, to, template, params, headerImage, lang) {
   return { ok: true, id };
 }
 function smsVars(firstName, businessName, link) {
-  const cut = (v) => Array.from(v).slice(0, 40).join("");
+  const cut = (v) => Array.from(v).slice(0, 30).join("");
   let code = "";
   try {
     const u = new URL(link);
     code = u.searchParams.get("t") || u.searchParams.get("b") || "";
   } catch {
   }
-  const slug = businessName.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 12);
+  const room = 30 - code.length - 1;
+  const slug = room >= 3 ? businessName.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, room) : "";
   return {
     name: cut(firstName),
     business: cut(businessName),
