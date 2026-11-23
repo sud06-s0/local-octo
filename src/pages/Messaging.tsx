@@ -895,29 +895,6 @@ export default function Messaging() {
               </Button>
             </div>
 
-            {channel === 'whatsapp' && (<>
-            <div className="mt-6 flex items-center justify-between gap-4">
-              <div>
-                <p className="text-[15px] font-medium">Personalized Image</p>
-                <p className="text-sm text-muted">Add a custom image to your messages</p>
-                <p className="mt-0.5 text-xs text-muted">Sent with the second WhatsApp message, with each customer's name on it (not in SMS or email)</p>
-              </div>
-              <Toggle checked={m.personalizedImage} onChange={(v) => updateSettings('messaging', { personalizedImage: v })} label="Personalized image" />
-            </div>
-            {m.personalizedImage && (
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <Button variant="outline" icon={ImagePlus} disabled={uploading} onClick={() => fileRef.current?.click()}>
-                  {uploading ? 'Uploading…' : m.imageDataUrl ? 'Replace Image' : 'Upload Image'}
-                </Button>
-                {m.imageDataUrl && (
-                  <Button variant="ghost" icon={Trash2} onClick={() => updateSettings('messaging', { imageDataUrl: null })}>
-                    Remove
-                  </Button>
-                )}
-                <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => e.target.files?.[0] && onImage(e.target.files[0])} />
-              </div>
-            )}
-            </>)}
 
             {channel !== 'email' && (
               <div className="mt-6 flex items-center justify-between gap-4">
@@ -953,11 +930,32 @@ export default function Messaging() {
               />
             </div>
             <Card className="p-5 sm:p-6 lg:self-start">
-              <p className="text-[15px] font-medium">{m.personalizedImage ? 'On: sent with the photo' : 'Off: Personalized Image is off'}</p>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-[15px] font-medium">Personalized Image</p>
+                <p className="text-sm text-muted">The photo with each customer's name on it</p>
+                <p className="mt-0.5 text-xs text-muted">WhatsApp only, not in SMS or email</p>
+              </div>
+              <Toggle checked={m.personalizedImage} onChange={(v) => updateSettings('messaging', { personalizedImage: v })} label="Personalized image" />
+            </div>
+            {m.personalizedImage && (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Button variant="outline" icon={ImagePlus} disabled={uploading} onClick={() => fileRef.current?.click()}>
+                  {uploading ? 'Uploading…' : m.imageDataUrl ? 'Replace Image' : 'Upload Image'}
+                </Button>
+                {m.imageDataUrl && (
+                  <Button variant="ghost" icon={Trash2} onClick={() => updateSettings('messaging', { imageDataUrl: null })}>
+                    Remove
+                  </Button>
+                )}
+                <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => e.target.files?.[0] && onImage(e.target.files[0])} />
+              </div>
+            )}
+              <p className="mt-5 text-[15px] font-medium">{m.personalizedImage ? 'On: sent with the photo' : 'Off: Personalized Image is off'}</p>
               <p className="mt-1 text-sm text-muted">
                 {m.personalizedImage
                   ? 'Goes out one follow-up gap after the first message, unless the customer already clicked the review link. Then follow-ups continue as text.'
-                  : 'Turn on Personalized Image above to send this photo message. While it is off, the second send is a normal text follow-up.'}
+                  : 'Turn on Personalized Image to send this photo message. While it is off, the second send is a normal text follow-up.'}
               </p>
               {isAgency && m.waMode === 'custom' && (
                 <p className="mt-3 text-sm text-muted">Edit its text under Custom Template → Template for → Second (photo).</p>
