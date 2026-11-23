@@ -127,6 +127,8 @@ export interface Settings {
     reviewLink: string
     /** short link code (5–6 letters/digits): links become review.localocto.com/r?t=<code>-<contact code> */
     shortCode?: string
+    /** first download of the review-link QR code PDF (clients get one download, agency any number) */
+    qrDownloadedAt?: string | null
     placeId: string
     phone: string
     website: string

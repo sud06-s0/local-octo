@@ -9,6 +9,7 @@ import { Modal } from '../components/ui/Modal'
 import { BusinessDetailsForm, businessDetailsValid, type BusinessDetails } from '../components/BusinessDetailsForm'
 import { GoogleLinkBox } from '../components/GoogleConnectCard'
 import { ShortLinkField } from '../components/ShortLinkField'
+import { ReviewQrButton } from '../components/ReviewQr'
 import { useToast } from '../components/ui/Toast'
 import { cn, copyText } from '../lib/utils'
 import { brand } from '../config/brand'
@@ -294,6 +295,7 @@ export default function Dashboard() {
           >
             Copy Review Link
           </Button>
+          <ReviewQrButton link={publicKey ? `${window.location.origin}/review?b=${publicKey}` : settings.business.reviewLink} />
         </div>
       </Card>
     </div>
