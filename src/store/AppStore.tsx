@@ -23,7 +23,7 @@ import { useToast } from '../components/ui/Toast'
 const STORAGE_KEY = 'lo-app-state-v1'
 const ACTIVE_KEY = 'lo-active-business'
 const BUSINESS_COLS =
-  'id, name, address, place_id, phone, website, google_rating, google_review_count, google_synced_at, review_link, short_code, qr_downloaded_at, maps_url, timezone, country_code, public_key, api_key_prefix, messaging, scheduling, ai, notification_prefs'
+  'id, name, address, place_id, phone, website, google_rating, google_review_count, google_synced_at, review_link, short_code, maps_url, timezone, country_code, public_key, api_key_prefix, messaging, scheduling, ai, notification_prefs'
 
 export interface BusinessSummary {
   id: string
@@ -85,8 +85,6 @@ interface AppStore {
   updateSettings: <K extends keyof Settings>(key: K, patch: Partial<Settings[K]>) => Promise<void>
   /** Set the short link code. Clients: once; agency: any time. Returns an error message, or null when saved. */
   setShortCode: (code: string) => Promise<string | null>
-  /** Record a QR PDF download (clients: once; agency: any time). Returns an error message, or null when allowed. */
-  markQrDownload: () => Promise<string | null>
   setReviewReply: (id: string, reply: ReviewReply | undefined) => void
   markNotificationRead: (id: string) => void
   markAllNotificationsRead: () => void
@@ -170,7 +168,6 @@ function toSettings(b: Row): Settings {
       mapsUrl: b.maps_url ?? '',
       reviewLink: b.review_link ?? '',
       shortCode: b.short_code ?? '',
-      qrDownloadedAt: b.qr_downloaded_at ?? null,
       placeId: b.place_id ?? '',
       phone: b.phone ?? '',
       website: b.website ?? '',
@@ -464,14 +461,6 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     },
     [activeId],
   )
-
-  const markQrDownload = useCallback(async () => {
-    if (!isLive || !activeId) return null
-    const { data, error } = await db().rpc('mark_qr_download', { p_business: activeId })
-    if (error) return error.message
-    setState((s) => ({ ...s, settings: { ...s.settings, business: { ...s.settings.business, qrDownloadedAt: String(data) } } }))
-    return null
-  }, [activeId])
 
   const setReviewReply = useCallback(
     (id: string, reply: ReviewReply | undefined) => {
@@ -829,7 +818,6 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       deleteContact,
       updateSettings,
       setShortCode,
-      markQrDownload,
       setReviewReply,
       markNotificationRead,
       markAllNotificationsRead,
@@ -840,7 +828,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       refresh,
       resetDemo,
     }),
-    [loading, state, businesses, activeId, keys, feedback, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, submitStandardTemplates, deleteStandardTemplates, setDefaultTemplate, switchBusiness, createBusiness, importFromGoogle, google, refreshGoogle, connectGoogle, googleLocations, selectGoogleLocation, syncGoogleReviews, disconnectGoogle, postReviewReply, deleteReviewReply, addContacts, updateContact, editContact, requestsThisMonth, deleteWhatsAppTemplate, deleteContacts, refreshContacts, loadBusinesses, deleteContact, updateSettings, setShortCode, markQrDownload, setReviewReply, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, refresh, resetDemo],
+    [loading, state, businesses, activeId, keys, feedback, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, submitStandardTemplates, deleteStandardTemplates, setDefaultTemplate, switchBusiness, createBusiness, importFromGoogle, google, refreshGoogle, connectGoogle, googleLocations, selectGoogleLocation, syncGoogleReviews, disconnectGoogle, postReviewReply, deleteReviewReply, addContacts, updateContact, editContact, requestsThisMonth, deleteWhatsAppTemplate, deleteContacts, refreshContacts, loadBusinesses, deleteContact, updateSettings, setShortCode, setReviewReply, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, refresh, resetDemo],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
