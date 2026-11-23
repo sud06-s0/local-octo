@@ -206,19 +206,24 @@ async function sendSms(ch, to, templateId, vars) {
   const res = await fetch("https://control.msg91.com/api/v5/flow", {
     method: "POST",
     headers: { authkey: ch.authKey, accept: "application/json", "content-type": "application/json" },
-    // MSG91 wants the country code without '+' (e.g. 919876543210); numbers are stored as +919876543210
-    // Promotional route (1) with header LOCOCT.
     body: JSON.stringify({
       template_id: templateId,
-      short_url: "0",
-      route: "1",
-      sender: "LOCOCT",
+      realTimeResponse: "1",
       recipients: [{ mobiles: to.replace(/\D/g, ""), ...vars }]
+      // country code, no '+'
     })
   });
-  const body = await readJson(res);
-  if (!res.ok || body.type === "error") return { ok: false, error: String(body.message ?? `MSG91 SMS HTTP ${res.status}`) };
-  return { ok: true, id: String(body.message ?? "") };
+  const raw = await res.text();
+  let body = {};
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    body = { message: raw };
+  }
+  if (!res.ok || body.type === "error" || body.status === "fail" || body.status === "failed") {
+    return { ok: false, error: `MSG91: ${typeof body.message === "string" ? body.message : raw.slice(0, 300)}` };
+  }
+  return { ok: true, id: String(body.message ?? body.request_id ?? "") };
 }
 function withTitle(firstName, gender) {
   if (gender === "male") return `${firstName} Sir`;

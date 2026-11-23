@@ -197,23 +197,32 @@ export function smsWindowOpen(now = new Date()): boolean {
   return mins >= 10 * 60 && mins < 21 * 60
 }
 
+/**
+ * MSG91 flow API, same request as MSG91's own sample for the template (Code {JSON}): template_id, realTimeResponse,
+ * recipients with the variables. Sender and route come from the template's active version in MSG91.
+ * realTimeResponse makes MSG91 return the real failure reason, which is shown in the app.
+ */
 async function sendSms(ch: NonNullable<Channels['sms']>, to: string, templateId: string, vars: Record<string, string>): Promise<SendResult> {
   const res = await fetch('https://control.msg91.com/api/v5/flow', {
     method: 'POST',
     headers: { authkey: ch.authKey, accept: 'application/json', 'content-type': 'application/json' },
-    // MSG91 wants the country code without '+' (e.g. 919876543210); numbers are stored as +919876543210
-    // Promotional route (1) with header LOCOCT.
     body: JSON.stringify({
       template_id: templateId,
-      short_url: '0',
-      route: '1',
-      sender: 'LOCOCT',
-      recipients: [{ mobiles: to.replace(/\D/g, ''), ...vars }],
+      realTimeResponse: '1',
+      recipients: [{ mobiles: to.replace(/\D/g, ''), ...vars }], // country code, no '+'
     }),
   })
-  const body = await readJson(res)
-  if (!res.ok || body.type === 'error') return { ok: false, error: String(body.message ?? `MSG91 SMS HTTP ${res.status}`) }
-  return { ok: true, id: String(body.message ?? '') }
+  const raw = await res.text()
+  let body: Record<string, unknown> = {}
+  try {
+    body = JSON.parse(raw)
+  } catch {
+    body = { message: raw }
+  }
+  if (!res.ok || body.type === 'error' || body.status === 'fail' || body.status === 'failed') {
+    return { ok: false, error: `MSG91: ${typeof body.message === 'string' ? body.message : raw.slice(0, 300)}` }
+  }
+  return { ok: true, id: String(body.message ?? body.request_id ?? '') }
 }
 
 export interface DeliverInput {
