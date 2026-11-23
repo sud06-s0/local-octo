@@ -23,7 +23,7 @@ import { useToast } from '../components/ui/Toast'
 const STORAGE_KEY = 'lo-app-state-v1'
 const ACTIVE_KEY = 'lo-active-business'
 const BUSINESS_COLS =
-  'id, name, address, place_id, phone, website, google_rating, google_review_count, google_synced_at, review_link, maps_url, timezone, country_code, public_key, api_key_prefix, messaging, scheduling, ai, notification_prefs'
+  'id, name, address, place_id, phone, website, google_rating, google_review_count, google_synced_at, review_link, short_code, maps_url, timezone, country_code, public_key, api_key_prefix, messaging, scheduling, ai, notification_prefs'
 
 export interface BusinessSummary {
   id: string
@@ -81,6 +81,8 @@ interface AppStore {
   refreshBusinesses: () => Promise<BusinessSummary[]>
   deleteContact: (id: string) => void
   updateSettings: <K extends keyof Settings>(key: K, patch: Partial<Settings[K]>) => Promise<void>
+  /** Set the short link code. Clients: once; agency: any time. Returns an error message, or null when saved. */
+  setShortCode: (code: string) => Promise<string | null>
   setReviewReply: (id: string, reply: ReviewReply | undefined) => void
   markNotificationRead: (id: string) => void
   markAllNotificationsRead: () => void
@@ -163,6 +165,7 @@ function toSettings(b: Row): Settings {
       address: b.address ?? '',
       mapsUrl: b.maps_url ?? '',
       reviewLink: b.review_link ?? '',
+      shortCode: b.short_code ?? '',
       placeId: b.place_id ?? '',
       phone: b.phone ?? '',
       website: b.website ?? '',
@@ -416,6 +419,24 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       }
     },
     [activeId, check, toast],
+  )
+
+  const setShortCode = useCallback(
+    async (code: string) => {
+      const c = code.trim().toLowerCase()
+      if (!/^[a-z0-9]{5,6}$/.test(c)) return 'Use 5 or 6 letters or numbers'
+      if (isLive && activeId) {
+        const { data, error } = await db().from('businesses').update({ short_code: c }).eq('id', activeId).select('id')
+        if (error) {
+          if (error.code === '23505') return 'This short link is already taken. Try another.'
+          return error.message
+        }
+        if (!data?.length) return "This login can't change this business. Ask the agency."
+      }
+      setState((s) => ({ ...s, settings: { ...s.settings, business: { ...s.settings.business, shortCode: c } } }))
+      return null
+    },
+    [activeId],
   )
 
   const setReviewReply = useCallback(
@@ -772,6 +793,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       refreshBusinesses: loadBusinesses,
       deleteContact,
       updateSettings,
+      setShortCode,
       setReviewReply,
       markNotificationRead,
       markAllNotificationsRead,
@@ -782,7 +804,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       refresh,
       resetDemo,
     }),
-    [loading, state, businesses, activeId, keys, feedback, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, submitStandardTemplates, deleteStandardTemplates, setDefaultTemplate, switchBusiness, createBusiness, importFromGoogle, google, refreshGoogle, connectGoogle, googleLocations, selectGoogleLocation, syncGoogleReviews, disconnectGoogle, postReviewReply, deleteReviewReply, addContacts, updateContact, requestsThisMonth, deleteWhatsAppTemplate, deleteContacts, refreshContacts, loadBusinesses, deleteContact, updateSettings, setReviewReply, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, refresh, resetDemo],
+    [loading, state, businesses, activeId, keys, feedback, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, submitStandardTemplates, deleteStandardTemplates, setDefaultTemplate, switchBusiness, createBusiness, importFromGoogle, google, refreshGoogle, connectGoogle, googleLocations, selectGoogleLocation, syncGoogleReviews, disconnectGoogle, postReviewReply, deleteReviewReply, addContacts, updateContact, requestsThisMonth, deleteWhatsAppTemplate, deleteContacts, refreshContacts, loadBusinesses, deleteContact, updateSettings, setShortCode, setReviewReply, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, refresh, resetDemo],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

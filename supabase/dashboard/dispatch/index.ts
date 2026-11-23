@@ -174,7 +174,7 @@ function smsVars(firstName, businessName, link) {
     code = u.searchParams.get("t") || u.searchParams.get("b") || "";
   } catch {
   }
-  const room = 30 - code.length - 1;
+  const room = code.includes("-") ? 0 : 30 - code.length - 1;
   const slug = room >= 3 ? businessName.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, room) : "";
   return {
     name: cut(firstName),
@@ -396,7 +396,8 @@ Deno.serve(async (req) => {
       phone: row.phone,
       businessName: row.business_name,
       messaging: row.messaging ?? {},
-      link: `${linkBase}?t=${row.token}`,
+      // Short link when the business has set its short code (r?t=sirmv-ab12), else the long token link
+      link: row.short_code && row.code ? `${linkBase}?t=${row.short_code}-${row.code}` : `${linkBase}?t=${row.token}`,
       // Photo with the customer's name (business photo, or the demo photo if none uploaded) on the WhatsApp SECOND
       // message: the first send after the first message. First message and later follow-ups are text only.
       imageUrl: kind === "follow_up" && row.requests_sent === 1 && row.messaging?.personalizedImage ? contactImageUrl(row.token, row.messaging?.imageDataUrl, row.messaging?.useTitle === false ? "" : row.gender) : void 0

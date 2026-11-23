@@ -125,6 +125,8 @@ export interface Settings {
     address: string
     mapsUrl: string
     reviewLink: string
+    /** short link code (5–6 letters/digits): links become review.localocto.com/r?t=<code>-<contact code> */
+    shortCode?: string
     placeId: string
     phone: string
     website: string

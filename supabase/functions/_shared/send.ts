@@ -182,8 +182,8 @@ export function smsVars(firstName: string, businessName: string, link: string): 
   } catch {
     /* not a URL */
   }
-  // short business name in front only when it fits: slug + "-" + code <= 30
-  const room = 30 - code.length - 1
+  // short business name in front only when it fits: slug + "-" + code <= 30. Short links (sirmv-ab12) already have it.
+  const room = code.includes('-') ? 0 : 30 - code.length - 1
   const slug = room >= 3 ? businessName.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, room) : ''
   return {
     name: cut(firstName),

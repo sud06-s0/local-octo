@@ -188,7 +188,7 @@ function smsVars(firstName, businessName, link) {
     code = u.searchParams.get("t") || u.searchParams.get("b") || "";
   } catch {
   }
-  const room = 30 - code.length - 1;
+  const room = code.includes("-") ? 0 : 30 - code.length - 1;
   const slug = room >= 3 ? businessName.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, room) : "";
   return {
     name: cut(firstName),

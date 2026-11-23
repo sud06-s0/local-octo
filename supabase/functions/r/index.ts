@@ -1,6 +1,7 @@
 // supabase/functions/r/index.ts
 // Review-link redirect: /functions/v1/r?t=<contact token>
-// SMS links carry a short business name first ("sirmvpu-<token>"); only the part after the last "-" counts.
+// Short links: r?t=<business short code>-<contact code>, e.g. r?t=sirmv-ab12 (5–6 + 4 characters).
+// Older SMS links carry a short business name first ("sirmvpu-<token>"); only the part after the last "-" counts.
 // Test SMS carry the business public key instead of a contact token -> the business's review page.
 // Records the click (stops follow-ups) and opens the review page (4 faces) in the app.
 // APP_URL secret = the app's address (default https://review.localocto.com).
@@ -18,11 +19,21 @@ function toReviewPage(token: string) {
 }
 
 Deno.serve(async (req) => {
-  const raw = new URL(req.url).searchParams.get('t') ?? ''
-  const token = raw.split('-').pop() ?? ''
-  if (!/^[a-f0-9]{8,64}$/.test(token)) return toReviewPage(token)
-
+  const raw = (new URL(req.url).searchParams.get('t') ?? '').trim().toLowerCase()
   const admin = adminClient()
+
+  // Short link → the contact's real token
+  let token = raw.split('-').pop() ?? ''
+  const short = raw.match(/^([a-z0-9]{5,6})-([a-z0-9]{4})$/)
+  if (short) {
+    const { data: biz } = await admin.from('businesses').select('id').eq('short_code', short[1]).maybeSingle()
+    const { data: c } = biz
+      ? await admin.from('contacts').select('token').eq('business_id', biz.id).eq('code', short[2]).maybeSingle()
+      : { data: null }
+    token = c?.token ?? ''
+  }
+  if (!/^[a-f0-9]{8,64}$/.test(token)) return toReviewPage(token || raw)
+
   const { data: contact } = await admin
     .from('contacts')
     .select('id, business_id, first_name, last_name, status, clicked_at, businesses(review_link)')

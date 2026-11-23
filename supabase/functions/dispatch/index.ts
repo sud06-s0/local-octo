@@ -23,6 +23,9 @@ interface DueRow {
   email: string
   phone: string
   token: string
+  /** 4-character contact code + the business's 5–6 character short code → short link r?t=<short_code>-<code> */
+  code: string | null
+  short_code: string | null
   requests_sent: number
   business_name: string
   review_link: string
@@ -67,7 +70,8 @@ Deno.serve(async (req) => {
       phone: row.phone,
       businessName: row.business_name,
       messaging: row.messaging ?? {},
-      link: `${linkBase}?t=${row.token}`,
+      // Short link when the business has set its short code (r?t=sirmv-ab12), else the long token link
+      link: row.short_code && row.code ? `${linkBase}?t=${row.short_code}-${row.code}` : `${linkBase}?t=${row.token}`,
       // Photo with the customer's name (business photo, or the demo photo if none uploaded) on the WhatsApp SECOND
       // message: the first send after the first message. First message and later follow-ups are text only.
       imageUrl: kind === 'follow_up' && row.requests_sent === 1 && row.messaging?.personalizedImage ? contactImageUrl(row.token, row.messaging?.imageDataUrl, row.messaging?.useTitle === false ? '' : row.gender) : undefined,

@@ -8,6 +8,7 @@ import { useStore } from '../store/AppStore'
 import { Modal } from '../components/ui/Modal'
 import { BusinessDetailsForm, businessDetailsValid, type BusinessDetails } from '../components/BusinessDetailsForm'
 import { GoogleLinkBox } from '../components/GoogleConnectCard'
+import { ShortLinkField } from '../components/ShortLinkField'
 import { useToast } from '../components/ui/Toast'
 import { cn, copyText } from '../lib/utils'
 import { brand } from '../config/brand'
@@ -245,6 +246,7 @@ export default function Dashboard() {
         }
       >
         <BusinessDetailsForm value={details} onChange={setDetails} top={<GoogleLinkBox />} />
+        <ShortLinkField />
       </Modal>
 
       {/* Google reviews summary */}

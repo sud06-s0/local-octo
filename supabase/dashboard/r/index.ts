@@ -31,10 +31,16 @@ function toReviewPage(token) {
   return new Response(null, { status: 302, headers: { Location: `${appUrl}/review?t=${encodeURIComponent(token)}`, "Cache-Control": "no-store" } });
 }
 Deno.serve(async (req) => {
-  const raw = new URL(req.url).searchParams.get("t") ?? "";
-  const token = raw.split("-").pop() ?? "";
-  if (!/^[a-f0-9]{8,64}$/.test(token)) return toReviewPage(token);
+  const raw = (new URL(req.url).searchParams.get("t") ?? "").trim().toLowerCase();
   const admin = adminClient();
+  let token = raw.split("-").pop() ?? "";
+  const short = raw.match(/^([a-z0-9]{5,6})-([a-z0-9]{4})$/);
+  if (short) {
+    const { data: biz } = await admin.from("businesses").select("id").eq("short_code", short[1]).maybeSingle();
+    const { data: c } = biz ? await admin.from("contacts").select("token").eq("business_id", biz.id).eq("code", short[2]).maybeSingle() : { data: null };
+    token = c?.token ?? "";
+  }
+  if (!/^[a-f0-9]{8,64}$/.test(token)) return toReviewPage(token || raw);
   const { data: contact } = await admin.from("contacts").select("id, business_id, first_name, last_name, status, clicked_at, businesses(review_link)").eq("token", token).maybeSingle();
   if (!contact) {
     const { data: biz } = await admin.from("businesses").select("public_key").eq("public_key", token).maybeSingle();
