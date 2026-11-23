@@ -1,8 +1,8 @@
 // src/pages/Contacts.tsx
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
-import { Ban, CalendarClock, CircleStop, Ellipsis, Filter, Reply, Search, Send, Trash2, UserPlus, Users } from 'lucide-react'
-import { Badge, Button, Card, Checkbox, EmptyState, PageHeader, Segmented } from '../components/ui/primitives'
+import { Ban, CalendarClock, CircleStop, Ellipsis, Filter, Pencil, Reply, Search, Send, Trash2, UserPlus, Users } from 'lucide-react'
+import { Badge, Button, Card, Checkbox, EmptyState, Input, Label, PageHeader, Segmented } from '../components/ui/primitives'
 import { AddContactsPanel } from './AddContacts'
 import { RequestSchedulingPanel } from './RequestScheduling'
 import { Dropdown, MenuItem } from '../components/layout/Dropdown'
@@ -29,9 +29,17 @@ export default function Contacts() {
   const tabParam = params.get('tab')
   const tab: Tab = tabParam === 'add' || tabParam === 'schedule' ? tabParam : 'list'
   const setTab = (t: Tab) => setParams(t === 'list' ? {} : { tab: t }, { replace: true })
-  const { state, mode, updateContact, deleteContacts, requestsThisMonth, refreshContacts } = useStore()
+  const { state, mode, updateContact, editContact, deleteContacts, requestsThisMonth, refreshContacts } = useStore()
   /** Contacts waiting for the delete confirmation dialog (one from the ⋯ menu, or the selected ones) */
   const [toDelete, setToDelete] = useState<Contact[] | null>(null)
+  // Edit details window
+  const [editing, setEditing] = useState<Contact | null>(null)
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '' })
+  const [savingEdit, setSavingEdit] = useState(false)
+  const openEdit = (c: Contact) => {
+    setForm({ firstName: c.firstName, lastName: c.lastName, email: c.email, phone: c.phone })
+    setEditing(c)
+  }
 
   // Messages go out in the background, so keep the list fresh: every 20 s while open, and when you come back to the tab
   useEffect(() => {
@@ -163,6 +171,7 @@ export default function Contacts() {
     >
       {(close) => (
         <>
+          <MenuItem onClick={() => { close(); openEdit(c) }}><Pencil className="size-4 text-muted" /> Edit details</MenuItem>
           <MenuItem onClick={() => { close(); act(c, 'send_initial') }}><Send className="size-4 text-muted" /> Send first message</MenuItem>
           <MenuItem onClick={() => { close(); act(c, 'send_follow_up') }}><Reply className="size-4 text-muted" /> Send follow-up</MenuItem>
           <MenuItem onClick={() => { close(); act(c, 'stop') }}><CircleStop className="size-4 text-muted" /> Stop follow-ups</MenuItem>
@@ -335,6 +344,56 @@ export default function Contacts() {
       </Card>
 
       {/* Delete confirmation */}
+      <Modal
+        open={!!editing}
+        onClose={() => setEditing(null)}
+        title="Edit contact"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
+            <Button
+              disabled={!form.firstName.trim() || (!form.email.trim() && !form.phone.trim()) || savingEdit}
+              onClick={async () => {
+                if (!editing) return
+                setSavingEdit(true)
+                const err = await editContact(editing.id, {
+                  firstName: form.firstName.trim(),
+                  lastName: form.lastName.trim(),
+                  email: form.email.trim(),
+                  phone: form.phone.trim(),
+                })
+                setSavingEdit(false)
+                if (err) return toast(err, 'error')
+                setEditing(null)
+                toast('Contact updated')
+              }}
+            >
+              {savingEdit ? 'Saving…' : 'Save'}
+            </Button>
+          </>
+        }
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="ec-first" required>First name</Label>
+            <Input id="ec-first" value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
+          </div>
+          <div>
+            <Label htmlFor="ec-last">Last name</Label>
+            <Input id="ec-last" value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
+          </div>
+          <div>
+            <Label htmlFor="ec-email">Email</Label>
+            <Input id="ec-email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          </div>
+          <div>
+            <Label htmlFor="ec-phone">Phone</Label>
+            <Input id="ec-phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+91 98xxxxxxxx" />
+          </div>
+        </div>
+        <p className="mt-3 text-xs text-muted">Email or phone is needed. Gender is changed in the table.</p>
+      </Modal>
+
       <Modal
         open={!!toDelete}
         onClose={() => setToDelete(null)}

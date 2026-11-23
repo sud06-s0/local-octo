@@ -71,6 +71,8 @@ interface AppStore {
   deleteReviewReply: (review: Review) => Promise<void>
   addContacts: (items: NewContact[], source?: 'manual' | 'csv') => Promise<AddResult>
   updateContact: (id: string, patch: Partial<Contact>) => void
+  /** Edit name / email / phone (phone gets the country code like Add Contacts). Returns an error message, or null. */
+  editContact: (id: string, d: { firstName: string; lastName: string; email: string; phone: string }) => Promise<string | null>
   /** review requests sent this month, per channel (first messages + follow-ups, not tests or failed) */
   requestsThisMonth: ChannelCounts
   deleteWhatsAppTemplate: (templateId: string) => Promise<void>
@@ -375,6 +377,27 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       if (Object.keys(row).length) db().from('contacts').update(row).eq('id', id).then(({ error }) => check(error, 'Could not update contact'))
     },
     [check],
+  )
+
+  const editContact = useCallback(
+    async (id: string, d: { firstName: string; lastName: string; email: string; phone: string }) => {
+      if (!isLive) {
+        setState((s) => ({ ...s, contacts: s.contacts.map((c) => (c.id === id ? { ...c, ...d } : c)) }))
+        return null
+      }
+      const { data, error } = await db().rpc('update_contact_details', {
+        p_contact: id,
+        p_first: d.firstName,
+        p_last: d.lastName,
+        p_email: d.email,
+        p_phone: d.phone,
+      })
+      if (error) return error.message
+      const updated = toContact(data as Row)
+      setState((s) => ({ ...s, contacts: s.contacts.map((c) => (c.id === id ? { ...c, ...updated } : c)) }))
+      return null
+    },
+    [],
   )
 
   const deleteContact = useCallback(
@@ -786,6 +809,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       deleteReviewReply,
       addContacts,
       updateContact,
+      editContact,
       requestsThisMonth,
       deleteWhatsAppTemplate,
       deleteContacts,
@@ -804,7 +828,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       refresh,
       resetDemo,
     }),
-    [loading, state, businesses, activeId, keys, feedback, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, submitStandardTemplates, deleteStandardTemplates, setDefaultTemplate, switchBusiness, createBusiness, importFromGoogle, google, refreshGoogle, connectGoogle, googleLocations, selectGoogleLocation, syncGoogleReviews, disconnectGoogle, postReviewReply, deleteReviewReply, addContacts, updateContact, requestsThisMonth, deleteWhatsAppTemplate, deleteContacts, refreshContacts, loadBusinesses, deleteContact, updateSettings, setShortCode, setReviewReply, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, refresh, resetDemo],
+    [loading, state, businesses, activeId, keys, feedback, waTemplates, submitWhatsAppTemplates, refreshWhatsAppTemplates, checkStandardTemplates, submitStandardTemplates, deleteStandardTemplates, setDefaultTemplate, switchBusiness, createBusiness, importFromGoogle, google, refreshGoogle, connectGoogle, googleLocations, selectGoogleLocation, syncGoogleReviews, disconnectGoogle, postReviewReply, deleteReviewReply, addContacts, updateContact, editContact, requestsThisMonth, deleteWhatsAppTemplate, deleteContacts, refreshContacts, loadBusinesses, deleteContact, updateSettings, setShortCode, setReviewReply, markNotificationRead, markAllNotificationsRead, sendTest, draftReply, uploadMessageImage, uploadBusinessAsset, refresh, resetDemo],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
