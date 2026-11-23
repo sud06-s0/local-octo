@@ -199,13 +199,13 @@ async function sendSms(ch: NonNullable<Channels['sms']>, to: string, templateId:
     method: 'POST',
     headers: { authkey: ch.authKey, accept: 'application/json', 'content-type': 'application/json' },
     // MSG91 wants the country code without '+' (e.g. 919876543210); numbers are stored as +919876543210
-    // DLT templates are Promotional on numeric header 677650: MSG91 needs route 1 (promotional), otherwise it uses
-    // the transactional route and the SMS fails. MSG91_SMS_ROUTE / MSG91_SMS_SENDER secrets override.
+    // Header LOCOCT on the transactional route (4) — the templates are linked to LOCOCT on DLT and the active
+    // MSG91 template versions use sender LOCOCT. MSG91_SMS_ROUTE / MSG91_SMS_SENDER secrets override.
     body: JSON.stringify({
       template_id: templateId,
       short_url: '0',
-      route: env('MSG91_SMS_ROUTE') || '1',
-      sender: env('MSG91_SMS_SENDER') || '677650',
+      route: env('MSG91_SMS_ROUTE') || '4',
+      sender: env('MSG91_SMS_SENDER') || 'LOCOCT',
       recipients: [{ mobiles: to.replace(/\D/g, ''), ...vars }],
     }),
   })
