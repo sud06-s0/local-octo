@@ -2,7 +2,6 @@
 // Self-contained copy of supabase/functions/ai-reply for pasting into the Supabase dashboard editor.
 // Function name in Supabase must be exactly: ai-reply   ·   Turn OFF "Verify JWT" for this function.
 // @ts-nocheck  (bundled JavaScript — the typed source lives in supabase/functions)
-
 // supabase/functions/_shared/supabase.ts
 import { createClient } from "npm:@supabase/supabase-js@2";
 function secretKey() {
@@ -73,11 +72,32 @@ async function gemini(p) {
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-    body: JSON.stringify({ contents: [{ parts: [{ text: p }] }], generationConfig: { temperature: 0.7, maxOutputTokens: 300 } })
+    body: JSON.stringify({ contents: [{ parts: [{ text: p }] }], generationConfig: { temperature: 0.7, maxOutputTokens: 300 } }),
+    signal: AbortSignal.timeout(25e3)
   });
   const body = await res.json();
   if (!res.ok) throw new Error(body?.error?.message ?? `Gemini HTTP ${res.status}`);
   return (body?.candidates?.[0]?.content?.parts ?? []).map((x) => x.text ?? "").join("").trim();
+}
+async function groq(p) {
+  const key = Deno.env.get("GROQ_API_KEY");
+  if (!key) throw new Error("GROQ_API_KEY is not set");
+  const model = Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-120b";
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+    body: JSON.stringify({
+      model,
+      temperature: 0.7,
+      max_completion_tokens: 1024,
+      ...model.includes("gpt-oss") ? { reasoning_effort: "low" } : {},
+      messages: [{ role: "user", content: p }]
+    }),
+    signal: AbortSignal.timeout(25e3)
+  });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body?.error?.message ?? `Groq HTTP ${res.status}`);
+  return String(body?.choices?.[0]?.message?.content ?? "").trim();
 }
 async function openai(p) {
   const key = Deno.env.get("OPENAI_API_KEY");
@@ -86,7 +106,8 @@ async function openai(p) {
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-    body: JSON.stringify({ model, temperature: 0.7, max_tokens: 300, messages: [{ role: "user", content: p }] })
+    body: JSON.stringify({ model, temperature: 0.7, max_tokens: 300, messages: [{ role: "user", content: p }] }),
+    signal: AbortSignal.timeout(25e3)
   });
   const body = await res.json();
   if (!res.ok) throw new Error(body?.error?.message ?? `OpenAI HTTP ${res.status}`);
@@ -108,10 +129,12 @@ Deno.serve(async (req) => {
   const businessName = b?.ai?.nickname || b?.name || "our business";
   try {
     const p = prompt(businessName, review.author, review.rating, review.text);
-    const text = (Deno.env.get("AI_PROVIDER") ?? "gemini").toLowerCase() === "openai" ? await openai(p) : await gemini(p);
+    const provider = (Deno.env.get("AI_PROVIDER") ?? "gemini").toLowerCase();
+    const text = provider === "groq" ? await groq(p) : provider === "openai" ? await openai(p) : await gemini(p);
     if (!text) throw new Error("Empty reply from AI");
     return json({ text });
   } catch (e) {
-    return json({ error: e instanceof Error ? e.message : "AI request failed" }, 502);
+    const timedOut = e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
+    return json({ error: timedOut ? "AI took too long to answer (25 s). Please try again." : e instanceof Error ? e.message : "AI request failed" }, 502);
   }
 });
