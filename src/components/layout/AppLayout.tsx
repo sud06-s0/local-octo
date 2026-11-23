@@ -1,7 +1,7 @@
 // src/components/layout/AppLayout.tsx
 import { Suspense, useEffect, useState } from 'react'
 import { Outlet, useLocation } from 'react-router'
-import { LifeBuoy, Mail, Menu, MessageCircle, X } from 'lucide-react'
+import { Mail, Menu, MessageCircle, X } from 'lucide-react'
 import { Sidebar } from './Sidebar'
 import { ErrorBoundary } from '../ErrorBoundary'
 import { GoogleConnectFlow } from '../GoogleConnectFlow'
@@ -83,13 +83,6 @@ export function AppLayout() {
               <span className="text-sm text-muted">{brand.supportEmail}</span>
             </span>
           </a>
-          <div className="flex items-center gap-3 rounded-xl border border-line p-4">
-            <LifeBuoy className="size-5 text-brand-800" />
-            <span>
-              <span className="block font-medium">Help centre</span>
-              <span className="text-sm text-muted">Guides and how-to articles — coming soon</span>
-            </span>
-          </div>
         </div>
       </Modal>
 
