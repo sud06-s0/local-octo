@@ -1,6 +1,6 @@
 // src/pages/Messaging.tsx
 import { forwardRef, useEffect, useRef, useState } from 'react'
-import { Bell, CircleCheck, Clock, Calendar, ImagePlus, Mail, MessageCircle, MessageSquare, RefreshCw, Reply, Send, Smartphone, Sparkles, TrendingUp, Trash2, CircleStop } from 'lucide-react'
+import { Bell, CircleCheck, Eye, EyeOff, Clock, Calendar, ImagePlus, Mail, MessageCircle, MessageSquare, RefreshCw, Reply, Send, Smartphone, Sparkles, TrendingUp, Trash2, CircleStop } from 'lucide-react'
 import { Badge, Button, Card, Input, Label, PageHeader, Segmented, Textarea, Toggle } from '../components/ui/primitives'
 import { IncomingBubble, OutgoingBubble, PhoneMockup } from '../components/ui/PhoneMockup'
 import { Modal } from '../components/ui/Modal'
@@ -496,6 +496,7 @@ export default function Messaging() {
   const [waName, setWaName] = useState(m.waTemplateName ?? '')
   const [waFollowName, setWaFollowName] = useState(m.waFollowUpTemplateName ?? '')
   const [waFor, setWaFor] = useState<'initial' | 'second' | 'followup'>('initial')
+  const [showStd, setShowStd] = useState(false)
   const [waSecond, setWaSecond] = useState(m.waSecondMessage ?? '')
   const [waSecondName, setWaSecondName] = useState(m.waSecondTemplateName ?? '')
   const [waSecondCat, setWaSecondCat] = useState<'marketing' | 'utility'>(m.waSecondCategory ?? 'marketing')
@@ -908,7 +909,15 @@ export default function Messaging() {
             )}
           </Card>
 
-          {channel === 'whatsapp' && <StandardTemplates canSubmit />}
+          {/* Standard WhatsApp templates: agency only, hidden until opened */}
+          {channel === 'whatsapp' && isAgency && (
+            <div>
+              <Button variant="outline" icon={showStd ? EyeOff : Eye} className="w-full" onClick={() => setShowStd((v) => !v)}>
+                {showStd ? 'Hide WhatsApp templates' : 'Show WhatsApp templates'}
+              </Button>
+              {showStd && <div className="mt-4"><StandardTemplates canSubmit /></div>}
+            </div>
+          )}
         </div>
       </div>
 
