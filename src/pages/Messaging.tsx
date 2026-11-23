@@ -589,7 +589,7 @@ export default function Messaging() {
 
   return (
     <div className="mx-auto max-w-[1100px]">
-      <PageHeader title="Messaging" subtitle="Configure how review requests are sent to your customers" />
+      <PageHeader title="First Message" subtitle="Configure how review requests are sent to your customers" />
 
       <div className="grid gap-8 lg:grid-cols-[1fr_1.1fr] lg:gap-10">
         {/* Phone preview */}
