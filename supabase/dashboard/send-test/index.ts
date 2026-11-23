@@ -207,12 +207,12 @@ async function sendSms(ch, to, templateId, vars) {
     method: "POST",
     headers: { authkey: ch.authKey, accept: "application/json", "content-type": "application/json" },
     // MSG91 wants the country code without '+' (e.g. 919876543210); numbers are stored as +919876543210
-    // Promotional: numeric header 677650 on route 1 (promotional). Only delivered 10 AM–9 PM, not to DND numbers.
+    // Promotional route (1) with header LOCOCT.
     body: JSON.stringify({
       template_id: templateId,
       short_url: "0",
       route: "1",
-      sender: "677650",
+      sender: "LOCOCT",
       recipients: [{ mobiles: to.replace(/\D/g, ""), ...vars }]
     })
   });
