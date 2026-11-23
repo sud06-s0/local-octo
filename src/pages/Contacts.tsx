@@ -91,13 +91,21 @@ export default function Contacts() {
     setToDelete(null)
   }
 
+  // Monthly allowance: 100 per channel. Room left = the most open channel that's turned on (WhatsApp only until saved).
+  const onChannels = state.settings.messaging.channels ?? { whatsapp: true, sms: false, email: false }
+  const monthLeft = Math.max(
+    0,
+    ...(['whatsapp', 'sms', 'email'] as const).filter((ch) => onChannels[ch]).map((ch) => brand.monthlyRequestLimit - requestsThisMonth[ch]),
+  )
+  const limitMsg = `This month's ${brand.monthlyRequestLimit} review requests are used on every channel that's on. More can go out from the 1st.`
+
   /** Queue the chosen message for several contacts (skips Do Not Contact, stays within the monthly limit). */
   const sendMany = (list: Contact[], kind: 'initial' | 'follow_up') => {
     const what = kind === 'initial' ? 'first message' : 'follow-up'
     const ok = list.filter((c) => !c.doNotContact)
     const skippedDnc = list.length - ok.length
-    const left = Math.max(0, brand.monthlyRequestLimit - requestsThisMonth)
-    if (!left) return toast(`All ${brand.monthlyRequestLimit} review requests for this month are used. More can go out from the 1st.`, 'error')
+    const left = monthLeft
+    if (!left) return toast(limitMsg, 'error')
     const go = ok.slice(0, left)
     if (!go.length) return toast('All selected contacts are on the Do Not Contact list', 'error')
     const now = new Date().toISOString()
@@ -118,7 +126,7 @@ export default function Contacts() {
     if (action === 'send_initial' || action === 'send_follow_up') {
       const what = action === 'send_initial' ? 'first message' : 'follow-up'
       if (c.doNotContact) return toast(`${name} is on the Do Not Contact list`, 'error')
-      if (requestsThisMonth >= brand.monthlyRequestLimit) return toast(`All ${brand.monthlyRequestLimit} review requests for this month are used. More can go out from the 1st.`, 'error')
+      if (!monthLeft) return toast(limitMsg, 'error')
       if (mode === 'live') {
         // The cron dispatcher sends exactly this message within a minute (inside 9 AM–7 PM unless Sending hours = Anytime),
         // even past the follow-up limit; automatic scheduling keeps its own rules

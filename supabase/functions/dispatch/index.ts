@@ -85,9 +85,12 @@ Deno.serve(async (req) => {
         .eq('id', row.contact_id)
       stats.sent++
     } else {
-      // No channel configured: stop. Provider error: retry in 1 hour, max 3 failed attempts per day.
+      // No channel configured: stop. Monthly limit reached: try again in a day (picked again once a channel has room).
+      // Provider error: retry in 1 hour, max 3 failed attempts per day.
       let next: string | null = null
-      if (!result.noChannel) {
+      if (result.limitReached) {
+        next = new Date(now.getTime() + 86_400_000).toISOString()
+      } else if (!result.noChannel) {
         const since = new Date(now.getTime() - 86_400_000).toISOString()
         const { count } = await admin
           .from('messages')

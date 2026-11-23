@@ -126,29 +126,47 @@ export default function Dashboard() {
             <StatTile label="Contacts Added" value={stats.added} icon={UserPlus} />
           </div>
 
-          {/* Monthly review-request allowance */}
+          {/* Monthly review-request allowance: 100 per channel (first messages + follow-ups) */}
           {(() => {
             const limit = brand.monthlyRequestLimit
-            const used = Math.min(requestsThisMonth, limit)
-            const full = requestsThisMonth >= limit
             const month = new Date().toLocaleString('en-IN', { month: 'long' })
+            const onCh = state.settings.messaging.channels ?? { whatsapp: true, sms: false, email: false }
+            const rows = [
+              { key: 'whatsapp', label: 'WhatsApp' },
+              { key: 'sms', label: 'SMS' },
+              { key: 'email', label: 'Email' },
+            ] as const
             return (
-              <div className={cn('mt-5 rounded-xl border p-4', full ? 'border-amber-200 bg-amber-50' : 'border-line bg-canvas/60')}>
+              <div className="mt-5 rounded-xl border border-line bg-canvas/60 p-4">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <p className="text-[15px] font-medium">Review requests this month</p>
-                  <p className="text-[15px]">
-                    <span className="text-2xl font-semibold text-brand-800">{used}</span>
-                    <span className="text-muted"> of {limit} sent</span>
-                  </p>
+                  <p className="text-xs text-muted">{limit} per channel · first messages and follow-ups count · resets on the 1st</p>
                 </div>
-                <div className="mt-2.5 h-2.5 w-full overflow-hidden rounded-full bg-black/[0.06]" role="progressbar" aria-valuenow={used} aria-valuemin={0} aria-valuemax={limit} aria-label="Review requests this month">
-                  <div className={cn('h-full rounded-full transition-all', full ? 'bg-amber-500' : 'bg-brand-700')} style={{ width: `${(used / limit) * 100}%` }} />
+                <div className="mt-3 space-y-3">
+                  {rows.map(({ key, label }) => {
+                    const sent = requestsThisMonth[key]
+                    const used = Math.min(sent, limit)
+                    const full = sent >= limit
+                    return (
+                      <div key={key} className={cn(!onCh[key] && 'opacity-60')}>
+                        <div className="flex items-baseline justify-between gap-2 text-sm">
+                          <span className="font-medium">
+                            {label}
+                            {!onCh[key] && <span className="ml-1.5 text-xs font-normal text-muted">(off)</span>}
+                          </span>
+                          <span>
+                            <span className={cn('text-lg font-semibold', full ? 'text-amber-700' : 'text-brand-800')}>{used}</span>
+                            <span className="text-muted"> of {limit}</span>
+                          </span>
+                        </div>
+                        <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-black/[0.06]" role="progressbar" aria-valuenow={used} aria-valuemin={0} aria-valuemax={limit} aria-label={`${label} requests this month`}>
+                          <div className={cn('h-full rounded-full transition-all', full ? 'bg-amber-500' : 'bg-brand-700')} style={{ width: `${(used / limit) * 100}%` }} />
+                        </div>
+                        {full && <p className="mt-1 text-xs text-amber-800">All {limit} used for {month}. {label} waits until the 1st; other channels still go out.</p>}
+                      </div>
+                    )
+                  })}
                 </div>
-                <p className={cn('mt-2 text-xs', full ? 'text-amber-800' : 'text-muted')}>
-                  {full
-                    ? `All ${limit} used for ${month}. New requests wait and go out from the 1st of next month.`
-                    : `${limit - used} left for ${month} · first messages and follow-ups count · resets on the 1st`}
-                </p>
               </div>
             )
           })()}

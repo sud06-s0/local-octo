@@ -216,11 +216,23 @@ function withTitle(firstName, gender) {
   if (gender === "female") return `${firstName} Ma'am`;
   return firstName;
 }
+var MONTHLY_LIMIT_PER_CHANNEL = 100;
 async function deliver(input) {
   const ch = await loadChannels(input.admin, input.businessId);
   const isFollow = input.kind === "follow_up";
   const text = buildText(input.kind, input.messaging, input.firstName, input.businessName, input.link);
   const on = input.only ? { whatsapp: input.only === "whatsapp", sms: input.only === "sms", email: input.only === "email" } : enabledChannels(input.messaging);
+  const full = [];
+  if (input.kind !== "test") {
+    for (const c of ["whatsapp", "sms", "email"]) {
+      if (!on[c]) continue;
+      const { data: used } = await input.admin.rpc("channel_requests_this_month", { p_business: input.businessId, p_channel: c });
+      if (Number(used ?? 0) >= MONTHLY_LIMIT_PER_CHANNEL) {
+        on[c] = false;
+        full.push(c);
+      }
+    }
+  }
   const attempts = [];
   if (input.phone && on.whatsapp && ch.whatsapp) {
     const wa = ch.whatsapp;
@@ -270,6 +282,10 @@ async function deliver(input) {
         html: reviewEmailHtml({ businessName: input.businessName, message: text, link: input.link })
       })
     });
+  }
+  if (attempts.length === 0 && full.length) {
+    const label = full.map((c) => c === "whatsapp" ? "WhatsApp" : c === "sms" ? "SMS" : "Email").join(", ");
+    return { ok: false, limitReached: true, error: `Monthly limit reached for ${label} (${MONTHLY_LIMIT_PER_CHANNEL} each)` };
   }
   if (attempts.length === 0) {
     const missing = [
@@ -391,7 +407,9 @@ Deno.serve(async (req) => {
       stats.sent++;
     } else {
       let next = null;
-      if (!result.noChannel) {
+      if (result.limitReached) {
+        next = new Date(now.getTime() + 864e5).toISOString();
+      } else if (!result.noChannel) {
         const since = new Date(now.getTime() - 864e5).toISOString();
         const { count } = await admin.from("messages").select("id", { count: "exact", head: true }).eq("contact_id", row.contact_id).eq("status", "failed").gte("created_at", since);
         if ((count ?? 0) < 3) next = new Date(now.getTime() + 36e5).toISOString();

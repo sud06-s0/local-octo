@@ -11,5 +11,5 @@ export const brand = {
   bookCallUrl: '' as string, // optional Calendly/Cal.com link; empty = in-app form
   sendWindow: { start: '9 AM', end: '7 PM' },
   followUpGapDays: 3,
-  monthlyRequestLimit: 50, // review requests per business per month (also set in the claim_due_contacts SQL)
+  monthlyRequestLimit: 100, // review requests per channel (WhatsApp, SMS, Email) per business per month (also in the claim_due_contacts SQL and send.ts)
 } as const

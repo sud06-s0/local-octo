@@ -256,6 +256,8 @@ export interface DeliverResult {
   channel?: Channel
   /** every channel that went out */
   channels?: Channel[]
+  /** every turned-on channel already used its monthly allowance */
+  limitReached?: boolean
   error?: string
   noChannel?: boolean
 }
@@ -264,6 +266,9 @@ export interface DeliverResult {
  * Sends on every channel the business turned on (Messaging page): WhatsApp, SMS and/or email.
  * Test messages to an email address always go by email. Every attempt is logged in `messages`.
  */
+/** Review requests (first messages + follow-ups) per channel per business per calendar month. */
+export const MONTHLY_LIMIT_PER_CHANNEL = 100
+
 export async function deliver(input: DeliverInput): Promise<DeliverResult> {
   const ch = await loadChannels(input.admin, input.businessId)
   const isFollow = input.kind === 'follow_up'
@@ -271,6 +276,19 @@ export async function deliver(input: DeliverInput): Promise<DeliverResult> {
   const on = input.only
     ? { whatsapp: input.only === 'whatsapp', sms: input.only === 'sms', email: input.only === 'email' }
     : enabledChannels(input.messaging)
+
+  // 100 review requests per channel per month (first messages + follow-ups; tests don't count): skip full channels
+  const full: Channel[] = []
+  if (input.kind !== 'test') {
+    for (const c of ['whatsapp', 'sms', 'email'] as const) {
+      if (!on[c]) continue
+      const { data: used } = await input.admin.rpc('channel_requests_this_month', { p_business: input.businessId, p_channel: c })
+      if (Number(used ?? 0) >= MONTHLY_LIMIT_PER_CHANNEL) {
+        on[c] = false
+        full.push(c)
+      }
+    }
+  }
   const attempts: Array<{ channel: Channel; recipient: string; run: () => Promise<SendResult> }> = []
 
   if (input.phone && on.whatsapp && ch.whatsapp) {
@@ -340,6 +358,10 @@ export async function deliver(input: DeliverInput): Promise<DeliverResult> {
     })
   }
 
+  if (attempts.length === 0 && full.length) {
+    const label = full.map((c) => (c === 'whatsapp' ? 'WhatsApp' : c === 'sms' ? 'SMS' : 'Email')).join(', ')
+    return { ok: false, limitReached: true, error: `Monthly limit reached for ${label} (${MONTHLY_LIMIT_PER_CHANNEL} each)` }
+  }
   if (attempts.length === 0) {
     const missing = [
       on.whatsapp && input.phone && !ch.whatsapp && 'WhatsApp',

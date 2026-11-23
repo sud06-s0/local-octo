@@ -10,6 +10,14 @@ import { toJpegBlob } from '../lib/image'
 import { db, invokeFn, isLive } from '../lib/supabase'
 import { draftReply as templateDraft } from '../lib/aiDraft'
 import { useAuth } from './AuthProvider'
+
+export type ChannelCounts = { whatsapp: number; sms: number; email: number }
+const NO_COUNTS: ChannelCounts = { whatsapp: 0, sms: 0, email: 0 }
+function countByChannel(rows: Array<{ channel: string }>): ChannelCounts {
+  const out = { ...NO_COUNTS }
+  for (const r of rows) if (r.channel in out) out[r.channel as keyof ChannelCounts]++
+  return out
+}
 import { useToast } from '../components/ui/Toast'
 
 const STORAGE_KEY = 'lo-app-state-v1'
@@ -63,7 +71,8 @@ interface AppStore {
   deleteReviewReply: (review: Review) => Promise<void>
   addContacts: (items: NewContact[], source?: 'manual' | 'csv') => Promise<AddResult>
   updateContact: (id: string, patch: Partial<Contact>) => void
-  requestsThisMonth: number
+  /** review requests sent this month, per channel (first messages + follow-ups, not tests or failed) */
+  requestsThisMonth: ChannelCounts
   deleteWhatsAppTemplate: (templateId: string) => Promise<void>
   deleteContacts: (ids: string[]) => void
   /** Reload contacts from the database (used for auto-refresh on the Contacts page) */
@@ -213,8 +222,8 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const [activeId, setActiveId] = useState<string | null>(isLive ? storage.get<string | null>(ACTIVE_KEY, null) : 'demo')
   const [waTemplates, setWaTemplates] = useState<WaTemplate[]>([])
   const [feedback, setFeedback] = useState<CustomerFeedback[]>(isLive ? [] : demoFeedback)
-  /** Review requests sent this calendar month (first messages + follow-ups, not tests or failed) */
-  const [requestsThisMonth, setRequestsThisMonth] = useState<number>(isLive ? 0 : 12)
+  /** Review requests sent this calendar month per channel (first messages + follow-ups, not tests or failed) */
+  const [requestsThisMonth, setRequestsThisMonth] = useState<ChannelCounts>(isLive ? { ...NO_COUNTS } : { whatsapp: 12, sms: 4, email: 3 })
   const [keys, setKeys] = useState({ publicKey: isLive ? '' : 'demo0public0key000000000' })
   const [loading, setLoading] = useState(isLive)
   const stateRef = useRef(state)
@@ -272,9 +281,9 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         // agency: the whole shared library; client logins: their business only (database rule decides)
         c.from('whatsapp_templates').select('*, businesses(name)').order('created_at', { ascending: false }).limit(200),
         c.from('review_feedback').select('*, contacts(first_name, last_name, email, phone)').eq('business_id', bid).order('created_at', { ascending: false }).limit(300),
-        c.from('messages').select('id', { count: 'exact', head: true }).eq('business_id', bid).in('kind', ['initial', 'follow_up']).neq('status', 'failed').gte('created_at', monthStart),
+        c.from('messages').select('channel').eq('business_id', bid).in('kind', ['initial', 'follow_up']).neq('status', 'failed').gte('created_at', monthStart).limit(1000),
       ])
-      setRequestsThisMonth(monthSent.error ? 0 : (monthSent.count ?? 0))
+      setRequestsThisMonth(monthSent.error ? { ...NO_COUNTS } : countByChannel(monthSent.data ?? []))
       setFeedback(answers.error ? [] : (answers.data ?? []).map(toFeedback))
       // Don't fail the whole load if the WhatsApp templates table isn't there yet
       setWaTemplates(templates.error ? [] : (templates.data ?? []).map(toWaTemplate))
@@ -489,10 +498,10 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
     const [contacts, monthSent] = await Promise.all([
       db().from('contacts').select('*').eq('business_id', activeId).order('created_at', { ascending: false }).limit(2000),
-      db().from('messages').select('id', { count: 'exact', head: true }).eq('business_id', activeId).in('kind', ['initial', 'follow_up']).neq('status', 'failed').gte('created_at', monthStart),
+      db().from('messages').select('channel').eq('business_id', activeId).in('kind', ['initial', 'follow_up']).neq('status', 'failed').gte('created_at', monthStart).limit(1000),
     ])
     if (!contacts.error) setState((st) => ({ ...st, contacts: (contacts.data ?? []).map(toContact) }))
-    if (!monthSent.error) setRequestsThisMonth(monthSent.count ?? 0)
+    if (!monthSent.error) setRequestsThisMonth(countByChannel(monthSent.data ?? []))
   }, [activeId])
 
   /** Uploads a file to the business's storage folder and returns its public URL (demo: data URL). */
