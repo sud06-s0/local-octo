@@ -48,9 +48,7 @@ export function ShortLinkField() {
         )}
       </div>
       <p className="mt-1.5 text-xs text-muted">
-        5 or 6 letters or numbers. Messages then carry short links like <span className="font-mono">r?t={clean || 'sirmv'}-ab12</span> (the last
-        part is each customer's code, so clicks are still tracked).{' '}
-        {locked ? 'Already set. Ask your agency to change it.' : isAgency ? 'Agency logins can change it any time.' : 'You can set it only once.'}
+        5–6 letters or numbers.{locked && ' Already set. Ask your agency to change it.'}
       </p>
     </div>
   )
