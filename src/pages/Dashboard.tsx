@@ -35,6 +35,12 @@ function StatTile({ label, value, icon: Icon }: { label: string; value: number; 
 
 export default function Dashboard() {
   const { state, updateSettings, publicKey, requestsThisMonth } = useStore()
+  // Link to share / put in the QR code: the short review link once its code is set, else the long public link
+  const shareLink = state.settings.business.shortCode
+    ? `${window.location.origin}/r?t=${state.settings.business.shortCode}`
+    : publicKey
+      ? `${window.location.origin}/review?b=${publicKey}`
+      : state.settings.business.reviewLink
   const toast = useToast()
   const { reviews, contacts, settings } = state
   const [range, setRange] = useState<Range>('30d')
@@ -291,11 +297,11 @@ export default function Dashboard() {
             variant="outline"
             icon={Copy}
             className="w-full"
-            onClick={async () => toast((await copyText(publicKey ? `${window.location.origin}/review?b=${publicKey}` : settings.business.reviewLink)) ? 'Review link copied' : 'Could not copy link', 'success')}
+            onClick={async () => toast((await copyText(shareLink)) ? 'Review link copied' : 'Could not copy link', 'success')}
           >
             Copy Review Link
           </Button>
-          <ReviewQrButton link={publicKey ? `${window.location.origin}/review?b=${publicKey}` : settings.business.reviewLink} />
+          <ReviewQrButton link={shareLink} onNeedShortLink={() => setDetailsOpen(true)} />
         </div>
       </Card>
     </div>

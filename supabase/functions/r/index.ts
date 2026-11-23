@@ -1,6 +1,7 @@
 // supabase/functions/r/index.ts
 // Review-link redirect: /functions/v1/r?t=<contact token>
 // Short links: r?t=<business short code>-<contact code>, e.g. r?t=sirmv-ab12 (5–6 + 4 characters).
+// r?t=<business short code> alone (QR code / shared link) opens the business's review page (no contact tracking).
 // Older SMS links carry a short business name first ("sirmvpu-<token>"); only the part after the last "-" counts.
 // Test SMS carry the business public key instead of a contact token -> the business's review page.
 // Records the click (stops follow-ups) and opens the review page (4 faces) in the app.
@@ -21,6 +22,15 @@ function toReviewPage(token: string) {
 Deno.serve(async (req) => {
   const raw = (new URL(req.url).searchParams.get('t') ?? '').trim().toLowerCase()
   const admin = adminClient()
+
+  // Business short link (QR code, Copy Review Link) → the business's review page
+  if (/^[a-z0-9]{5,6}$/.test(raw)) {
+    const { data: biz } = await admin.from('businesses').select('public_key').eq('short_code', raw).maybeSingle()
+    if (biz?.public_key) {
+      const appUrl = (Deno.env.get('APP_URL') || 'https://review.localocto.com').replace(/\/+$/, '')
+      return new Response(null, { status: 302, headers: { Location: `${appUrl}/review?b=${encodeURIComponent(biz.public_key)}`, 'Cache-Control': 'no-store' } })
+    }
+  }
 
   // Short link → the contact's real token
   let token = raw.split('-').pop() ?? ''

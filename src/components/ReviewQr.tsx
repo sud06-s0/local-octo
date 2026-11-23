@@ -1,6 +1,7 @@
 // src/components/ReviewQr.tsx
-// QR code for the business's review link: view, share, and download as a PDF.
-// Client logins can download the PDF once; agency logins any number of times (checked in the database).
+// QR code for the business's review link: view, share, and download as a PDF (any number of times).
+// It uses the short review link (review.localocto.com/r?t=<code>) once the short code is set in Business details.
+// Clients set that code once, so their QR code is made once; agency logins can change the code (new QR).
 import { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
 import { Copy, Download, QrCode, Share2 } from 'lucide-react'
@@ -11,11 +12,27 @@ import { Modal } from './ui/Modal'
 import { Button } from './ui/primitives'
 import { brand } from '../config/brand'
 
-export function ReviewQrButton({ link }: { link: string }) {
+export function ReviewQrButton({ link, onNeedShortLink }: { link: string; onNeedShortLink?: () => void }) {
   const [open, setOpen] = useState(false)
+  const { state } = useStore()
+  const toast = useToast()
+  const hasShort = !!state.settings.business.shortCode
   return (
     <>
-      <Button variant="outline" icon={QrCode} className="w-full" disabled={!link} onClick={() => setOpen(true)}>
+      <Button
+        variant="outline"
+        icon={QrCode}
+        className="w-full"
+        disabled={!link}
+        onClick={() => {
+          if (!hasShort) {
+            toast('Set your short review link first (Business details), then make the QR code.', 'error')
+            onNeedShortLink?.()
+            return
+          }
+          setOpen(true)
+        }}
+      >
         Review QR Code
       </Button>
       {open && <ReviewQrModal link={link} onClose={() => setOpen(false)} />}
@@ -24,12 +41,10 @@ export function ReviewQrButton({ link }: { link: string }) {
 }
 
 function ReviewQrModal({ link, onClose }: { link: string; onClose: () => void }) {
-  const { state, markQrDownload } = useStore()
+  const { state } = useStore()
   const { isAgency } = useAuth()
   const toast = useToast()
   const name = state.settings.business.name
-  const downloaded = !!state.settings.business.qrDownloadedAt
-  const canDownload = isAgency || !downloaded
   const [qr, setQr] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -42,9 +57,6 @@ function ReviewQrModal({ link, onClose }: { link: string; onClose: () => void })
   const downloadPdf = async () => {
     if (!qr) return
     setBusy(true)
-    const err = await markQrDownload()
-    setBusy(false)
-    if (err) return toast(err, 'error')
     // A4 portrait poster: business name, call to action, big QR, link (PDF library loaded only when needed)
     const { jsPDF } = await import('jspdf')
     const pdf = new jsPDF({ unit: 'mm', format: 'a4' })
@@ -64,6 +76,7 @@ function ReviewQrModal({ link, onClose }: { link: string; onClose: () => void })
     pdf.text(link, w / 2, 215, { align: 'center' })
     pdf.text(`Powered by ${brand.appName}`, w / 2, 280, { align: 'center' })
     pdf.save(`${name.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'review'}-qr.pdf`)
+    setBusy(false)
     toast('QR code PDF downloaded')
   }
 
@@ -96,7 +109,7 @@ function ReviewQrModal({ link, onClose }: { link: string; onClose: () => void })
         <p className="mt-3 text-sm text-muted">Customers scan it with their phone camera to open your review page.</p>
       </div>
       <div className="mt-5 grid gap-2 sm:grid-cols-3">
-        <Button icon={Download} disabled={!qr || !canDownload || busy} onClick={downloadPdf}>
+        <Button icon={Download} disabled={!qr || busy} onClick={downloadPdf}>
           {busy ? 'Preparing…' : 'Download PDF'}
         </Button>
         <Button variant="outline" icon={Share2} disabled={!qr} onClick={share}>Share</Button>
@@ -113,10 +126,8 @@ function ReviewQrModal({ link, onClose }: { link: string; onClose: () => void })
       </div>
       <p className="mt-3 text-center text-xs text-muted">
         {isAgency
-          ? 'Agency logins can download the PDF any number of times.'
-          : downloaded
-            ? 'The PDF was already downloaded. Ask your agency for another copy. You can still share the link.'
-            : 'You can download the PDF once. Keep the file safe.'}
+          ? 'Changing the short review link in Business details makes a new QR code.'
+          : 'This QR code uses your short review link. Download it as many times as you need.'}
       </p>
     </Modal>
   )

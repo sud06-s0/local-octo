@@ -33,6 +33,13 @@ function toReviewPage(token) {
 Deno.serve(async (req) => {
   const raw = (new URL(req.url).searchParams.get("t") ?? "").trim().toLowerCase();
   const admin = adminClient();
+  if (/^[a-z0-9]{5,6}$/.test(raw)) {
+    const { data: biz } = await admin.from("businesses").select("public_key").eq("short_code", raw).maybeSingle();
+    if (biz?.public_key) {
+      const appUrl = (Deno.env.get("APP_URL") || "https://review.localocto.com").replace(/\/+$/, "");
+      return new Response(null, { status: 302, headers: { Location: `${appUrl}/review?b=${encodeURIComponent(biz.public_key)}`, "Cache-Control": "no-store" } });
+    }
+  }
   let token = raw.split("-").pop() ?? "";
   const short = raw.match(/^([a-z0-9]{5,6})-([a-z0-9]{4})$/);
   if (short) {
