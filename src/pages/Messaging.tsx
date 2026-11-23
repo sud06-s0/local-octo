@@ -603,11 +603,6 @@ export default function Messaging() {
             businessName={m.businessName || state.settings.business.name}
             text={initialText}
             time="9:41 AM"
-            second={
-              channel === 'whatsapp' && m.personalizedImage
-                ? { image: m.imageDataUrl || DEFAULT_IMAGE, text: waCustom && m.waSecondMessage ? fillTemplate(m.waSecondMessage, vars) : smartFirst }
-                : undefined
-            }
           />
           <div className="mt-5 text-center">
             <Button onClick={() => setTestOpen(true)}>Send Test {channel === 'whatsapp' ? 'WhatsApp' : channel === 'sms' ? 'SMS' : 'Email'}</Button>
@@ -939,6 +934,38 @@ export default function Messaging() {
           {channel === 'whatsapp' && <StandardTemplates canSubmit />}
         </div>
       </div>
+
+      {/* WhatsApp second message: photo + text, one follow-up gap after the first message */}
+      {channel === 'whatsapp' && (
+        <>
+          <div className="my-12 h-px bg-line" />
+          <h2 className="text-xl font-semibold">Second Message (WhatsApp)</h2>
+          <p className="mt-1 text-[16px] text-muted">The photo with the customer's name, sent one follow-up gap after the first message</p>
+          <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_1.1fr] lg:gap-10">
+            <div className="lg:sticky lg:top-8 lg:self-start">
+              <ChannelPreview
+                channel="whatsapp"
+                image={m.personalizedImage ? m.imageDataUrl || DEFAULT_IMAGE : null}
+                name={sample}
+                businessName={m.businessName || state.settings.business.name}
+                text={waCustom && m.waSecondMessage ? fillTemplate(m.waSecondMessage, vars) : smartFirst}
+                time="10:15 AM"
+              />
+            </div>
+            <Card className="p-5 sm:p-6 lg:self-start">
+              <p className="text-[15px] font-medium">{m.personalizedImage ? 'On: sent with the photo' : 'Off: Personalized Image is off'}</p>
+              <p className="mt-1 text-sm text-muted">
+                {m.personalizedImage
+                  ? 'Goes out one follow-up gap after the first message, unless the customer already clicked the review link. Then follow-ups continue as text.'
+                  : 'Turn on Personalized Image above to send this photo message. While it is off, the second send is a normal text follow-up.'}
+              </p>
+              {isAgency && m.waMode === 'custom' && (
+                <p className="mt-3 text-sm text-muted">Edit its text under Custom Template → Template for → Second (photo).</p>
+              )}
+            </Card>
+          </div>
+        </>
+      )}
 
       {/* Follow-ups */}
       <div className="my-12 h-px bg-line" />
