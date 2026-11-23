@@ -202,13 +202,12 @@ async function sendSms(ch: NonNullable<Channels['sms']>, to: string, templateId:
     method: 'POST',
     headers: { authkey: ch.authKey, accept: 'application/json', 'content-type': 'application/json' },
     // MSG91 wants the country code without '+' (e.g. 919876543210); numbers are stored as +919876543210
-    // Same request as MSG91's "Test DLT": sender (header) and route come from the template's ACTIVE version in MSG91.
-    // Optional MSG91_SMS_ROUTE / MSG91_SMS_SENDER secrets are added only if set.
+    // Promotional: numeric header 677650 on route 1 (promotional). Only delivered 10 AM–9 PM, not to DND numbers.
     body: JSON.stringify({
       template_id: templateId,
       short_url: '0',
-      ...(env('MSG91_SMS_ROUTE') ? { route: env('MSG91_SMS_ROUTE') } : {}),
-      ...(env('MSG91_SMS_SENDER') ? { sender: env('MSG91_SMS_SENDER') } : {}),
+      route: '1',
+      sender: '677650',
       recipients: [{ mobiles: to.replace(/\D/g, ''), ...vars }],
     }),
   })
