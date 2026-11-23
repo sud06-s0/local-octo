@@ -307,11 +307,13 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     [check],
   )
 
+  // Load only a business this login can see: the remembered business may belong to another login on this browser
+  const canOpen = !!activeId && businesses.some((b) => b.id === activeId)
   useEffect(() => {
-    if (!isLive || !activeId || !userId) return
+    if (!isLive || !activeId || !userId || !canOpen) return
     storage.set(ACTIVE_KEY, activeId)
     load(activeId)
-  }, [activeId, userId, load])
+  }, [activeId, userId, canOpen, load])
 
   /* ---------- actions ---------- */
   const switchBusiness = useCallback((id: string) => setActiveId(id), [])
