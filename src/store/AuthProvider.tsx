@@ -65,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAgency,
       clearRecovering: () => setRecovering(false),
       signOut: async () => {
-        await supabase?.auth.signOut()
+        await supabase?.auth.signOut({ scope: 'local' }) // this device only, other PCs stay signed in
       },
     }
   }, [ready, session, recovering, isAgency])
