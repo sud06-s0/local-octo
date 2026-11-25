@@ -46,6 +46,11 @@ export function AccountSettings({ open, onClose }: { open: boolean; onClose: () 
   const [busy, setBusy] = useState(false)
   const [created, setCreated] = useState<{ email: string; password: string; business: string } | null>(null)
   const [logins, setLogins] = useState<Login[] | null>(null)
+  // Saved client passwords (shown to agency logins), which ones are visible, and the one being reset
+  const [passwords, setPasswords] = useState<Record<string, string | null>>({})
+  const [visible, setVisible] = useState<Record<string, boolean>>({})
+  const [resetting, setResetting] = useState<string | null>(null)
+  const [confirmReset, setConfirmReset] = useState<Login | null>(null)
 
   const businessName = isNew ? newBusiness.trim() : (businesses.find((b) => b.id === businessId)?.name ?? '')
 
@@ -54,6 +59,8 @@ export function AccountSettings({ open, onClose }: { open: boolean; onClose: () 
     const { data, error } = await db().rpc('business_logins', { p_business: businessId })
     if (error) toast(error.message, 'error')
     setLogins((data ?? []) as Login[])
+    const res = await invokeFn<{ passwords: Record<string, string | null> }>('client-login', { action: 'passwords', businessId }).catch(() => null)
+    setPasswords(res?.passwords ?? {})
   }, [businessId, isNew, mode, toast])
 
   useEffect(() => {
@@ -103,6 +110,21 @@ export function AccountSettings({ open, onClose }: { open: boolean; onClose: () 
       toast(e instanceof Error ? e.message : 'Could not create the login', 'error')
     } finally {
       setBusy(false)
+    }
+  }
+
+  const resetPassword = async (l: Login) => {
+    setConfirmReset(null)
+    setResetting(l.user_id)
+    try {
+      const res = await invokeFn<{ password: string }>('client-login', { action: 'reset', businessId, userId: l.user_id })
+      setPasswords((p) => ({ ...p, [l.user_id]: res.password }))
+      setVisible((v) => ({ ...v, [l.user_id]: true }))
+      toast(`New password set for ${l.email}. The old one no longer works.`)
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not reset the password', 'error')
+    } finally {
+      setResetting(null)
     }
   }
 
@@ -220,11 +242,41 @@ export function AccountSettings({ open, onClose }: { open: boolean; onClose: () 
               <p className="p-3 text-sm text-muted">No logins yet</p>
             ) : (
               logins.map((l) => (
-                <div key={l.user_id} className="flex items-center gap-3 p-3">
+                <div key={l.user_id} className="flex flex-wrap items-center gap-3 p-3">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{l.full_name || l.email}</p>
                     <p className="truncate text-xs text-muted">{l.email}</p>
                   </div>
+                  {l.account_type === 'client' && (
+                    <div className="flex items-center gap-1">
+                      {passwords[l.user_id] ? (
+                        <>
+                          <span className="font-mono text-sm">{visible[l.user_id] ? passwords[l.user_id] : '••••••••'}</span>
+                          <button
+                            type="button"
+                            onClick={() => setVisible((v) => ({ ...v, [l.user_id]: !v[l.user_id] }))}
+                            className="rounded p-1.5 text-muted hover:bg-canvas"
+                            aria-label={visible[l.user_id] ? 'Hide password' : 'Show password'}
+                          >
+                            {visible[l.user_id] ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => toast((await copyText(`Email: ${l.email}\nPassword: ${passwords[l.user_id]}`)) ? 'Login details copied' : 'Could not copy', 'success')}
+                            className="rounded p-1.5 text-muted hover:bg-canvas"
+                            aria-label="Copy login details"
+                          >
+                            <Copy className="size-4" />
+                          </button>
+                        </>
+                      ) : (
+                        <span className="text-xs text-muted">Password not saved</span>
+                      )}
+                      <Button variant="outline" icon={RefreshCw} disabled={resetting === l.user_id} onClick={() => setConfirmReset(l)}>
+                        {resetting === l.user_id ? 'Resetting…' : 'Reset'}
+                      </Button>
+                    </div>
+                  )}
                   <Badge tone={l.account_type === 'agency' ? 'green' : 'gray'}>{l.account_type === 'agency' ? 'Agency' : 'Client'}</Badge>
                   {l.user_id !== user.id && l.account_type === 'client' && (
                     <button
@@ -242,6 +294,21 @@ export function AccountSettings({ open, onClose }: { open: boolean; onClose: () 
           </div>
         </>
       )}
+      <Modal
+        open={!!confirmReset}
+        onClose={() => setConfirmReset(null)}
+        title="Reset password?"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setConfirmReset(null)}>Cancel</Button>
+            <Button onClick={() => confirmReset && resetPassword(confirmReset)}>Reset password</Button>
+          </>
+        }
+      >
+        <p className="text-[15px]">
+          A new password is made for <span className="font-medium">{confirmReset?.email}</span>. The old password stops working, so share the new one with the client.
+        </p>
+      </Modal>
     </Modal>
   )
 }

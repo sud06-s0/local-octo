@@ -5,6 +5,9 @@
 // (agency = owner, client = member); the client then connects it with their Google login. An email that already
 // has a client account just gets access.
 // Logins made here are always client accounts (account_type 'client', business role 'member'): no agency rights.
+// Passwords are kept encrypted (client_credentials) so the agency can see them again:
+//   { action: 'passwords', businessId } → { passwords: { [userId]: string | null } }  (client logins of that business)
+//   { action: 'reset', businessId, userId } → { password }  (new password, old one stops working)
 
 import { adminClient, getUser, isAgency, isMember } from '../_shared/supabase.ts'
 import { json, preflight } from '../_shared/http.ts'
@@ -19,7 +22,47 @@ Deno.serve(async (req) => {
   if (!user) return json({ error: 'Sign in required' }, 401)
   if (!(await isAgency(admin, user.id))) return json({ error: 'Only agency accounts can create client logins' }, 403)
 
-  const body = (await req.json().catch(() => ({}))) as { businessId?: string; newBusinessName?: string; name?: string; email?: string; password?: string }
+  const body = (await req.json().catch(() => ({}))) as {
+    action?: string
+    userId?: string
+    businessId?: string
+    newBusinessName?: string
+    name?: string
+    email?: string
+    password?: string
+  }
+
+  // ---- show saved passwords / reset a password (client logins of one of the agency's businesses) ----
+  if (body.action === 'passwords' || body.action === 'reset') {
+    const bid = String(body.businessId ?? '')
+    if (!bid || !(await isMember(admin, user.id, bid))) return json({ error: 'Pick one of your businesses' }, 403)
+    const { data: members } = await admin.from('business_members').select('user_id').eq('business_id', bid)
+    const ids = (members ?? []).map((m) => m.user_id as string)
+    const { data: clients } = ids.length
+      ? await admin.from('profiles').select('id').in('id', ids).eq('account_type', 'client').eq('is_platform_admin', false)
+      : { data: [] }
+    const clientIds = new Set((clients ?? []).map((c) => c.id as string))
+
+    if (body.action === 'passwords') {
+      const { data: rows } = clientIds.size ? await admin.from('client_credentials').select('user_id, password_enc').in('user_id', [...clientIds]) : { data: [] }
+      const byId = new Map((rows ?? []).map((r) => [r.user_id as string, r.password_enc as string]))
+      const passwords: Record<string, string | null> = {}
+      for (const id of clientIds) {
+        const enc = byId.get(id)
+        passwords[id] = enc ? await decrypt(enc).catch(() => null) : null
+      }
+      return json({ passwords })
+    }
+
+    const target = String(body.userId ?? '')
+    if (!clientIds.has(target)) return json({ error: 'This login is not a client of this business' }, 403)
+    const fresh = makePassword()
+    const { error } = await admin.auth.admin.updateUserById(target, { password: fresh })
+    if (error) return json({ error: error.message }, 400)
+    await savePassword(admin, target, fresh, user.id)
+    return json({ ok: true, password: fresh })
+  }
+
   let businessId = String(body.businessId ?? '')
   const newBusinessName = String(body.newBusinessName ?? '').trim().slice(0, 120)
   const name = String(body.name ?? '').trim().slice(0, 120)
@@ -47,6 +90,7 @@ Deno.serve(async (req) => {
     if (error || !data.user) return json({ error: error?.message ?? 'Could not create the login' }, 400)
     userId = data.user.id
     created = true
+    await savePassword(admin, userId, password, user.id)
     // The profile row comes from the auth trigger; make sure it is a client account with the name filled in
     await admin.from('profiles').upsert({ id: userId, email, full_name: name, account_type: 'client' }, { onConflict: 'id' })
   }
@@ -72,3 +116,42 @@ Deno.serve(async (req) => {
 
   return json({ ok: true, created, businessId })
 })
+
+// ---------- password storage (AES-GCM; key derived from the service role key, which only Edge Functions have) ----------
+
+/** 12 characters, no look-alikes, easy to read out. */
+function makePassword(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'
+  return [...crypto.getRandomValues(new Uint8Array(12))].map((b) => chars[b % chars.length]).join('')
+}
+
+let keyPromise: Promise<CryptoKey> | null = null
+function key(): Promise<CryptoKey> {
+  keyPromise ??= (async () => {
+    const secret = Deno.env.get('CLIENT_PASSWORD_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+    const raw = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`client-login:${secret}`))
+    return crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt'])
+  })()
+  return keyPromise
+}
+
+const b64 = (u: Uint8Array) => btoa(String.fromCharCode(...u))
+const unb64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0))
+
+async function encrypt(text: string): Promise<string> {
+  const iv = crypto.getRandomValues(new Uint8Array(12))
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await key(), new TextEncoder().encode(text)))
+  return `${b64(iv)}.${b64(ct)}`
+}
+
+async function decrypt(enc: string): Promise<string> {
+  const [iv, ct] = enc.split('.')
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(iv) }, await key(), unb64(ct))
+  return new TextDecoder().decode(pt)
+}
+
+async function savePassword(admin: ReturnType<typeof adminClient>, userId: string, password: string, by: string) {
+  await admin
+    .from('client_credentials')
+    .upsert({ user_id: userId, password_enc: await encrypt(password), updated_by: by, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
+}
