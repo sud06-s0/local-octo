@@ -48,6 +48,7 @@ export function AccountSettings({ open, onClose }: { open: boolean; onClose: () 
   const [logins, setLogins] = useState<Login[] | null>(null)
   // Saved client passwords (shown to agency logins), which ones are visible, and the one being reset
   const [passwords, setPasswords] = useState<Record<string, string | null>>({})
+  const [passwordsLoaded, setPasswordsLoaded] = useState(false)
   const [visible, setVisible] = useState<Record<string, boolean>>({})
   const [resetting, setResetting] = useState<string | null>(null)
   const [confirmReset, setConfirmReset] = useState<Login | null>(null)
@@ -58,9 +59,11 @@ export function AccountSettings({ open, onClose }: { open: boolean; onClose: () 
     if (!businessId || isNew || mode !== 'live') return setLogins([])
     const { data, error } = await db().rpc('business_logins', { p_business: businessId })
     if (error) toast(error.message, 'error')
+    setPasswordsLoaded(false)
     setLogins((data ?? []) as Login[])
     const res = await invokeFn<{ passwords: Record<string, string | null> }>('client-login', { action: 'passwords', businessId }).catch(() => null)
     setPasswords(res?.passwords ?? {})
+    setPasswordsLoaded(true)
   }, [businessId, isNew, mode, toast])
 
   useEffect(() => {
@@ -271,7 +274,7 @@ export function AccountSettings({ open, onClose }: { open: boolean; onClose: () 
                           </button>
                         </>
                       ) : (
-                        <span className="text-xs text-muted">Password not saved</span>
+                        <span className="text-xs text-muted">{passwordsLoaded ? 'Password not saved' : 'Loading…'}</span>
                       )}
                       <Button variant="outline" icon={RefreshCw} disabled={resetting === l.user_id} onClick={() => setConfirmReset(l)}>
                         {resetting === l.user_id ? 'Resetting…' : 'Reset'}
