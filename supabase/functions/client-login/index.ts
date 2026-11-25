@@ -59,7 +59,8 @@ Deno.serve(async (req) => {
     const fresh = makePassword()
     const { error } = await admin.auth.admin.updateUserById(target, { password: fresh })
     if (error) return json({ error: error.message }, 400)
-    await savePassword(admin, target, fresh, user.id)
+    const saveErr = await savePassword(admin, target, fresh, user.id)
+    if (saveErr) return json({ ok: true, password: fresh, warning: `Password changed, but not saved for later: ${saveErr}` })
     return json({ ok: true, password: fresh })
   }
 
@@ -150,8 +151,10 @@ async function decrypt(enc: string): Promise<string> {
   return new TextDecoder().decode(pt)
 }
 
-async function savePassword(admin: ReturnType<typeof adminClient>, userId: string, password: string, by: string) {
-  await admin
+/** Saves the encrypted password; returns an error message when it couldn't be saved (e.g. table missing). */
+async function savePassword(admin: ReturnType<typeof adminClient>, userId: string, password: string, by: string): Promise<string | null> {
+  const { error } = await admin
     .from('client_credentials')
     .upsert({ user_id: userId, password_enc: await encrypt(password), updated_by: by, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
+  return error ? error.message : null
 }

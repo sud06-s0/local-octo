@@ -117,10 +117,11 @@ export function AccountSettings({ open, onClose }: { open: boolean; onClose: () 
     setConfirmReset(null)
     setResetting(l.user_id)
     try {
-      const res = await invokeFn<{ password: string }>('client-login', { action: 'reset', businessId, userId: l.user_id })
+      const res = await invokeFn<{ password: string; warning?: string }>('client-login', { action: 'reset', businessId, userId: l.user_id })
       setPasswords((p) => ({ ...p, [l.user_id]: res.password }))
       setVisible((v) => ({ ...v, [l.user_id]: true }))
-      toast(`New password set for ${l.email}. The old one no longer works.`)
+      if (res.warning) toast(res.warning, 'error')
+      else toast(`New password set for ${l.email}. The old one no longer works.`)
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not reset the password', 'error')
     } finally {
