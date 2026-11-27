@@ -19,14 +19,14 @@ export function AppLayout() {
   }, [pathname])
 
   return (
-    <div className="min-h-screen bg-canvas">
+    <div className="min-h-screen bg-canvas print:bg-white">
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[272px] border-r border-line bg-canvas lg:block">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[272px] border-r border-line bg-canvas lg:block print:hidden">
         <Sidebar />
       </aside>
 
       {/* Mobile top bar */}
-      <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-line bg-white/95 px-4 backdrop-blur lg:hidden">
+      <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-line bg-white/95 px-4 backdrop-blur lg:hidden print:hidden">
         <button onClick={() => setDrawer(true)} className="-ml-1 rounded-lg p-2 hover:bg-canvas" aria-label="Open menu">
           <Menu className="size-5" />
         </button>
@@ -48,7 +48,7 @@ export function AppLayout() {
       )}
 
       <GoogleConnectFlow />
-      <main className="lg:pl-[272px]">
+      <main className="lg:pl-[272px] print:pl-0">
         <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <ErrorBoundary resetKey={pathname}>
             <Suspense
@@ -67,7 +67,7 @@ export function AppLayout() {
       {/* Help button */}
       <button
         onClick={() => setHelp(true)}
-        className="fixed bottom-5 right-5 z-40 flex size-14 items-center justify-center rounded-2xl bg-brand-700 text-white shadow-lg transition hover:bg-brand-800 sm:bottom-6 sm:right-6"
+        className="fixed bottom-5 right-5 z-40 flex print:hidden size-14 items-center justify-center rounded-2xl bg-brand-700 text-white shadow-lg transition hover:bg-brand-800 sm:bottom-6 sm:right-6"
         aria-label="Help"
       >
         <MessageCircle className="size-6" />

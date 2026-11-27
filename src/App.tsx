@@ -14,6 +14,7 @@ const Contacts = lazyPage(() => import('./pages/Contacts'))
 const Messaging = lazyPage(() => import('./pages/Messaging'))
 const Reviews = lazyPage(() => import('./pages/Reviews'))
 const Integrations = lazyPage(() => import('./pages/Integrations'))
+const Audit = lazyPage(() => import('./pages/Audit'))
 const NotFound = lazyPage(() => import('./pages/NotFound'))
 const Login = lazyPage(() => import('./pages/Login'))
 const Onboarding = lazyPage(() => import('./pages/Onboarding'))
@@ -49,6 +50,7 @@ function Gate() {
         <Route path="request-scheduling" element={<Navigate to="/contacts?tab=schedule" replace />} />
         <Route path="reviews" element={<Reviews />} />
         <Route path="integrations" element={<Integrations />} />
+        <Route path="audit" element={<Audit />} />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>

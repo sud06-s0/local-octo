@@ -1,5 +1,6 @@
 // src/components/layout/navItems.ts
 import {
+  ClipboardCheck,
   LayoutDashboard,
   MessageSquare,
   Plug,
@@ -13,6 +14,7 @@ export interface NavItem {
   label: string
   icon: LucideIcon
   badge?: string
+  agencyOnly?: boolean
 }
 
 export const navItems: NavItem[] = [
@@ -21,4 +23,5 @@ export const navItems: NavItem[] = [
   { to: '/messaging', label: 'Messaging', icon: MessageSquare },
   { to: '/reviews', label: 'Reviews', icon: Star },
   { to: '/integrations', label: 'Integrations', icon: Plug },
+  { to: '/audit', label: 'Audit', icon: ClipboardCheck, agencyOnly: true },
 ]

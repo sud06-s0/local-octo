@@ -73,7 +73,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
 
       <nav className="mt-2 flex-1 space-y-0.5 overflow-y-auto px-3 pb-4" aria-label="Main">
-        {navItems.map(({ to, label, icon: Icon, badge }) => (
+        {navItems.filter((n) => !n.agencyOnly || isAgency).map(({ to, label, icon: Icon, badge }) => (
           <NavLink
             key={to}
             to={to}

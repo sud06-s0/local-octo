@@ -75,3 +75,9 @@ body {
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
+
+/* Printing (Audit "Download PDF"): keep colours, A4 margins */
+@media print {
+  @page { size: A4; margin: 12mm; }
+  html, body { background: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

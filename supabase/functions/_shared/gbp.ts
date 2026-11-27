@@ -123,7 +123,7 @@ export async function revokeToken(token: string) {
 
 /* ---------- Business Profile API ---------- */
 
-async function gbp(token: string, url: string, init: RequestInit = {}) {
+export async function gbp(token: string, url: string, init: RequestInit = {}) {
   const res = await fetch(url, { ...init, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(init.headers ?? {}) } })
   const body = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(body?.error?.message || `Google Business Profile HTTP ${res.status}`)
