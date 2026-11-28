@@ -32,7 +32,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode; resetKey?: s
       <div className="flex min-h-[60vh] items-center justify-center p-6">
         <div className="max-w-sm rounded-xl border border-line bg-white p-6 text-center">
           <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-amber-50">
-            <TriangleAlert className="size-6 text-amber-600" />
+            <TriangleAlert className="size-6 text-amber-700" />
           </span>
           <p className="mt-4 text-[17px] font-semibold">Something went wrong</p>
           <p className="mt-1 text-sm text-muted">This page didn't load properly. Reloading usually fixes it.</p>

@@ -62,7 +62,7 @@ export interface Report {
   competitors: { name: string; address?: string; rating: number | null; reviews: number | null; keywords: number; averageRank: number; totalKeywords?: number }[]
 }
 
-const scoreTone = (s: number | null | undefined) => (s == null ? 'text-muted' : s >= 80 ? 'text-emerald-600' : s >= 50 ? 'text-amber-600' : 'text-red-600')
+const scoreTone = (s: number | null | undefined) => (s == null ? 'text-muted' : s >= 80 ? 'text-emerald-700' : s >= 50 ? 'text-amber-700' : 'text-red-600')
 export const fmtDate = (d: string) => new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })
 const inr = (n: number) => `₹${n.toLocaleString('en-IN')}`
 
@@ -120,7 +120,7 @@ function Bar({ label, value, target, score, unit = '' }: { label: string; value:
         </span>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-canvas">
-        <div className={cn('h-full rounded-full', score == null ? 'bg-gray-300' : score >= 80 ? 'bg-emerald-500' : score >= 50 ? 'bg-amber-400' : 'bg-red-500')} style={{ width: `${score ?? 0}%` }} />
+        <div className={cn('h-full rounded-full', score == null ? 'bg-gray-300' : score >= 80 ? 'bg-emerald-500' : score >= 50 ? 'bg-amber-500' : 'bg-red-600')} style={{ width: `${score ?? 0}%` }} />
       </div>
     </div>
   )
@@ -185,7 +185,7 @@ export function AuditReport({ report: r, createdAt }: { report: Report; createdA
             </div>
             <div className="rounded-xl bg-canvas px-5 py-4 text-center">
               <p className="text-xs uppercase tracking-wide text-muted">Search rank</p>
-              <p className={cn('text-3xl font-semibold', r.searchRank <= 5 ? 'text-emerald-600' : r.searchRank <= 10 ? 'text-amber-600' : 'text-red-600')}>
+              <p className={cn('text-3xl font-semibold', r.searchRank <= 5 ? 'text-emerald-700' : r.searchRank <= 10 ? 'text-amber-700' : 'text-red-600')}>
                 {r.searchRank > 20 ? '20+' : r.searchRank}
               </p>
               <p className="text-xs text-muted">average, top 5 keywords</p>
@@ -234,7 +234,7 @@ export function AuditReport({ report: r, createdAt }: { report: Report; createdA
                   {c.pass == null ? (
                     <CircleDashed className="mt-0.5 size-5 shrink-0 text-muted" />
                   ) : c.pass ? (
-                    <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600" />
+                    <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-700" />
                   ) : (
                     <XCircle className="mt-0.5 size-5 shrink-0 text-red-500" />
                   )}
@@ -308,7 +308,7 @@ export function AuditReport({ report: r, createdAt }: { report: Report; createdA
             </>
           ) : (
             <p className="flex items-center gap-2 text-sm text-ink">
-              <CheckCircle2 className="size-5 text-emerald-600" /> Nothing to fix — this profile is fully optimized.
+              <CheckCircle2 className="size-5 text-emerald-700" /> Nothing to fix — this profile is fully optimized.
             </p>
           )}
         </Section>
@@ -355,7 +355,7 @@ export function AuditReport({ report: r, createdAt }: { report: Report; createdA
             <ul className="grid grid-cols-2 gap-2 text-sm">
               {s.completion.checklist.map((c) => (
                 <li key={c.label} className="flex items-center gap-2">
-                  {c.done == null ? <CircleDashed className="size-4 text-muted" /> : c.done ? <CheckCircle2 className="size-4 text-emerald-600" /> : <XCircle className="size-4 text-red-500" />}
+                  {c.done == null ? <CircleDashed className="size-4 text-muted" /> : c.done ? <CheckCircle2 className="size-4 text-emerald-700" /> : <XCircle className="size-4 text-red-500" />}
                   <span className={c.done == null ? 'text-muted' : 'text-ink'}>{c.label}</span>
                 </li>
               ))}
@@ -417,7 +417,7 @@ export function AuditReport({ report: r, createdAt }: { report: Report; createdA
         <Section title="Heatmap audits" className="print:break-before-page">
           <div className="space-y-6">
             {heat.map((k) => (
-              <div key={k.keyword} className="break-inside-avoid rounded-xl border border-line p-4">
+              <div key={k.keyword} className="mx-auto max-w-[760px] break-inside-avoid rounded-xl border border-line p-4">
                 <p className="text-sm text-muted">
                   Keyword: <span className="font-medium text-brand-800">{k.keyword}</span>
                 </p>
@@ -429,7 +429,7 @@ export function AuditReport({ report: r, createdAt }: { report: Report; createdA
                   {k.growth != null && k.growth > 1 && (
                     <div className="text-right">
                       <p className="text-xs text-muted">Ranking #1 can grow your customers by</p>
-                      <p className="flex items-center justify-end gap-1 text-xl font-semibold text-emerald-600">
+                      <p className="flex items-center justify-end gap-1 text-xl font-semibold text-emerald-700">
                         {k.growth}x <ArrowUp className="size-4" />
                       </p>
                     </div>
@@ -450,7 +450,7 @@ export function AuditReport({ report: r, createdAt }: { report: Report; createdA
       )}
       {small.length > 0 && (
         <Section title={heat.length ? 'More keywords' : `Rank map (3 × 3 grid, ${small[0].stepKm ?? r.gridStepKm ?? 1.5} km apart)`} className={heat.length ? '' : 'print:break-before-page'}>
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 print:grid-cols-3">
+          <div className="grid gap-5 sm:grid-cols-2 print:grid-cols-2">
             {small.map((k) => (
               <div key={k.keyword} className="min-w-0 break-inside-avoid">
                 <p className="mb-2 truncate text-sm font-medium text-ink" title={k.keyword}>
@@ -470,7 +470,7 @@ export function AuditReport({ report: r, createdAt }: { report: Report; createdA
           <ul className="mt-3 space-y-2 text-[15px] text-ink">
             {['Optimize your Google Business Profile', 'Rank higher on Google Maps', 'Grow your business faster with more customers from Google'].map((t) => (
               <li key={t} className="flex items-center gap-2">
-                <CheckCircle2 className="size-5 text-emerald-600" /> {t}
+                <CheckCircle2 className="size-5 text-emerald-700" /> {t}
               </li>
             ))}
           </ul>

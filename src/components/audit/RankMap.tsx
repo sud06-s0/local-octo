@@ -1,13 +1,15 @@
 // src/components/audit/RankMap.tsx
-// Rank heatmap: the grid's ranks as pins on an OpenStreetMap background (no API key). Scales down to fit narrow screens.
+// Rank heatmap: the grid's ranks as pins on an OpenStreetMap background (no API key).
+// Laid out in % of a square box, so it fills the card at any width — on screen and in the PDF.
 
-import { useEffect, useRef, useState } from 'react'
 import { cn } from '../../lib/utils'
 
-const BOX = 440 // drawn at 440 x 440 px, then scaled to the container
+const BOX = 800 // logical px the map is worked out at; everything is placed in % of it
 
 export const rankText = (r: number) => (r > 20 ? '20+' : String(r))
-export const rankTone = (r: number) => (r <= 3 ? 'bg-emerald-500 text-white' : r <= 10 ? 'bg-amber-400 text-ink' : 'bg-red-600 text-white')
+/** 1–3 green, 4–10 lime, 11–20 orange, 20+ dark red (white text on all, strong contrast). */
+export const rankTone = (r: number) =>
+  r <= 3 ? 'bg-emerald-700 text-white' : r <= 10 ? 'bg-lime-700 text-white' : r <= 20 ? 'bg-orange-600 text-white' : 'bg-red-800 text-white'
 
 function world(lat: number, lng: number, z: number) {
   const scale = 256 * 2 ** z
@@ -25,58 +27,58 @@ function points(lat: number, lng: number, size: number, stepKm: number) {
   return out
 }
 
-export function RankMap({ lat, lng, size, stepKm, grid }: { lat: number; lng: number; size: number; stepKm: number; grid: number[] }) {
-  const wrap = useRef<HTMLDivElement>(null)
-  const [scale, setScale] = useState(1)
-  useEffect(() => {
-    const el = wrap.current
-    if (!el) return
-    const ro = new ResizeObserver(() => setScale(Math.min(1, el.clientWidth / BOX)))
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
+const pct = (v: number) => `${(v / BOX) * 100}%`
 
-  const spanM = (size + 1) * stepKm * 1000
-  const z = Math.max(10, Math.min(16, Math.floor(Math.log2((156543.03 * Math.cos((lat * Math.PI) / 180) * BOX) / spanM))))
+export function RankMap({ lat, lng, size, stepKm, grid }: { lat: number; lng: number; size: number; stepKm: number; grid: number[] }) {
+  const mPerPx0 = 156543.03 * Math.cos((lat * Math.PI) / 180) // metres per world px at zoom 0
+  // Map shows the grid plus a margin of about half a step on each side
+  const spanM = (size + 0.4) * stepKm * 1000
+  const z = Math.max(10, Math.min(17, Math.round(Math.log2((mPerPx0 * BOX) / spanM))))
+  // Resize the tiles so the grid fills the box at that zoom level (scale about 0.7–1.4)
+  const scale = (mPerPx0 * BOX) / 2 ** z / spanM
+  const view = BOX / scale // world px visible at zoom z
   const c = world(lat, lng, z)
-  const left = c.x - BOX / 2
-  const top = c.y - BOX / 2
+  const left = c.x - view / 2
+  const top = c.y - view / 2
   const tiles: { x: number; y: number }[] = []
-  for (let tx = Math.floor(left / 256); tx <= Math.floor((left + BOX) / 256); tx++)
-    for (let ty = Math.floor(top / 256); ty <= Math.floor((top + BOX) / 256); ty++) tiles.push({ x: tx, y: ty })
+  for (let tx = Math.floor(left / 256); tx <= Math.floor((left + view) / 256); tx++)
+    for (let ty = Math.floor(top / 256); ty <= Math.floor((top + view) / 256); ty++) tiles.push({ x: tx, y: ty })
   const pins = points(lat, lng, size, stepKm)
   const mid = (pins.length - 1) / 2
-  const pin = size >= 7 ? 'size-8 text-[11px]' : 'size-10 text-sm'
+  const at = (wx: number, wy: number) => ({ left: pct((wx - left) * scale), top: pct((wy - top) * scale) })
+  const pin = size >= 7 ? { w: 'clamp(22px, 6.6cqw, 54px)', f: 'clamp(9px, 2.4cqw, 17px)' } : { w: 'clamp(30px, 12cqw, 64px)', f: 'clamp(11px, 4cqw, 20px)' }
 
   return (
-    <div ref={wrap} className="w-full max-w-[440px]">
-      <div className="overflow-hidden" style={{ height: BOX * scale }}>
-        <div className="relative origin-top-left overflow-hidden rounded-xl bg-[#eef0f3]" style={{ width: BOX, height: BOX, transform: `scale(${scale})` }}>
-          {tiles.map((t) => (
-            <img
-              key={`${t.x}-${t.y}`}
-              src={`https://tile.openstreetmap.org/${z}/${t.x}/${t.y}.png`}
-              alt=""
-              loading="lazy"
-              className="absolute size-64 max-w-none opacity-80 grayscale-[35%]"
-              style={{ left: t.x * 256 - left, top: t.y * 256 - top, width: 256, height: 256 }}
-            />
-          ))}
-          {pins.map((p, i) => {
-            const w = world(p.lat, p.lng, z)
-            const r = grid[i] ?? 21
-            return (
-              <span
-                key={i}
-                className={cn('absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full font-semibold shadow', pin, rankTone(r), i === mid ? 'z-10 ring-[3px] ring-ink' : 'ring-2 ring-white')}
-                style={{ left: w.x - left, top: w.y - top }}
-              >
-                {rankText(r)}
-              </span>
-            )
-          })}
-          <span className="absolute bottom-0 right-0 bg-white/80 px-1 text-[9px] text-ink/70">© OpenStreetMap contributors</span>
-        </div>
+    <div className="w-full" style={{ containerType: 'inline-size' }}>
+      <div className="relative aspect-square w-full overflow-hidden rounded-xl border border-line bg-[#eef0f3]">
+        {tiles.map((t) => (
+          <img
+            key={`${t.x}-${t.y}`}
+            src={`https://tile.openstreetmap.org/${z}/${t.x}/${t.y}.png`}
+            alt=""
+            loading="lazy"
+            className="absolute max-w-none"
+            style={{ ...at(t.x * 256, t.y * 256), width: pct(256 * scale + 0.5), height: pct(256 * scale + 0.5) }}
+          />
+        ))}
+        {pins.map((p, i) => {
+          const w = world(p.lat, p.lng, z)
+          const r = grid[i] ?? 21
+          return (
+            <span
+              key={i}
+              className={cn(
+                'absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full font-bold leading-none shadow-md ring-2 ring-white',
+                rankTone(r),
+                i === mid && 'z-10 outline outline-[3px] outline-offset-2 outline-ink',
+              )}
+              style={{ ...at(w.x, w.y), width: pin.w, height: pin.w, fontSize: pin.f }}
+            >
+              {rankText(r)}
+            </span>
+          )
+        })}
+        <span className="absolute bottom-0 right-0 bg-white/90 px-1.5 py-0.5 text-[10px] text-ink">© OpenStreetMap contributors</span>
       </div>
     </div>
   )
@@ -87,7 +89,7 @@ export function RankGrid({ grid, size }: { grid: number[]; size: number }) {
   return (
     <div className="grid w-fit gap-1.5 rounded-xl bg-canvas p-2" style={{ gridTemplateColumns: `repeat(${size}, minmax(0, 1fr))` }}>
       {grid.map((r, i) => (
-        <span key={i} className={cn('flex size-10 items-center justify-center rounded-full text-sm font-semibold', rankTone(r), i === (grid.length - 1) / 2 && 'ring-2 ring-ink ring-offset-2')}>
+        <span key={i} className={cn('flex size-10 items-center justify-center rounded-full text-sm font-bold', rankTone(r), i === (grid.length - 1) / 2 && 'ring-2 ring-ink ring-offset-2')}>
           {rankText(r)}
         </span>
       ))}
