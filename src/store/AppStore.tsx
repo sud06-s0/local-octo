@@ -18,6 +18,12 @@ function countByChannel(rows: Array<{ channel: string }>): ChannelCounts {
   for (const r of rows) if (r.channel in out) out[r.channel as keyof ChannelCounts]++
   return out
 }
+/** Drops messages sent before the business's usage reset (if any). */
+function sinceReset<T extends { created_at?: string }>(rows: T[], resetAt: string | null): T[] {
+  if (!resetAt) return rows
+  const t = new Date(resetAt).getTime()
+  return rows.filter((r) => !r.created_at || new Date(r.created_at).getTime() >= t)
+}
 import { useToast } from '../components/ui/Toast'
 
 const STORAGE_KEY = 'lo-app-state-v1'
@@ -232,6 +238,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const [keys, setKeys] = useState({ publicKey: isLive ? '' : 'demo0public0key000000000' })
   const [loading, setLoading] = useState(isLive)
   const stateRef = useRef(state)
+  const resetAtRef = useRef<string | null>(null) // agency reset of this month's counts
   stateRef.current = state
   const userId = session?.user.id
 
@@ -278,7 +285,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       setLoading(true)
       const c = db()
       const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
-      const [b, contacts, reviews, notifications, templates, answers, monthSent] = await Promise.all([
+      const [b, contacts, reviews, notifications, templates, answers, monthSent, resetAt] = await Promise.all([
         c.from('businesses').select(BUSINESS_COLS).eq('id', bid).single(),
         c.from('contacts').select('*').eq('business_id', bid).order('created_at', { ascending: false }).limit(2000),
         c.from('reviews').select('*').eq('business_id', bid).order('review_created_at', { ascending: false }).limit(500),
@@ -286,9 +293,12 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         // agency: the whole shared library; client logins: their business only (database rule decides)
         c.from('whatsapp_templates').select('*, businesses(name)').order('created_at', { ascending: false }).limit(200),
         c.from('review_feedback').select('*, contacts(first_name, last_name, email, phone)').eq('business_id', bid).order('created_at', { ascending: false }).limit(300),
-        c.from('messages').select('channel').eq('business_id', bid).in('kind', ['initial', 'follow_up']).neq('status', 'failed').gte('created_at', monthStart).limit(1000),
+        c.from('messages').select('channel, created_at').eq('business_id', bid).in('kind', ['initial', 'follow_up']).neq('status', 'failed').gte('created_at', monthStart).limit(1000),
+        // optional column: if it's missing, counts just start from the 1st of the month
+        c.from('businesses').select('usage_reset_at').eq('id', bid).maybeSingle(),
       ])
-      setRequestsThisMonth(monthSent.error ? { ...NO_COUNTS } : countByChannel(monthSent.data ?? []))
+      resetAtRef.current = resetAt.error ? null : (resetAt.data?.usage_reset_at ?? null)
+      setRequestsThisMonth(monthSent.error ? { ...NO_COUNTS } : countByChannel(sinceReset(monthSent.data ?? [], resetAtRef.current)))
       setFeedback(answers.error ? [] : (answers.data ?? []).map(toFeedback))
       // Don't fail the whole load if the WhatsApp templates table isn't there yet
       setWaTemplates(templates.error ? [] : (templates.data ?? []).map(toWaTemplate))
@@ -544,10 +554,10 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
     const [contacts, monthSent] = await Promise.all([
       db().from('contacts').select('*').eq('business_id', activeId).order('created_at', { ascending: false }).limit(2000),
-      db().from('messages').select('channel').eq('business_id', activeId).in('kind', ['initial', 'follow_up']).neq('status', 'failed').gte('created_at', monthStart).limit(1000),
+      db().from('messages').select('channel, created_at').eq('business_id', activeId).in('kind', ['initial', 'follow_up']).neq('status', 'failed').gte('created_at', monthStart).limit(1000),
     ])
     if (!contacts.error) setState((st) => ({ ...st, contacts: (contacts.data ?? []).map(toContact) }))
-    if (!monthSent.error) setRequestsThisMonth(countByChannel(monthSent.data ?? []))
+    if (!monthSent.error) setRequestsThisMonth(countByChannel(sinceReset(monthSent.data ?? [], resetAtRef.current)))
   }, [activeId])
 
   /** Uploads a file to the business's storage folder and returns its public URL (demo: data URL). */
