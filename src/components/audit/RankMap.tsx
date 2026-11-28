@@ -136,7 +136,7 @@ export function RankMap({
     const p = pinPos[sel]
     const gap = 'clamp(16px, 5cqw, 40px)'
     const topPx = Math.min(Math.max(p.y - BOX * 0.2, BOX * 0.02), BOX * 0.18)
-    // Set as CSS variables: used from medium width up; on phones the panel sits along the bottom of the map instead
+    // Set as CSS variables: used on big maps (672px+); on smaller maps and phones the panel sits along the bottom of the map instead
     panel = {
       '--pl': p.x < BOX / 2 ? `calc(${pct(p.x)} + ${gap})` : 'auto',
       '--pr': p.x < BOX / 2 ? 'auto' : `calc(${pct(BOX - p.x)} + ${gap})`,
@@ -187,7 +187,10 @@ export function RankMap({
 
         {panel && (
           <div
-            className="absolute inset-x-2 bottom-2 z-20 flex max-h-[70%] flex-col overflow-hidden rounded-xl border border-line bg-white shadow-xl @md:inset-x-auto @md:bottom-auto @md:left-[var(--pl)] @md:right-[var(--pr)] @md:top-[var(--pt)] @md:max-h-[80%] @md:w-[min(320px,64%)] print:hidden"
+            className={cn(
+              'absolute inset-x-2 z-20 flex max-h-[70%] flex-col overflow-hidden rounded-xl border border-line bg-white shadow-xl @2xl:inset-x-auto @2xl:bottom-auto @2xl:left-[var(--pl)] @2xl:right-[var(--pr)] @2xl:top-[var(--pt)] @2xl:max-h-[80%] @2xl:w-[min(320px,44%)] print:hidden',
+              sel != null && pinPos[sel].y > BOX / 2 ? 'top-2' : 'bottom-2',
+            )}
             style={panel}
           >
             <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
