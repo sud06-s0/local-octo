@@ -43,7 +43,11 @@ interface DrillRow {
   reviews: number | null
   you: boolean
 }
-const drillCache = new Map<string, DrillRow[]>()
+interface DrillResult {
+  rows: DrillRow[]
+  yourRank: number
+}
+const drillCache = new Map<string, DrillResult>()
 
 export function RankMap({
   lat,
@@ -73,6 +77,8 @@ export function RankMap({
   const [sel, setSel] = useState<number | null>(null)
   const selRef = useRef<number | null>(null)
   const [rows, setRows] = useState<DrillRow[] | null>(null)
+  // Rank from the live drilldown search, shown on the dot so the dot and the list always agree
+  const [live, setLive] = useState<Record<number, number>>({})
   const [drillError, setDrillError] = useState('')
 
   const close = () => {
@@ -86,15 +92,19 @@ export function RankMap({
     setSel(i)
     setDrillError('')
     const key = `${drill.token}:${drill.keywordIndex}:${i}`
+    const show = (d: DrillResult) => {
+      setLive((cur) => ({ ...cur, [i]: d.yourRank }))
+      if (selRef.current === i) setRows(d.rows)
+    }
     const hit = drillCache.get(key)
-    if (hit) return setRows(hit)
+    if (hit) return show(hit)
     setRows(null)
     try {
       const res = await fetch(`${DRILL_API}?t=${drill.token}&k=${drill.keywordIndex}&i=${i}`, { headers: { apikey: API_KEY } })
       const body = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(body?.error ?? 'Could not load')
-      drillCache.set(key, body.results)
-      if (selRef.current === i) setRows(body.results)
+      if (!res.ok || !Array.isArray(body?.rows)) throw new Error(body?.error ?? 'Could not load')
+      drillCache.set(key, body)
+      show(body)
     } catch (e) {
       if (selRef.current === i) setDrillError(e instanceof Error ? e.message : 'Could not load')
     }
@@ -125,7 +135,7 @@ export function RankMap({
   if (sel != null) {
     const p = pinPos[sel]
     const gap = 'clamp(16px, 5cqw, 40px)'
-    const topPx = Math.min(Math.max(p.y - BOX * 0.12, BOX * 0.02), BOX * 0.42)
+    const topPx = Math.min(Math.max(p.y - BOX * 0.2, BOX * 0.02), BOX * 0.18)
     // Set as CSS variables: used from medium width up; on phones the panel sits along the bottom of the map instead
     panel = {
       '--pl': p.x < BOX / 2 ? `calc(${pct(p.x)} + ${gap})` : 'auto',
@@ -157,7 +167,7 @@ export function RankMap({
         )}
 
         {pinPos.map((p, i) => {
-          const r = grid[i] ?? 21
+          const r = live[i] ?? grid[i] ?? 21
           const cls = cn(
             'absolute z-10 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full font-bold leading-none shadow-md ring-2 ring-white',
             rankTone(r),
@@ -177,7 +187,7 @@ export function RankMap({
 
         {panel && (
           <div
-            className="absolute inset-x-2 bottom-2 z-20 flex max-h-[62%] flex-col overflow-hidden rounded-xl border border-line bg-white shadow-xl @md:inset-x-auto @md:bottom-auto @md:left-[var(--pl)] @md:right-[var(--pr)] @md:top-[var(--pt)] @md:max-h-[56%] @md:w-[min(320px,64%)] print:hidden"
+            className="absolute inset-x-2 bottom-2 z-20 flex max-h-[70%] flex-col overflow-hidden rounded-xl border border-line bg-white shadow-xl @md:inset-x-auto @md:bottom-auto @md:left-[var(--pl)] @md:right-[var(--pr)] @md:top-[var(--pt)] @md:max-h-[80%] @md:w-[min(320px,64%)] print:hidden"
             style={panel}
           >
             <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
@@ -217,6 +227,11 @@ export function RankMap({
                 </ol>
               )}
             </div>
+            {rows && sel != null && live[sel] != null && (
+              <p className="border-t border-line bg-canvas px-4 py-2 text-sm font-medium text-ink">
+                {live[sel] > 20 ? 'You: not in the top 20 here' : `You: #${live[sel]} here`}
+              </p>
+            )}
           </div>
         )}
 

@@ -1,5 +1,6 @@
 // supabase/functions/audit-drill/index.ts
-// Competition Drilldown for one heatmap dot: top 5 businesses (name, rating, reviews) at that point for that keyword.
+// Competition Drilldown for one heatmap dot: the top 20 businesses (name, rating, reviews) at that point for that keyword,
+// plus the business's own rank in that same search (yourRank, 21 = not in the top 20).
 // GET ?t=<share_token>&k=<keyword index>&i=<point index>. No login (the report's share token is the key).
 // One Google Text Search (Enterprise) the first time a dot is clicked; after that it's served from audit_drilldowns.
 // Secret: GOOGLE_PLACES_API_KEY.
@@ -41,7 +42,9 @@ Deno.serve(async (req) => {
   if (!kw || lat == null || lng == null || i >= size * size) return json({ error: 'Dot not found' }, 404)
 
   const { data: cached } = await admin.from('audit_drilldowns').select('results').eq('audit_id', audit.id).eq('keyword_idx', k).eq('point_idx', i).maybeSingle()
-  if (cached) return json({ results: cached.results }, 200, { 'Cache-Control': 'public, max-age=3600' })
+  // Older cache rows were a plain top-5 array; only the { rows, yourRank } shape is reused
+  const c = cached?.results as Any
+  if (c && !Array.isArray(c) && Array.isArray(c.rows)) return json(c, 200, { 'Cache-Control': 'public, max-age=3600' })
 
   const key = Deno.env.get('GOOGLE_PLACES_API_KEY')
   if (!key) return json({ error: 'GOOGLE_PLACES_API_KEY is not set' }, 500)
@@ -67,20 +70,16 @@ Deno.serve(async (req) => {
   if (!res.ok) return json({ error: body?.error?.message ?? `Google HTTP ${res.status}` }, 502)
 
   const list = (body.places ?? []) as Any[]
-  const top = list.slice(0, 5).map((p, n) => ({
+  const rows = list.slice(0, 20).map((p, n) => ({
     rank: n + 1,
     name: p.displayName?.text ?? '',
     rating: p.rating ?? null,
     reviews: p.userRatingCount ?? null,
     you: !!biz?.place_id && p.id === biz.place_id,
   }))
-  // If the business is lower down, add it as the last row so it's easy to compare
-  const yourIdx = biz?.place_id ? list.findIndex((p) => p.id === biz.place_id) : -1
-  if (yourIdx >= 5) {
-    const p = list[yourIdx]
-    top.push({ rank: yourIdx + 1, name: p.displayName?.text ?? '', rating: p.rating ?? null, reviews: p.userRatingCount ?? null, you: true })
-  }
+  const yourIdx = rows.findIndex((r) => r.you)
+  const result = { rows, yourRank: yourIdx === -1 ? 21 : yourIdx + 1, checkedAt: new Date().toISOString() }
 
-  await admin.from('audit_drilldowns').upsert({ audit_id: audit.id, keyword_idx: k, point_idx: i, results: top })
-  return json({ results: top }, 200, { 'Cache-Control': 'public, max-age=3600' })
+  await admin.from('audit_drilldowns').upsert({ audit_id: audit.id, keyword_idx: k, point_idx: i, results: result })
+  return json(result, 200, { 'Cache-Control': 'public, max-age=3600' })
 })
