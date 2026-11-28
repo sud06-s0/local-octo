@@ -38,6 +38,7 @@ function AuditInner() {
   const [loading, setLoading] = useState(true)
   const [suggesting, setSuggesting] = useState(false)
   const [running, setRunning] = useState(false)
+  const [runKeywords, setRunKeywords] = useState<string[]>([])
 
   const suggest = useCallback(async () => {
     if (!activeBusinessId) return
@@ -93,6 +94,7 @@ function AuditInner() {
 
   const run = async () => {
     if (!activeBusinessId || !keywords.length) return
+    setRunKeywords(keywords)
     setRunning(true)
     try {
       const r = await invokeFn<{ id: string; createdAt: string; shareToken: string; report: Report }>('audit', { action: 'run', businessId: activeBusinessId, keywords })
@@ -178,7 +180,7 @@ function AuditInner() {
               Add
             </Button>
             <Button icon={running ? Loader2 : Play} onClick={run} disabled={running || !keywords.length}>
-              {running ? 'Running… (1–2 minutes)' : 'Run audit'}
+              {running ? 'Running…' : 'Run audit'}
             </Button>
           </div>
           {history.length > 1 && (
@@ -200,15 +202,62 @@ function AuditInner() {
         </Card>
       </div>
 
+      {running && <RunProgress keywords={runKeywords} />}
+
       {loading ? (
         <div className="flex h-40 items-center justify-center">
           <Loader2 className="size-6 animate-spin text-brand-700" />
         </div>
       ) : current ? (
-        <AuditReport report={current.report} createdAt={current.created_at} />
-      ) : (
+        <div className={running ? 'pointer-events-none opacity-40 print:hidden' : ''}>
+          <AuditReport report={current.report} createdAt={current.created_at} />
+        </div>
+      ) : running ? null : (
         <Card className="p-10 text-center text-muted print:hidden">No report yet. Check the keywords and run the audit.</Card>
       )}
     </div>
   )
 }
+
+/** Time estimate + steps while the audit runs (the function itself doesn't report progress). */
+function RunProgress({ keywords }: { keywords: string[] }) {
+  // Rough timings: profile ~6s, each 7x7 keyword ~9s, each 3x3 keyword ~3s, summary ~10s
+  const steps = [
+    { label: 'Reading the Google Business Profile', secs: 6 },
+    ...keywords.map((k, i) => ({ label: `Checking ranks for "${k}"`, secs: i < 3 ? 9 : 3 })),
+    { label: 'Finding competitors and checking the profile', secs: 3 },
+    { label: 'Writing the summary', secs: 10 },
+  ]
+  const total = steps.reduce((a, b) => a + b.secs, 0)
+  const [elapsed, setElapsed] = useState(0)
+  useEffect(() => {
+    const start = Date.now()
+    const t = setInterval(() => setElapsed((Date.now() - start) / 1000), 500)
+    return () => clearInterval(t)
+  }, [])
+
+  let acc = 0
+  const current = steps.findIndex((s) => (acc += s.secs) > elapsed)
+  const left = Math.max(0, Math.ceil(total - elapsed))
+  const over = elapsed >= total
+  const pctDone = Math.min(97, (elapsed / total) * 100)
+  const leftText = left >= 60 ? `${Math.floor(left / 60)} min ${left % 60} s` : `${left} s`
+
+  return (
+    <Card className="mb-6 p-5 print:hidden">
+      <div className="flex items-center justify-between gap-3">
+        <p className="flex items-center gap-2 font-medium text-ink">
+          <Loader2 className="size-4 animate-spin text-brand-700" />
+          {over ? 'Almost done — finishing up…' : `Running the audit — about ${leftText} left`}
+        </p>
+        <span className="text-sm text-muted">{Math.round(pctDone)}%</span>
+      </div>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-canvas">
+        <div className="h-full rounded-full bg-brand-700 transition-[width] duration-500" style={{ width: `${pctDone}%` }} />
+      </div>
+      <p className="mt-3 text-sm text-muted">{over ? steps[steps.length - 1].label : steps[current]?.label}…</p>
+      <p className="mt-1 text-xs text-muted">Keep this page open. The report shows here when it's ready.</p>
+    </Card>
+  )
+}
+
