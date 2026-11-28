@@ -65,8 +65,8 @@ Deno.serve(async (req) => {
   if (!audit) return json({ error: "Report not found" }, 404);
   const report = audit.report;
   const kw = report?.keywords?.[k];
-  const lat = report?.business?.lat;
-  const lng = report?.business?.lng;
+  const lat = report?.center?.lat ?? report?.business?.lat;
+  const lng = report?.center?.lng ?? report?.business?.lng;
   const size = kw?.size ?? 3;
   if (!kw || lat == null || lng == null || i >= size * size) return json({ error: "Dot not found" }, 404);
   const { data: cached } = await admin.from("audit_drilldowns").select("results").eq("audit_id", audit.id).eq("keyword_idx", k).eq("point_idx", i).maybeSingle();
@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
       languageCode: "en",
       regionCode: "IN",
       pageSize: 20,
-      locationBias: { circle: { center: { latitude: pt.lat, longitude: pt.lng }, radius: 1e3 } }
+      locationBias: { circle: { center: { latitude: pt.lat, longitude: pt.lng }, radius: kw.radiusM ?? 1e3 } }
     })
   });
   const body = await res.json().catch(() => ({}));

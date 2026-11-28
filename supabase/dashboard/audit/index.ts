@@ -105,11 +105,11 @@ async function gbp(token, url, init = {}) {
 
 // supabase/functions/audit/index.ts
 var PLACES = "https://places.googleapis.com/v1";
-var MAX_KEYWORDS = 5;
+var MAX_KEYWORDS = 3;
 var MAX_SUGGESTIONS = 10;
-var HEATMAP_KEYWORDS = 3;
-var HEAT = { size: 7, stepKm: 1 };
-var SMALL = { size: 3, stepKm: 1.5 };
+var GRID = 7;
+var DEFAULT_AREA_KM = 6;
+var MAX_AREA_KM = 100;
 var NOT_FOUND = 21;
 async function places(path, fields, init = {}) {
   const key = Deno.env.get("GOOGLE_PLACES_API_KEY");
@@ -263,15 +263,17 @@ function gridPoints(lat, lng, size, stepKm) {
   for (let r = half; r >= -half; r--) for (let c = -half; c <= half; c++) pts.push({ lat: lat + r * dLat, lng: lng + c * dLng });
   return pts;
 }
-var searchBody = (keyword, p) => JSON.stringify({
+var searchBody = (keyword, p, radiusM) => JSON.stringify({
   textQuery: keyword,
   languageCode: "en",
   regionCode: "IN",
   pageSize: 20,
-  locationBias: { circle: { center: { latitude: p.lat, longitude: p.lng }, radius: 1e3 } }
+  locationBias: { circle: { center: { latitude: p.lat, longitude: p.lng }, radius: radiusM } }
 });
-async function rankKeyword(keyword, placeId, lat, lng, heat) {
-  const g = heat ? HEAT : SMALL;
+var biasRadius = (stepKm) => Math.round(Math.min(5e4, Math.max(500, stepKm * 750)));
+async function rankKeyword(keyword, placeId, lat, lng, stepKm) {
+  const g = { size: GRID, stepKm };
+  const radiusM = biasRadius(stepKm);
   const pts = gridPoints(lat, lng, g.size, g.stepKm);
   const mid = (pts.length - 1) / 2;
   let nearby = [];
@@ -281,7 +283,7 @@ async function rankKeyword(keyword, placeId, lat, lng, heat) {
       if (i === mid) {
         const body2 = await places("places:searchText", "places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.primaryTypeDisplayName", {
           method: "POST",
-          body: searchBody(keyword, pt)
+          body: searchBody(keyword, pt, radiusM)
         });
         const list2 = body2.places ?? [];
         ids[i] = list2.map((x) => x.id);
@@ -289,7 +291,7 @@ async function rankKeyword(keyword, placeId, lat, lng, heat) {
         const idx2 = list2.findIndex((x) => x.id === placeId);
         return idx2 === -1 ? NOT_FOUND : idx2 + 1;
       }
-      const body = await places("places:searchText", "places.id", { method: "POST", body: searchBody(keyword, pt) });
+      const body = await places("places:searchText", "places.id", { method: "POST", body: searchBody(keyword, pt, radiusM) });
       const list = body.places ?? [];
       ids[i] = list.map((x) => x.id);
       const idx = list.findIndex((x) => x.id === placeId);
@@ -302,7 +304,8 @@ async function rankKeyword(keyword, placeId, lat, lng, heat) {
   return {
     keyword,
     size: g.size,
-    stepKm: g.stepKm,
+    stepKm: Math.round(g.stepKm * 1e3) / 1e3,
+    radiusM,
     grid: ranks,
     ids,
     center: ranks[mid],
@@ -590,11 +593,35 @@ Deno.serve(async (req) => {
       if (g) {
         try {
           const kw = await searchKeywords(g.token, g.location);
-          if (kw.length) return json({ keywords: kw.slice(0, MAX_SUGGESTIONS).map((k) => k.keyword), source: "google" });
+          if (kw.length) return json({ keywords: kw.slice(0, MAX_SUGGESTIONS).map((k) => k.keyword), source: "google", category: profile.primaryCategory });
         } catch {
         }
       }
-      return json({ keywords: keywordsFromCategories(profile), source: "categories" });
+      return json({ keywords: keywordsFromCategories(profile), source: "categories", category: profile.primaryCategory });
+    }
+    if (input.action === "center") {
+      const { data: b } = await admin.from("businesses").select("place_id, address").eq("id", businessId).single();
+      if (!b?.place_id) return json({ error: "This business has no Google place yet." }, 400);
+      const p = await places(`places/${b.place_id}?languageCode=en`, "location,formattedAddress");
+      return json({ lat: p.location?.latitude ?? null, lng: p.location?.longitude ?? null, address: p.formattedAddress ?? b.address ?? "" });
+    }
+    if (input.action === "geocode") {
+      const query = String(input.query ?? "").trim().slice(0, 200);
+      if (!query) return json({ results: [] });
+      const near = input.center && typeof input.center.lat === "number" && typeof input.center.lng === "number" ? input.center : null;
+      const body = await places("places:searchText", "places.displayName,places.formattedAddress,places.location", {
+        method: "POST",
+        body: JSON.stringify({
+          textQuery: query,
+          languageCode: "en",
+          regionCode: "IN",
+          pageSize: 5,
+          ...near ? { locationBias: { circle: { center: { latitude: near.lat, longitude: near.lng }, radius: 5e4 } } } : {}
+        })
+      });
+      return json({
+        results: (body.places ?? []).filter((x) => x.location).map((x) => ({ name: x.displayName?.text ?? "", address: x.formattedAddress ?? "", lat: x.location.latitude, lng: x.location.longitude }))
+      });
     }
     if (input.action === "run") {
       if (!agency) {
@@ -615,24 +642,28 @@ Deno.serve(async (req) => {
         } catch {
         }
       }
+      const c = input.center;
+      const center = c && Number.isFinite(c.lat) && Number.isFinite(c.lng) && Math.abs(c.lat) <= 90 && Math.abs(c.lng) <= 180 ? { lat: c.lat, lng: c.lng } : { lat: profile.lat, lng: profile.lng };
+      const areaKm = Math.min(MAX_AREA_KM, Math.max(1, Number(input.areaKm) || DEFAULT_AREA_KM));
+      const stepKm = areaKm / (GRID - 1);
       const rows = [];
-      for (let i = 0; i < keywords.length; i++) rows.push(await rankKeyword(keywords[i], placeId, profile.lat, profile.lng, i < HEATMAP_KEYWORDS));
+      for (let i = 0; i < keywords.length; i++) rows.push(await rankKeyword(keywords[i], placeId, center.lat, center.lng, stepKm));
       const comp = /* @__PURE__ */ new Map();
       for (const r of rows)
-        for (const c of r.nearby.slice(0, 10)) {
-          const cur = comp.get(c.placeId) ?? { ...c, times: 0, rankSum: 0 };
+        for (const c2 of r.nearby.slice(0, 10)) {
+          const cur = comp.get(c2.placeId) ?? { ...c2, times: 0, rankSum: 0 };
           cur.times += 1;
-          cur.rankSum += c.rank;
-          comp.set(c.placeId, cur);
+          cur.rankSum += c2.rank;
+          comp.set(c2.placeId, cur);
         }
-      const overall = (c) => (c.rankSum + (rows.length - c.times) * NOT_FOUND) / rows.length;
-      const competitors = [...comp.values()].sort((a, b) => overall(a) - overall(b)).slice(0, 5).map((c) => ({
-        name: c.name,
-        address: c.address,
-        rating: c.rating,
-        reviews: c.reviews,
-        averageRank: Math.round(c.rankSum / c.times * 10) / 10,
-        keywords: c.times,
+      const overall = (c2) => (c2.rankSum + (rows.length - c2.times) * NOT_FOUND) / rows.length;
+      const competitors = [...comp.values()].sort((a, b) => overall(a) - overall(b)).slice(0, 5).map((c2) => ({
+        name: c2.name,
+        address: c2.address,
+        rating: c2.rating,
+        reviews: c2.reviews,
+        averageRank: Math.round(c2.rankSum / c2.times * 10) / 10,
+        keywords: c2.times,
         totalKeywords: rows.length
       }));
       const reviews = await reviewStats(admin, businessId);
@@ -654,11 +685,13 @@ Deno.serve(async (req) => {
         services: serviceCount,
         servicesWithoutDescription: profile.services ? noDesc.length : null,
         averageSearchRank: searchRank,
-        checks: checks.map((c) => ({ check: c.label, pass: c.pass, detail: c.detail }))
+        checks: checks.map((c2) => ({ check: c2.label, pass: c2.pass, detail: c2.detail }))
       });
       const report = {
         version: 2,
         business: { name: profile.name, address: profile.address, rating: profile.rating, reviewCount: profile.reviewCount, category: profile.primaryCategory, lat: profile.lat, lng: profile.lng },
+        center,
+        areaKm,
         source: profile.source,
         gbpNote: g ? "" : gbpError || "Google Business Profile is not connected, so services, posts, photos and service area could not be checked.",
         searchRank,

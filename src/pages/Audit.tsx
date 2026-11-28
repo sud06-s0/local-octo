@@ -1,17 +1,21 @@
 // src/pages/Audit.tsx
 // Audit / rank report for the selected business. Agency logins: unlimited runs. Client logins: 1 run per calendar month.
+// Before running: pick up to 3 keywords and the audit area (centre + square size in km or miles, up to 100 km).
 // "Download PDF" prints the report; "Copy public link" gives a page anyone can open (/audit-report/<token>).
 
-import { useCallback, useEffect, useState } from 'react'
-import { Download, Link2, Loader2, Play, Plus, Sparkles, X } from 'lucide-react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { Check, Download, Link2, Loader2, Play, Plus, Sparkles, X } from 'lucide-react'
 import { Button, Card, Input, PageHeader } from '../components/ui/primitives'
 import { useStore } from '../store/AppStore'
 import { useAuth } from '../store/AuthProvider'
 import { useToast } from '../components/ui/Toast'
 import { db, invokeFn } from '../lib/supabase'
+import { cn } from '../lib/utils'
 import { AuditReport, type Report } from '../components/audit/AuditReport'
+import { AreaPicker, type AreaUnit, type GeoResult, type LatLng } from '../components/audit/AreaPicker'
 
-const MAX_KEYWORDS = 5
+const MAX_KEYWORDS = 3
+const DEFAULT_AREA_KM = 6
 
 interface Saved {
   id: string
@@ -26,6 +30,27 @@ const nextMonthStart = () => {
   const now = new Date()
   return new Date(now.getFullYear(), now.getMonth() + 1, 1).toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })
 }
+const titleCase = (t: string) => t.replace(/\b\w/g, (c) => c.toUpperCase())
+
+function savedUnit(): AreaUnit {
+  try {
+    return localStorage.getItem('lo.audit.unit') === 'mi' ? 'mi' : 'km'
+  } catch {
+    return 'km'
+  }
+}
+
+function Step({ n, title, children }: { n: number; title: string; children: ReactNode }) {
+  return (
+    <section className="mb-6">
+      <h2 className="mb-3 flex items-center gap-2.5 text-lg font-semibold text-ink">
+        <span className="flex size-7 items-center justify-center rounded-full bg-brand-700 text-sm text-white">{n}</span>
+        {title}
+      </h2>
+      <Card className="p-5">{children}</Card>
+    </section>
+  )
+}
 
 export default function Audit() {
   const { mode, activeBusinessId, state } = useStore()
@@ -34,28 +59,44 @@ export default function Audit() {
   const [current, setCurrent] = useState<Saved | null>(null)
   const [keywords, setKeywords] = useState<string[]>([])
   const [draft, setDraft] = useState('')
+  const [showCustom, setShowCustom] = useState(false)
   const [loading, setLoading] = useState(true)
   const [suggesting, setSuggesting] = useState(false)
   const [suggestions, setSuggestions] = useState<string[] | null>(null) // up to 10 ideas, shown after clicking Suggest
+  const [category, setCategory] = useState('')
   const [running, setRunning] = useState(false)
   const [runKeywords, setRunKeywords] = useState<string[]>([])
   const [lastClientRun, setLastClientRun] = useState<string | null>(null)
+  // Audit area
+  const [business, setBusiness] = useState<LatLng | null>(null)
+  const [center, setCenter] = useState<LatLng | null>(null)
+  const [areaKm, setAreaKm] = useState(DEFAULT_AREA_KM)
+  const [unit, setUnitState] = useState<AreaUnit>(savedUnit)
+  const setUnit = (u: AreaUnit) => {
+    setUnitState(u)
+    try {
+      localStorage.setItem('lo.audit.unit', u)
+    } catch {
+      // ignore
+    }
+  }
   // Clients get 1 audit per calendar month (agency runs don't count)
   const usedThisMonth = !isAgency && !!lastClientRun && monthKey(new Date(lastClientRun)) === monthKey(new Date())
 
-  const suggest = useCallback(async () => {
+  const suggest = async () => {
     if (!activeBusinessId) return
     setSuggesting(true)
     try {
-      const r = await invokeFn<{ keywords: string[]; source: string }>('audit', { action: 'suggest', businessId: activeBusinessId })
-      setSuggestions(r.keywords.slice(0, 10))
+      const r = await invokeFn<{ keywords: string[]; source: string; category?: string }>('audit', { action: 'suggest', businessId: activeBusinessId })
+      setSuggestions(r.keywords.slice(0, 10).map((k) => k.toLowerCase()))
+      setCategory(r.category ?? '')
       if (!r.keywords.length) toast('No keywords found. Add them yourself.')
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not get keywords')
     } finally {
       setSuggesting(false)
     }
-  }, [activeBusinessId, toast])
+  }
 
   useEffect(() => {
     if (mode !== 'live' || !activeBusinessId) {
@@ -65,6 +106,9 @@ export default function Audit() {
     let off = false
     setLoading(true)
     setCurrent(null)
+    setSuggestions(null)
+    setBusiness(null)
+    setCenter(null)
     db()
       .from('business_audits')
       .select('id, created_at, keywords, share_token, report')
@@ -75,10 +119,21 @@ export default function Audit() {
         if (off) return
         setLoading(false)
         if (error) return toast(error.message)
-        const rows = (data ?? []) as Saved[]
-        setCurrent(rows[0] ?? null)
-        if (rows[0]) setKeywords(rows[0].keywords.slice(0, MAX_KEYWORDS))
+        const row = ((data ?? []) as Saved[])[0]
+        setCurrent(row ?? null)
+        setKeywords(row ? row.keywords.slice(0, MAX_KEYWORDS) : [])
+        // Start from the last audit's area, if it had one
+        if (row?.report.center) setCenter(row.report.center)
+        if (row?.report.areaKm) setAreaKm(row.report.areaKm)
       })
+    invokeFn<{ lat: number | null; lng: number | null }>('audit', { action: 'center', businessId: activeBusinessId })
+      .then((r) => {
+        if (off || r.lat == null || r.lng == null) return
+        const b = { lat: r.lat, lng: r.lng }
+        setBusiness(b)
+        setCenter((cur) => cur ?? b)
+      })
+      .catch(() => {})
     if (!isAgency)
       db()
         .from('businesses')
@@ -91,15 +146,29 @@ export default function Audit() {
     }
   }, [mode, activeBusinessId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => setSuggestions(null), [activeBusinessId])
-
-  const addKeyword = (value?: string) => {
-    const k = (value ?? draft).trim().toLowerCase()
-    if (!k) return
-    if (keywords.includes(k)) return setDraft('')
+  const toggleKeyword = (k: string) => {
+    if (keywords.includes(k)) return setKeywords(keywords.filter((x) => x !== k))
     if (keywords.length >= MAX_KEYWORDS) return toast(`Max ${MAX_KEYWORDS} keywords. Remove one to add another.`)
     setKeywords([...keywords, k])
-    if (value === undefined) setDraft('')
+  }
+  const addCustom = () => {
+    const k = draft.trim().toLowerCase()
+    if (!k) return
+    if (!keywords.includes(k)) {
+      if (keywords.length >= MAX_KEYWORDS) return toast(`Max ${MAX_KEYWORDS} keywords. Remove one to add another.`)
+      setKeywords([...keywords, k])
+    }
+    setDraft('')
+  }
+
+  const geocode = async (query: string): Promise<GeoResult[]> => {
+    try {
+      const r = await invokeFn<{ results: GeoResult[] }>('audit', { action: 'geocode', businessId: activeBusinessId, query, center: center ?? business })
+      return r.results
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Search failed')
+      return []
+    }
   }
 
   const run = async () => {
@@ -107,7 +176,13 @@ export default function Audit() {
     setRunKeywords(keywords)
     setRunning(true)
     try {
-      const r = await invokeFn<{ id: string; createdAt: string; shareToken: string; report: Report }>('audit', { action: 'run', businessId: activeBusinessId, keywords })
+      const r = await invokeFn<{ id: string; createdAt: string; shareToken: string; report: Report }>('audit', {
+        action: 'run',
+        businessId: activeBusinessId,
+        keywords,
+        center: center ?? undefined,
+        areaKm,
+      })
       const saved: Saved = { id: r.id, created_at: r.createdAt, keywords, share_token: r.shareToken, report: r.report }
       setCurrent(saved)
       if (!isAgency) setLastClientRun(new Date().toISOString())
@@ -138,6 +213,8 @@ export default function Audit() {
     )
   }
 
+  const chips = [...new Set([...(suggestions ?? []), ...keywords])]
+
   return (
     <div className="mx-auto max-w-[1100px]">
       <div className="print:hidden">
@@ -158,69 +235,122 @@ export default function Audit() {
           }
         />
 
-        <Card className="mb-6 p-5">
+        <Step n={1} title="Select keywords">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <p className="font-medium text-ink">
-              Keywords <span className="text-sm font-normal text-muted">({keywords.length}/{MAX_KEYWORDS})</span>
-            </p>
-            <Button variant="ghost" size="sm" icon={suggesting ? Loader2 : Sparkles} onClick={suggest} disabled={suggesting || running}>
-              Suggest
-            </Button>
-          </div>
-          <div className="mb-3 flex flex-wrap gap-2">
-            {keywords.map((k) => (
-              <span key={k} className="inline-flex items-center gap-1 rounded-lg bg-brand-50 px-2.5 py-1 text-sm text-brand-800 ring-1 ring-brand-100">
-                {k}
-                <button onClick={() => setKeywords(keywords.filter((x) => x !== k))} aria-label={`Remove ${k}`} className="rounded p-0.5 hover:bg-brand-100">
-                  <X className="size-3.5" />
-                </button>
-              </span>
-            ))}
-            {!keywords.length && <span className="text-sm text-muted">No keywords yet — add your own or click Suggest</span>}
-          </div>
-          {suggestions && (
-            <div className="mb-3 rounded-lg border border-line bg-canvas p-3">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-sm font-medium text-ink">Suggestions — click to add</p>
-                <button onClick={() => setSuggestions(null)} aria-label="Close suggestions" className="rounded p-0.5 text-muted hover:text-ink">
-                  <X className="size-4" />
-                </button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {suggestions.filter((sg) => !keywords.includes(sg.toLowerCase())).map((sg) => (
-                  <button
-                    key={sg}
-                    onClick={() => addKeyword(sg)}
-                    className="inline-flex items-center gap-1 rounded-lg border border-line bg-white px-2.5 py-1 text-sm text-ink hover:border-brand-300 hover:bg-brand-50"
-                  >
-                    <Plus className="size-3.5" /> {sg}
-                  </button>
-                ))}
-                {suggestions.every((sg) => keywords.includes(sg.toLowerCase())) && <span className="text-sm text-muted">All suggestions added.</span>}
-              </div>
+            <div>
+              <p className="text-ink">Choose up to {MAX_KEYWORDS} keywords to audit.</p>
+              {suggestions && category && (
+                <p className="text-sm text-muted">
+                  These suggestions are for a <span className="font-medium text-ink">{category}</span>.
+                </p>
+              )}
             </div>
-          )}
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Input
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addKeyword())}
-              placeholder={keywords.length >= MAX_KEYWORDS ? `Max ${MAX_KEYWORDS} keywords — remove one to add another` : 'e.g. pu college near me'}
-              className="flex-1"
-            />
-            <Button variant="outline" icon={Plus} onClick={() => addKeyword()}>
-              Add
-            </Button>
-            <Button icon={running ? Loader2 : Play} onClick={run} disabled={running || !keywords.length || usedThisMonth}>
-              {running ? 'Running…' : 'Run audit'}
+            <Button variant="outline" size="sm" icon={suggesting ? Loader2 : Sparkles} onClick={suggest} disabled={suggesting || running}>
+              {suggestions ? 'Refresh suggestions' : 'Get suggestions'}
             </Button>
           </div>
-          {!isAgency && (
-            <p className="mt-3 text-sm text-muted">
-              {usedThisMonth ? `You've used this month's audit. The next one is available on ${nextMonthStart()}.` : 'You can run 1 audit per month.'}
+
+          <div className="flex flex-wrap gap-2">
+            {chips.map((k) => {
+              const on = keywords.includes(k)
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => toggleKeyword(k)}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition',
+                    on ? 'bg-brand-700 text-white hover:bg-brand-800' : 'bg-canvas text-ink ring-1 ring-line hover:ring-brand-300',
+                  )}
+                >
+                  {on ? <Check className="size-3.5" /> : <Plus className="size-3.5" />} {titleCase(k)}
+                </button>
+              )
+            })}
+            {showCustom ? (
+              <span className="inline-flex items-center gap-1.5">
+                <Input
+                  autoFocus
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') (e.preventDefault(), addCustom())
+                    if (e.key === 'Escape') setShowCustom(false)
+                  }}
+                  placeholder="e.g. pu college near me"
+                  className="h-9 w-56"
+                />
+                <Button size="sm" onClick={addCustom}>
+                  Add
+                </Button>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowCustom(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-brand-800 ring-1 ring-brand-200 hover:bg-brand-50"
+              >
+                <Plus className="size-3.5" /> Add custom
+              </button>
+            )}
+          </div>
+
+          <div className="mt-4 rounded-xl border border-line p-4">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="font-medium text-ink">Selected keywords</p>
+              <span className="text-sm font-semibold text-brand-800">
+                {keywords.length} / {MAX_KEYWORDS}
+              </span>
+            </div>
+            {keywords.length ? (
+              <div className="flex flex-wrap gap-2">
+                {keywords.map((k) => (
+                  <span key={k} className="inline-flex items-center gap-1.5 rounded-lg bg-brand-700 px-3 py-1.5 text-sm font-medium text-white">
+                    {titleCase(k)}
+                    <button type="button" onClick={() => toggleKeyword(k)} aria-label={`Remove ${k}`} className="rounded p-0.5 hover:bg-white/20">
+                      <X className="size-3.5" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted">None yet — pick from the suggestions or add your own.</p>
+            )}
+          </div>
+        </Step>
+
+        <Step n={2} title="Location & area">
+          {center ? (
+            <AreaPicker
+              center={center}
+              onCenter={setCenter}
+              areaKm={areaKm}
+              onArea={setAreaKm}
+              unit={unit}
+              onUnit={setUnit}
+              business={business}
+              onSearch={geocode}
+              disabled={running}
+            />
+          ) : (
+            <p className="flex items-center gap-2 text-sm text-muted">
+              <Loader2 className="size-4 animate-spin" /> Loading the business location…
             </p>
           )}
-        </Card>
+        </Step>
+
+        <div className="mb-8 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted">
+            {!isAgency
+              ? usedThisMonth
+                ? `You've used this month's audit. The next one is available on ${nextMonthStart()}.`
+                : 'You can run 1 audit per month.'
+              : 'Each audit checks 49 points per keyword. It takes about a minute.'}
+          </p>
+          <Button icon={running ? Loader2 : Play} onClick={run} disabled={running || !keywords.length || usedThisMonth}>
+            {running ? 'Running…' : 'Run audit'}
+          </Button>
+        </div>
       </div>
 
       {running && <RunProgress keywords={runKeywords} />}
@@ -234,7 +364,7 @@ export default function Audit() {
           <AuditReport report={current.report} createdAt={current.created_at} shareToken={current.share_token} />
         </div>
       ) : running ? null : (
-        <Card className="p-10 text-center text-muted print:hidden">No report yet. Check the keywords and run the audit.</Card>
+        <Card className="p-10 text-center text-muted print:hidden">No report yet. Pick keywords and the area, then run the audit.</Card>
       )}
     </div>
   )
@@ -242,10 +372,10 @@ export default function Audit() {
 
 /** Time estimate + steps while the audit runs (the function itself doesn't report progress). */
 function RunProgress({ keywords }: { keywords: string[] }) {
-  // Rough timings: profile ~6s, each 7x7 keyword ~9s, each 3x3 keyword ~3s, summary ~10s
+  // Rough timings: profile ~6s, each 7x7 keyword ~9s, summary ~10s
   const steps = [
     { label: 'Reading the Google Business Profile', secs: 6 },
-    ...keywords.map((k, i) => ({ label: `Checking ranks for "${k}"`, secs: i < 3 ? 9 : 3 })),
+    ...keywords.map((k) => ({ label: `Checking ranks for "${k}"`, secs: 9 })),
     { label: 'Finding competitors and checking the profile', secs: 3 },
     { label: 'Writing the summary', secs: 10 },
   ]

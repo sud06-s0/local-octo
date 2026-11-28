@@ -1,10 +1,12 @@
 // supabase/functions/audit/index.ts
 // Audit / rank report for one business. Agency logins: unlimited. Client logins: 1 audit per calendar month (India time).
-// Body: { action: 'suggest', businessId }            -> { keywords, source }  (Google search keywords if available, else from categories + city)
-//       { action: 'run', businessId, keywords[] }    -> { id, createdAt, shareToken, report }  (saved in business_audits)
+// Body: { action: 'suggest', businessId }                  -> { keywords, source, category }  (up to 10 ideas)
+//       { action: 'center', businessId }                   -> { lat, lng, address }  (business location for the area picker)
+//       { action: 'geocode', businessId, query, center? }  -> { results: [{ name, address, lat, lng }] }
+//       { action: 'run', businessId, keywords[], center?, areaKm? } -> { id, createdAt, shareToken, report }  (saved in business_audits)
 // Secrets: GOOGLE_PLACES_API_KEY (Places API (New)); GROQ_API_KEY (optional, writes the summary).
 // Uses the Google Business Profile connection when the business has one (services, posts, photos, service area).
-// Places calls: top 3 keywords get a 7 x 7 heatmap (48 IDs-only + 1 Enterprise), the rest 3 x 3 (8 IDs-only + 1 Enterprise).
+// Places calls: up to 3 keywords, each a 7 x 7 heatmap over the chosen area (48 IDs-only + 1 Enterprise per keyword).
 // IDs-only Text Search is free and unlimited in India; Text Search Enterprise has 7,000 free a month.
 
 import { adminClient, getUser, isAgency, isMember } from '../_shared/supabase.ts'
@@ -13,11 +15,11 @@ import { accessTokenFor, gbp } from '../_shared/gbp.ts'
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 
 const PLACES = 'https://places.googleapis.com/v1'
-const MAX_KEYWORDS = 5 // per audit
+const MAX_KEYWORDS = 3 // per audit (each gets a 7 x 7 heatmap)
 const MAX_SUGGESTIONS = 10 // Suggest offers up to 10 to pick from
-const HEATMAP_KEYWORDS = 3
-const HEAT = { size: 7, stepKm: 1 } // 7 x 7 points, 1 km apart
-const SMALL = { size: 3, stepKm: 1.5 } // 3 x 3 points, 1.5 km apart
+const GRID = 7 // 7 x 7 points over the chosen area
+const DEFAULT_AREA_KM = 6 // area side when none is chosen
+const MAX_AREA_KM = 100
 const NOT_FOUND = 21 // shown as "20+"
 
 type Any = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -234,14 +236,17 @@ function gridPoints(lat: number, lng: number, size: number, stepKm: number) {
   return pts // row by row, north-west first; the middle point is the business location
 }
 
-const searchBody = (keyword: string, p: { lat: number; lng: number }) =>
+const searchBody = (keyword: string, p: { lat: number; lng: number }, radiusM: number) =>
   JSON.stringify({
     textQuery: keyword,
     languageCode: 'en',
     regionCode: 'IN',
     pageSize: 20,
-    locationBias: { circle: { center: { latitude: p.lat, longitude: p.lng }, radius: 1000 } },
+    locationBias: { circle: { center: { latitude: p.lat, longitude: p.lng }, radius: radiusM } },
   })
+
+/** Search circle around each dot: about 3/4 of the gap between dots (0.5–50 km, Google's limit). */
+const biasRadius = (stepKm: number) => Math.round(Math.min(50_000, Math.max(500, stepKm * 750)))
 
 interface Nearby {
   placeId: string
@@ -253,8 +258,9 @@ interface Nearby {
   category: string
 }
 
-async function rankKeyword(keyword: string, placeId: string, lat: number, lng: number, heat: boolean) {
-  const g = heat ? HEAT : SMALL
+async function rankKeyword(keyword: string, placeId: string, lat: number, lng: number, stepKm: number) {
+  const g = { size: GRID, stepKm }
+  const radiusM = biasRadius(stepKm)
   const pts = gridPoints(lat, lng, g.size, g.stepKm)
   const mid = (pts.length - 1) / 2
   let nearby: Nearby[] = []
@@ -266,7 +272,7 @@ async function rankKeyword(keyword: string, placeId: string, lat: number, lng: n
         // Center: one Enterprise call also gives the names, addresses and ratings of the businesses around
         const body = await places('places:searchText', 'places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.primaryTypeDisplayName', {
           method: 'POST',
-          body: searchBody(keyword, pt),
+          body: searchBody(keyword, pt, radiusM),
         })
         const list = (body.places ?? []) as Any[]
         ids[i] = list.map((x) => x.id as string)
@@ -274,7 +280,7 @@ async function rankKeyword(keyword: string, placeId: string, lat: number, lng: n
         const idx = list.findIndex((x) => x.id === placeId)
         return idx === -1 ? NOT_FOUND : idx + 1
       }
-      const body = await places('places:searchText', 'places.id', { method: 'POST', body: searchBody(keyword, pt) })
+      const body = await places('places:searchText', 'places.id', { method: 'POST', body: searchBody(keyword, pt, radiusM) })
       const list = (body.places ?? []) as Any[]
       ids[i] = list.map((x) => x.id as string)
       const idx = list.findIndex((x) => x.id === placeId)
@@ -287,7 +293,8 @@ async function rankKeyword(keyword: string, placeId: string, lat: number, lng: n
   return {
     keyword,
     size: g.size,
-    stepKm: g.stepKm,
+    stepKm: Math.round(g.stepKm * 1000) / 1000,
+    radiusM,
     grid: ranks,
     ids,
     center: ranks[mid],
@@ -620,7 +627,7 @@ Deno.serve(async (req) => {
   const user = await getUser(req, admin)
   if (!user) return json({ error: 'Sign in required' }, 401)
 
-  const input = (await req.json().catch(() => ({}))) as { action?: string; businessId?: string; keywords?: string[] }
+  const input = (await req.json().catch(() => ({}))) as { action?: string; businessId?: string; keywords?: string[]; query?: string; center?: { lat?: number; lng?: number }; areaKm?: number }
   const businessId = input.businessId
   if (!businessId) return json({ error: 'businessId is required' }, 400)
   if (!(await isMember(admin, user.id, businessId))) return json({ error: 'Not allowed' }, 403)
@@ -632,12 +639,42 @@ Deno.serve(async (req) => {
       if (g) {
         try {
           const kw = await searchKeywords(g.token, g.location)
-          if (kw.length) return json({ keywords: kw.slice(0, MAX_SUGGESTIONS).map((k) => k.keyword), source: 'google' })
+          if (kw.length) return json({ keywords: kw.slice(0, MAX_SUGGESTIONS).map((k) => k.keyword), source: 'google', category: profile.primaryCategory })
         } catch {
           // Performance API not enabled or no data yet: fall back to categories
         }
       }
-      return json({ keywords: keywordsFromCategories(profile), source: 'categories' })
+      return json({ keywords: keywordsFromCategories(profile), source: 'categories', category: profile.primaryCategory })
+    }
+
+    // Business location for the area picker (Place Details Essentials: location + address only)
+    if (input.action === 'center') {
+      const { data: b } = await admin.from('businesses').select('place_id, address').eq('id', businessId).single()
+      if (!b?.place_id) return json({ error: 'This business has no Google place yet.' }, 400)
+      const p = await places(`places/${b.place_id}?languageCode=en`, 'location,formattedAddress')
+      return json({ lat: p.location?.latitude ?? null, lng: p.location?.longitude ?? null, address: p.formattedAddress ?? b.address ?? '' })
+    }
+
+    // Address search for the area picker (Text Search Pro: name, address, location; 35,000 free a month)
+    if (input.action === 'geocode') {
+      const query = String(input.query ?? '').trim().slice(0, 200)
+      if (!query) return json({ results: [] })
+      const near = input.center && typeof input.center.lat === 'number' && typeof input.center.lng === 'number' ? input.center : null
+      const body = await places('places:searchText', 'places.displayName,places.formattedAddress,places.location', {
+        method: 'POST',
+        body: JSON.stringify({
+          textQuery: query,
+          languageCode: 'en',
+          regionCode: 'IN',
+          pageSize: 5,
+          ...(near ? { locationBias: { circle: { center: { latitude: near.lat, longitude: near.lng }, radius: 50_000 } } } : {}),
+        }),
+      })
+      return json({
+        results: ((body.places ?? []) as Any[])
+          .filter((x) => x.location)
+          .map((x) => ({ name: x.displayName?.text ?? '', address: x.formattedAddress ?? '', lat: x.location.latitude, lng: x.location.longitude })),
+      })
     }
 
     if (input.action === 'run') {
@@ -664,9 +701,15 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Audit area: chosen centre (default = business) and square side in km (1–100)
+      const c = input.center
+      const center = c && Number.isFinite(c.lat) && Number.isFinite(c.lng) && Math.abs(c.lat!) <= 90 && Math.abs(c.lng!) <= 180 ? { lat: c.lat!, lng: c.lng! } : { lat: profile.lat, lng: profile.lng }
+      const areaKm = Math.min(MAX_AREA_KM, Math.max(1, Number(input.areaKm) || DEFAULT_AREA_KM))
+      const stepKm = areaKm / (GRID - 1)
+
       // Keywords one after another; the grid points of each run in parallel
       const rows: Awaited<ReturnType<typeof rankKeyword>>[] = []
-      for (let i = 0; i < keywords.length; i++) rows.push(await rankKeyword(keywords[i], placeId, profile.lat, profile.lng, i < HEATMAP_KEYWORDS))
+      for (let i = 0; i < keywords.length; i++) rows.push(await rankKeyword(keywords[i], placeId, center.lat, center.lng, stepKm))
 
       // Top competitors: businesses that show up most often and highest at the business location, across all keywords
       const comp = new Map<string, Nearby & { times: number; rankSum: number }>()
@@ -718,6 +761,8 @@ Deno.serve(async (req) => {
       const report = {
         version: 2,
         business: { name: profile.name, address: profile.address, rating: profile.rating, reviewCount: profile.reviewCount, category: profile.primaryCategory, lat: profile.lat, lng: profile.lng },
+        center,
+        areaKm,
         source: profile.source,
         gbpNote: g ? '' : gbpError || 'Google Business Profile is not connected, so services, posts, photos and service area could not be checked.',
         searchRank,

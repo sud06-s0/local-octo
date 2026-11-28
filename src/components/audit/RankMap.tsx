@@ -18,7 +18,7 @@ export const rankText = (r: number) => (r > 20 ? '20+' : String(r))
 export const rankTone = (r: number) =>
   r <= 3 ? 'bg-emerald-700 text-white' : r <= 10 ? 'bg-lime-700 text-white' : r <= 20 ? 'bg-orange-600 text-white' : 'bg-red-800 text-white'
 
-function world(lat: number, lng: number, z: number) {
+export function world(lat: number, lng: number, z: number) {
   const scale = 256 * 2 ** z
   const s = Math.sin((lat * Math.PI) / 180)
   return { x: ((lng + 180) / 360) * scale, y: (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * scale }
@@ -35,6 +35,34 @@ function points(lat: number, lng: number, size: number, stepKm: number) {
 }
 
 const pct = (v: number) => `${(v / BOX) * 100}%`
+
+/** Google tile session for this page (undefined = still asking, null = use OpenStreetMap). */
+export function useTileSession() {
+  const [gSession, setGSession] = useState<string | null | undefined>(undefined)
+  useEffect(() => {
+    let on = true
+    googleTileSession().then((s) => on && setGSession(s))
+    return () => {
+      on = false
+    }
+  }, [])
+  return gSession
+}
+export const tileSrc = (gSession: string | null, z: number, x: number, y: number) =>
+  gSession ? googleTileUrl(gSession, z, x, y) : `https://tile.openstreetmap.org/${z}/${x}/${y}.png`
+
+/** Map credit line for the tile source in use. */
+export function MapCredit({ gSession }: { gSession: string | null | undefined }) {
+  if (gSession === undefined) return null
+  return gSession ? (
+    <>
+      <img src="https://maps.gstatic.com/mapfiles/api-3/images/google_white5.png" alt="Google" className="absolute bottom-1.5 left-1.5 h-[18px] w-auto max-w-none" />
+      <span className="absolute bottom-0 right-0 bg-white/90 px-1.5 py-0.5 text-[10px] text-ink">Map data ©{new Date().getFullYear()} Google</span>
+    </>
+  ) : (
+    <span className="absolute bottom-0 right-0 bg-white/90 px-1.5 py-0.5 text-[10px] text-ink">© OpenStreetMap contributors</span>
+  )
+}
 
 interface DrillRow {
   rank: number
@@ -56,6 +84,7 @@ export function RankMap({
   stepKm,
   grid,
   drill,
+  marker,
 }: {
   lat: number
   lng: number
@@ -63,16 +92,10 @@ export function RankMap({
   stepKm: number
   grid: number[]
   drill?: { token: string; keywordIndex: number }
+  /** Business location, when the grid centre is somewhere else */
+  marker?: { lat: number; lng: number }
 }) {
-  // undefined = still asking Google, null = OpenStreetMap, string = Google tile session
-  const [gSession, setGSession] = useState<string | null | undefined>(undefined)
-  useEffect(() => {
-    let on = true
-    googleTileSession().then((s) => on && setGSession(s))
-    return () => {
-      on = false
-    }
-  }, [])
+  const gSession = useTileSession()
 
   const [sel, setSel] = useState<number | null>(null)
   const selRef = useRef<number | null>(null)
@@ -113,7 +136,7 @@ export function RankMap({
   const mPerPx0 = 156543.03 * Math.cos((lat * Math.PI) / 180) // metres per world px at zoom 0
   // Map shows the grid plus a margin of about half a step on each side
   const spanM = (size + 0.4) * stepKm * 1000
-  const z = Math.max(10, Math.min(17, Math.round(Math.log2((mPerPx0 * BOX) / spanM))))
+  const z = Math.max(6, Math.min(17, Math.round(Math.log2((mPerPx0 * BOX) / spanM))))
   // Resize the tiles so the grid fills the box at that zoom level (scale about 0.7–1.4)
   const scale = (mPerPx0 * BOX) / 2 ** z / spanM
   const view = BOX / scale // world px visible at zoom z
@@ -151,7 +174,7 @@ export function RankMap({
           tiles.map((t) => (
             <img
               key={`${t.x}-${t.y}`}
-              src={gSession ? googleTileUrl(gSession, z, t.x, t.y) : `https://tile.openstreetmap.org/${z}/${t.x}/${t.y}.png`}
+              src={tileSrc(gSession, z, t.x, t.y)}
               alt=""
               loading="lazy"
               className="absolute max-w-none"
@@ -238,14 +261,22 @@ export function RankMap({
           </div>
         )}
 
-        {gSession ? (
-          <>
-            <img src="https://maps.gstatic.com/mapfiles/api-3/images/google_white5.png" alt="Google" className="absolute bottom-1.5 left-1.5 h-[18px] w-auto max-w-none" />
-            <span className="absolute bottom-0 right-0 bg-white/90 px-1.5 py-0.5 text-[10px] text-ink">Map data ©{new Date().getFullYear()} Google</span>
-          </>
-        ) : (
-          gSession === null && <span className="absolute bottom-0 right-0 bg-white/90 px-1.5 py-0.5 text-[10px] text-ink">© OpenStreetMap contributors</span>
-        )}
+        {marker &&
+          (() => {
+            const w = world(marker.lat, marker.lng, z)
+            const x = (w.x - left) * scale
+            const y = (w.y - top) * scale
+            if (x < 0 || y < 0 || x > BOX || y > BOX) return null
+            return (
+              <span className="pointer-events-none absolute z-[15] -translate-x-1/2 -translate-y-full" style={{ left: pct(x), top: pct(y) }} title="Business location">
+                <svg viewBox="0 0 24 32" className="h-8 w-6 drop-shadow">
+                  <path d="M12 0C5.4 0 0 5.2 0 11.7 0 20.4 12 32 12 32s12-11.6 12-20.3C24 5.2 18.6 0 12 0z" fill="#1c1530" />
+                  <circle cx="12" cy="11.5" r="4.5" fill="#fff" />
+                </svg>
+              </span>
+            )
+          })()}
+        <MapCredit gSession={gSession} />
       </div>
       {drill && <p className="mt-2 text-xs text-muted print:hidden">Click any dot to see who ranks there.</p>}
     </div>

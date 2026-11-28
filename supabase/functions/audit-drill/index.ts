@@ -49,8 +49,9 @@ Deno.serve(async (req) => {
 
   const report = audit.report as Any
   const kw = report?.keywords?.[k]
-  const lat = report?.business?.lat
-  const lng = report?.business?.lng
+  // Grid centre: the chosen audit centre (older reports: the business location)
+  const lat = report?.center?.lat ?? report?.business?.lat
+  const lng = report?.center?.lng ?? report?.business?.lng
   const size = kw?.size ?? 3
   if (!kw || lat == null || lng == null || i >= size * size) return json({ error: 'Dot not found' }, 404)
 
@@ -73,7 +74,7 @@ Deno.serve(async (req) => {
       languageCode: 'en',
       regionCode: 'IN',
       pageSize: 20,
-      locationBias: { circle: { center: { latitude: pt.lat, longitude: pt.lng }, radius: 1000 } },
+      locationBias: { circle: { center: { latitude: pt.lat, longitude: pt.lng }, radius: kw.radiusM ?? 1000 } },
     }),
   })
   const body = await res.json().catch(() => ({}))

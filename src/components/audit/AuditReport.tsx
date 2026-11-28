@@ -31,6 +31,8 @@ export interface AuditCheck {
 export interface Report {
   version?: number
   business: { name: string; address: string; rating: number | null; reviewCount: number | null; category: string; lat?: number; lng?: number }
+  center?: { lat: number; lng: number }
+  areaKm?: number
   source: 'gbp' | 'places'
   gbpNote: string
   gridStepKm?: number
@@ -156,6 +158,12 @@ export function AuditReport({ report: r, createdAt, shareToken }: { report: Repo
   const heat = r.keywords.filter((k) => (k.size ?? 3) >= 7)
   const small = r.keywords.filter((k) => (k.size ?? 3) < 7)
   const hasLoc = r.business.lat != null && r.business.lng != null
+  // Grid centre: the chosen audit centre, or the business for older reports
+  const cLat = r.center?.lat ?? r.business.lat!
+  const cLng = r.center?.lng ?? r.business.lng!
+  const movedCenter = !!r.center && hasLoc && (Math.abs(r.center.lat - r.business.lat!) > 0.0005 || Math.abs(r.center.lng - r.business.lng!) > 0.0005)
+  const marker = movedCenter ? { lat: r.business.lat!, lng: r.business.lng! } : undefined
+  const fmtKm = (km: number) => `${km < 10 ? Math.round(km * 10) / 10 : Math.round(km)} km (${Math.round((km / 1.609) * 10) / 10} mi)`
   const drillFor = (k: KeywordRow) => (shareToken ? { token: shareToken, keywordIndex: r.keywords.indexOf(k) } : undefined)
 
   return (
@@ -437,12 +445,13 @@ export function AuditReport({ report: r, createdAt, shareToken }: { report: Repo
                   )}
                 </div>
                 {hasLoc ? (
-                  <RankMap lat={r.business.lat!} lng={r.business.lng!} size={k.size ?? 7} stepKm={k.stepKm ?? 1} grid={k.grid} drill={drillFor(k)} />
+                  <RankMap lat={cLat} lng={cLng} size={k.size ?? 7} stepKm={k.stepKm ?? 1} grid={k.grid} drill={drillFor(k)} marker={marker} />
                 ) : (
                   <RankGrid grid={k.grid} size={k.size ?? 7} />
                 )}
                 <p className="mt-2 text-xs text-muted">
-                  {k.size}×{k.size} points, {k.stepKm} km apart. Black ring = your business.
+                  {k.size}×{k.size} points over {fmtKm(r.areaKm ?? ((k.size ?? 7) - 1) * (k.stepKm ?? 1))} square, {fmtKm(k.stepKm ?? 1)} apart.{' '}
+                  {movedCenter ? 'Black ring = centre of the area, black pin = your business.' : 'Black ring = your business.'}
                 </p>
               </div>
             ))}
@@ -457,7 +466,7 @@ export function AuditReport({ report: r, createdAt, shareToken }: { report: Repo
                 <p className="mb-2 truncate text-sm font-medium text-ink" title={k.keyword}>
                   {k.keyword} <span className="font-normal text-muted">· avg {k.average > 20 ? '20+' : k.average}</span>
                 </p>
-                {hasLoc ? <RankMap lat={r.business.lat!} lng={r.business.lng!} size={k.size ?? 3} stepKm={k.stepKm ?? 1.5} grid={k.grid} drill={drillFor(k)} /> : <RankGrid grid={k.grid} size={k.size ?? 3} />}
+                {hasLoc ? <RankMap lat={cLat} lng={cLng} size={k.size ?? 3} stepKm={k.stepKm ?? 1.5} grid={k.grid} drill={drillFor(k)} marker={marker} /> : <RankGrid grid={k.grid} size={k.size ?? 3} />}
               </div>
             ))}
           </div>
