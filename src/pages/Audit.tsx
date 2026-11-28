@@ -261,7 +261,7 @@ export default function Audit() {
                   onClick={() => toggleKeyword(k)}
                   className={cn(
                     'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition',
-                    on ? 'bg-brand-50 text-brand-800 ring-2 ring-brand-400' : 'bg-canvas text-ink ring-1 ring-line hover:ring-brand-300',
+                    on ? 'bg-brand-700 text-white hover:bg-brand-800' : 'bg-canvas text-ink ring-1 ring-line hover:ring-brand-300',
                   )}
                 >
                   {on ? <Check className="size-3.5" /> : <Plus className="size-3.5" />} {titleCase(k)}
@@ -299,14 +299,14 @@ export default function Audit() {
           <div className="mt-4 rounded-xl border border-line p-4">
             <div className="mb-2 flex items-center justify-between">
               <p className="font-medium text-ink">Selected keywords</p>
-              <span className="text-sm font-semibold text-brand-800">
+              <span className="text-sm font-semibold text-emerald-700">
                 {keywords.length} / {MAX_KEYWORDS}
               </span>
             </div>
             {keywords.length ? (
               <div className="flex flex-wrap gap-2">
                 {keywords.map((k) => (
-                  <span key={k} className="inline-flex items-center gap-1.5 rounded-lg bg-brand-700 px-3 py-1.5 text-sm font-medium text-white">
+                  <span key={k} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white">
                     {titleCase(k)}
                     <button type="button" onClick={() => toggleKeyword(k)} aria-label={`Remove ${k}`} className="rounded p-0.5 hover:bg-white/20">
                       <X className="size-3.5" />
