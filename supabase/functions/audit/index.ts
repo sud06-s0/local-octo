@@ -257,6 +257,8 @@ async function rankKeyword(keyword: string, placeId: string, lat: number, lng: n
   const pts = gridPoints(lat, lng, g.size, g.stepKm)
   const mid = (pts.length - 1) / 2
   let nearby: Nearby[] = []
+  // Each dot keeps the full order of place IDs Google returned, so the Competition Drilldown later shows exactly this list
+  const ids: string[][] = new Array(pts.length)
   const ranks = await pool(
     pts.map((pt, i) => async () => {
       if (i === mid) {
@@ -266,12 +268,15 @@ async function rankKeyword(keyword: string, placeId: string, lat: number, lng: n
           body: searchBody(keyword, pt),
         })
         const list = (body.places ?? []) as Any[]
+        ids[i] = list.map((x) => x.id as string)
         nearby = list.map((x, n) => ({ placeId: x.id, name: x.displayName?.text ?? '', address: x.formattedAddress ?? '', rating: x.rating ?? null, reviews: x.userRatingCount ?? null, rank: n + 1, category: x.primaryTypeDisplayName?.text ?? '' }))
         const idx = list.findIndex((x) => x.id === placeId)
         return idx === -1 ? NOT_FOUND : idx + 1
       }
       const body = await places('places:searchText', 'places.id', { method: 'POST', body: searchBody(keyword, pt) })
-      const idx = ((body.places ?? []) as Any[]).findIndex((x) => x.id === placeId)
+      const list = (body.places ?? []) as Any[]
+      ids[i] = list.map((x) => x.id as string)
+      const idx = list.findIndex((x) => x.id === placeId)
       return idx === -1 ? NOT_FOUND : idx + 1
     }),
     16,
@@ -283,6 +288,7 @@ async function rankKeyword(keyword: string, placeId: string, lat: number, lng: n
     size: g.size,
     stepKm: g.stepKm,
     grid: ranks,
+    ids,
     center: ranks[mid],
     average,
     foundIn: ranks.filter((r) => r <= 20).length,

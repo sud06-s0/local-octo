@@ -14,5 +14,8 @@ Deno.serve(async (req) => {
 
   const { data } = await adminClient().from('business_audits').select('created_at, report').eq('share_token', token).maybeSingle()
   if (!data) return json({ error: 'Report not found' }, 404)
-  return json({ createdAt: data.created_at, report: data.report }, 200, { 'Cache-Control': 'public, max-age=300' })
+  // The saved place-ID lists are only for the drilldown function; leave them out of the page data
+  const report = data.report as { keywords?: Record<string, unknown>[] }
+  const keywords = (report.keywords ?? []).map(({ ids: _ids, ...k }) => k)
+  return json({ createdAt: data.created_at, report: { ...report, keywords } }, 200, { 'Cache-Control': 'public, max-age=300' })
 })

@@ -274,6 +274,7 @@ async function rankKeyword(keyword, placeId, lat, lng, heat) {
   const pts = gridPoints(lat, lng, g.size, g.stepKm);
   const mid = (pts.length - 1) / 2;
   let nearby = [];
+  const ids = new Array(pts.length);
   const ranks = await pool(
     pts.map((pt, i) => async () => {
       if (i === mid) {
@@ -281,13 +282,16 @@ async function rankKeyword(keyword, placeId, lat, lng, heat) {
           method: "POST",
           body: searchBody(keyword, pt)
         });
-        const list = body2.places ?? [];
-        nearby = list.map((x, n) => ({ placeId: x.id, name: x.displayName?.text ?? "", address: x.formattedAddress ?? "", rating: x.rating ?? null, reviews: x.userRatingCount ?? null, rank: n + 1, category: x.primaryTypeDisplayName?.text ?? "" }));
-        const idx2 = list.findIndex((x) => x.id === placeId);
+        const list2 = body2.places ?? [];
+        ids[i] = list2.map((x) => x.id);
+        nearby = list2.map((x, n) => ({ placeId: x.id, name: x.displayName?.text ?? "", address: x.formattedAddress ?? "", rating: x.rating ?? null, reviews: x.userRatingCount ?? null, rank: n + 1, category: x.primaryTypeDisplayName?.text ?? "" }));
+        const idx2 = list2.findIndex((x) => x.id === placeId);
         return idx2 === -1 ? NOT_FOUND : idx2 + 1;
       }
       const body = await places("places:searchText", "places.id", { method: "POST", body: searchBody(keyword, pt) });
-      const idx = (body.places ?? []).findIndex((x) => x.id === placeId);
+      const list = body.places ?? [];
+      ids[i] = list.map((x) => x.id);
+      const idx = list.findIndex((x) => x.id === placeId);
       return idx === -1 ? NOT_FOUND : idx + 1;
     }),
     16
@@ -299,6 +303,7 @@ async function rankKeyword(keyword, placeId, lat, lng, heat) {
     size: g.size,
     stepKm: g.stepKm,
     grid: ranks,
+    ids,
     center: ranks[mid],
     average,
     foundIn: ranks.filter((r) => r <= 20).length,
