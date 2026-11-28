@@ -249,6 +249,7 @@ interface Nearby {
   rating: number | null
   reviews: number | null
   rank: number
+  category: string
 }
 
 async function rankKeyword(keyword: string, placeId: string, lat: number, lng: number, heat: boolean) {
@@ -260,12 +261,12 @@ async function rankKeyword(keyword: string, placeId: string, lat: number, lng: n
     pts.map((pt, i) => async () => {
       if (i === mid) {
         // Center: one Enterprise call also gives the names, addresses and ratings of the businesses around
-        const body = await places('places:searchText', 'places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount', {
+        const body = await places('places:searchText', 'places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.primaryTypeDisplayName', {
           method: 'POST',
           body: searchBody(keyword, pt),
         })
         const list = (body.places ?? []) as Any[]
-        nearby = list.map((x, n) => ({ placeId: x.id, name: x.displayName?.text ?? '', address: x.formattedAddress ?? '', rating: x.rating ?? null, reviews: x.userRatingCount ?? null, rank: n + 1 }))
+        nearby = list.map((x, n) => ({ placeId: x.id, name: x.displayName?.text ?? '', address: x.formattedAddress ?? '', rating: x.rating ?? null, reviews: x.userRatingCount ?? null, rank: n + 1, category: x.primaryTypeDisplayName?.text ?? '' }))
         const idx = list.findIndex((x) => x.id === placeId)
         return idx === -1 ? NOT_FOUND : idx + 1
       }
@@ -468,6 +469,103 @@ function buildScores(profile: Profile, reviews: Reviews) {
   }
 }
 
+/* ---------- suggestions ---------- */
+
+interface Suggestion {
+  title: string
+  detail: string
+  items?: string[]
+}
+
+const titleCase = (t: string) => t.replace(/\b\w/g, (c) => c.toUpperCase())
+
+function buildSuggestions(
+  profile: Profile,
+  reviews: Reviews,
+  keywords: string[],
+  terms: string[],
+  rows: { keyword: string; average: number; center: number; nearby: Nearby[] }[],
+  recentPosts: number | null,
+  noDesc: string[],
+): Suggestion[] {
+  const out: Suggestion[] = []
+  const desc = (profile.description ?? '').toLowerCase()
+  const services = profile.services ?? []
+  const serviceText = services.map((s) => `${s.name} ${s.description}`).join(' ').toLowerCase()
+
+  // Ranks: keywords where the business is not in the top 3
+  const weak = rows.filter((r) => r.average > 3)
+  if (weak.length) {
+    out.push({
+      title: `Rank higher for ${weak.length} of your ${rows.length} keywords`,
+      detail: 'You are not in the top 3 for these searches. The top 3 get most of the calls and visits.',
+      items: weak.map((r) => {
+        const leader = r.nearby[0]
+        return `"${r.keyword}" — you are #${r.average > 20 ? '20+' : Math.round(r.average)} on average${leader ? `; #1 is ${leader.name}` : ''}`
+      }),
+    })
+  }
+
+  // Reviews
+  if (reviews.synced && reviews.unreplied > 0)
+    out.push({
+      title: `Reply to ${reviews.unreplied} reviews`,
+      detail: `Only ${reviews.responseRate}% of reviews have a reply. Google favours businesses that reply, and customers read the replies. Reply to new reviews within 24–48 hours and clear the backlog.`,
+    })
+  if (reviews.perWeek < 1)
+    out.push({ title: 'Get more reviews every week', detail: `You get ${reviews.perWeek} new reviews a week. Aim for at least 1 a week by asking every happy customer.` })
+  if (profile.rating != null && profile.rating < 4.3)
+    out.push({ title: 'Lift your rating', detail: `Your rating is ${profile.rating.toFixed(1)}. Asking more happy customers for reviews is the fastest way to raise it above 4.3.` })
+
+  // Categories
+  if (profile.source === 'gbp') {
+    const have = new Set([profile.primaryCategory, ...profile.additionalCategories].map((c) => c.toLowerCase()))
+    const count = have.size
+    const theirs = new Map<string, number>()
+    for (const r of rows) for (const c of r.nearby.slice(0, 10)) if (c.category && !have.has(c.category.toLowerCase())) theirs.set(c.category, (theirs.get(c.category) ?? 0) + 1)
+    const ideas = [...theirs.entries()].sort((a, b) => b[1] - a[1]).map(([c]) => c).slice(0, 6)
+    if (count < 5)
+      out.push({
+        title: `Add ${5 - count} more categories`,
+        detail: `You have ${count} categor${count === 1 ? 'y' : 'ies'}. Businesses with 5 or more relevant categories show up for more searches.${ideas.length ? ' Categories your competitors use:' : ''}`,
+        items: ideas.length ? ideas : undefined,
+      })
+  }
+
+  // Description
+  if (profile.description != null) {
+    const missing = terms.filter((t) => !new RegExp(`\\b${t}`).test(desc))
+    if (!profile.description.trim()) out.push({ title: 'Add a business description', detail: 'Write 600–750 characters about what you offer, using your main keywords naturally.' })
+    else if (missing.length)
+      out.push({ title: 'Use these keywords in your description', detail: 'People search with these words but your description does not mention them:', items: missing.slice(0, 10) })
+    if (profile.description.trim() && profile.description.length < 600)
+      out.push({ title: 'Make your description longer', detail: `It is ${profile.description.length} characters. Use up to 750 to cover your services, area and what makes you different.` })
+  }
+
+  // Services
+  if (profile.services) {
+    const uncovered = keywords.filter((k) => {
+      const ws = targetTerms([k], { ...profile, primaryCategory: '', additionalCategories: [] })
+      return ws.length > 0 && !ws.every((w) => new RegExp(`\\b${w}`).test(serviceText))
+    })
+    if (services.length < 25) out.push({ title: `Add ${25 - services.length} more services`, detail: `You list ${services.length} services. Aim for at least 25.` })
+    if (uncovered.length)
+      out.push({ title: 'Add services for these searches', detail: 'No service on your profile matches these keywords. Add a service for each:', items: uncovered.map(titleCase) })
+    if (noDesc.length) out.push({ title: `Add descriptions to ${noDesc.length} services`, detail: 'Write 1–2 lines with keywords for each of these:', items: noDesc })
+  }
+
+  // Posts and photos
+  if (recentPosts != null && recentPosts < 3)
+    out.push({ title: 'Post on Google every 5 days', detail: `You made ${recentPosts} Google posts in the last 30 days. Post offers, updates and photos at least 3 times a month, using your keywords.` })
+  if (profile.photos != null && profile.photos < 8) out.push({ title: `Add ${8 - profile.photos} more photos`, detail: `You have ${profile.photos}. Add photos of your place, team and work.` })
+  if (profile.serviceArea === false) out.push({ title: 'Set your service area', detail: 'Add the areas you serve so you show up for searches there.' })
+  if (!profile.website) out.push({ title: 'Add your website', detail: 'A website link adds trust and helps ranking.' })
+  if (!profile.hours) out.push({ title: 'Add opening hours', detail: 'Profiles without hours rank lower and get fewer visits.' })
+  if (!profile.phone) out.push({ title: 'Add a phone number', detail: 'Customers need a way to call you from Google.' })
+
+  return out
+}
+
 /* ---------- summary (Groq) ---------- */
 
 async function writeSummary(facts: Any): Promise<string> {
@@ -613,6 +711,7 @@ Deno.serve(async (req) => {
         summary,
         checks,
         suggestions: {
+          items: buildSuggestions(profile, reviews, keywords, terms, rows, recentPosts, noDesc),
           description: profile.description,
           descriptionKeywords: descTerms,
           services: profile.services?.map((s) => s.name) ?? null,

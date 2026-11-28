@@ -40,6 +40,7 @@ export interface Report {
   summary?: string
   checks?: AuditCheck[]
   suggestions?: {
+    items?: { title: string; detail: string; items?: string[] }[]
     description: string | null
     descriptionKeywords: string[]
     services: string[] | null
@@ -136,10 +137,10 @@ function PassBadge({ pass }: { pass: boolean | null }) {
 
 function NameList({ items }: { items: string[] }) {
   return (
-    <ul className="mt-2 grid gap-x-4 gap-y-1 text-sm text-ink sm:grid-cols-2">
+    <ul className={cn('mt-2 grid gap-x-4 gap-y-1 text-sm text-ink', items.every((s) => s.length <= 40) && 'sm:grid-cols-2')}>
       {items.map((s) => (
         <li key={s} className="flex items-center gap-2">
-          <span className="size-1.5 shrink-0 rounded-full bg-brand-600" />
+          <span className="mt-1.5 size-1.5 shrink-0 self-start rounded-full bg-brand-600" />
           {s}
         </li>
       ))}
@@ -287,35 +288,46 @@ export function AuditReport({ report: r, createdAt }: { report: Report; createdA
       </Section>
 
       {/* Suggestions */}
-      {r.suggestions && (r.suggestions.description != null || r.suggestions.services) && (
-        <Section title={`${brand.appName}'s optimization suggestions`} action={<GetInTouch business={name} label="Let us fix these issues" />}>
-          <p className="mb-4 text-sm text-muted">Fully optimize your profile to rank higher in your local Google search results.</p>
-          <div className="space-y-4">
-            {r.suggestions.description != null && (
-              <div className="rounded-xl border border-line p-4">
-                <p className="font-medium text-ink">Your current business description</p>
-                <p className="mt-2 whitespace-pre-line text-sm text-ink/80">{r.suggestions.description || 'No description added.'}</p>
-                {r.checks?.find((c) => c.key === 'description')?.pass === false && (
-                  <p className="mt-2 text-sm font-medium text-red-600">Add more of your keywords to the business description.</p>
-                )}
-              </div>
-            )}
-            {r.suggestions.services && (
-              <div className="rounded-xl border border-line p-4">
-                <p className="font-medium text-ink">Your current services</p>
-                {!!r.suggestions.moreServices && <p className="mt-1 text-sm font-medium text-red-600">Add at least {r.suggestions.moreServices} more services.</p>}
-                {r.suggestions.services.length ? <NameList items={r.suggestions.services} /> : <p className="mt-2 text-sm text-muted">No services added.</p>}
-              </div>
-            )}
-            {!!r.suggestions.servicesWithoutDescription?.length && (
-              <div className="rounded-xl border border-line p-4">
-                <p className="font-medium text-ink">Your services without descriptions</p>
-                <p className="mt-1 text-sm font-medium text-red-600">Add SEO-friendly descriptions to these services.</p>
-                <NameList items={r.suggestions.servicesWithoutDescription} />
-              </div>
-            )}
-          </div>
+      {r.suggestions?.items ? (
+        <Section title={`${brand.appName}'s optimization suggestions`} action={r.suggestions.items.length ? <GetInTouch business={name} label="Let us fix these issues" /> : undefined}>
+          {r.suggestions.items.length ? (
+            <>
+              <p className="mb-4 text-sm text-muted">Do these to rank higher in your local Google search results.</p>
+              <ol className="space-y-3">
+                {r.suggestions.items.map((sg, i) => (
+                  <li key={sg.title} className="flex gap-3 rounded-xl border border-line p-4">
+                    <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-800">{i + 1}</span>
+                    <div className="min-w-0">
+                      <p className="font-medium text-ink">{sg.title}</p>
+                      <p className="mt-0.5 text-sm text-muted">{sg.detail}</p>
+                      {!!sg.items?.length && <NameList items={sg.items} />}
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </>
+          ) : (
+            <p className="flex items-center gap-2 text-sm text-ink">
+              <CheckCircle2 className="size-5 text-emerald-600" /> Nothing to fix — this profile is fully optimized.
+            </p>
+          )}
         </Section>
+      ) : (
+        r.suggestions &&
+        (r.suggestions.description != null || r.suggestions.services) && (
+          <Section title={`${brand.appName}'s optimization suggestions`} action={<GetInTouch business={name} label="Let us fix these issues" />}>
+            <div className="space-y-4">
+              {!!r.suggestions.moreServices && <p className="text-sm font-medium text-red-600">Add at least {r.suggestions.moreServices} more services.</p>}
+              {!!r.suggestions.servicesWithoutDescription?.length && (
+                <div className="rounded-xl border border-line p-4">
+                  <p className="font-medium text-ink">Your services without descriptions</p>
+                  <NameList items={r.suggestions.servicesWithoutDescription} />
+                </div>
+              )}
+              {!r.suggestions.moreServices && !r.suggestions.servicesWithoutDescription?.length && <p className="text-sm text-muted">Run the audit again for detailed suggestions.</p>}
+            </div>
+          </Section>
+        )
       )}
 
       <div className="grid gap-5 md:grid-cols-2 print:grid-cols-2">
