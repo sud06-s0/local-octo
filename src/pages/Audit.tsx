@@ -85,7 +85,7 @@ function AuditInner() {
     const k = draft.trim().toLowerCase()
     if (!k) return
     if (keywords.includes(k)) return setDraft('')
-    if (keywords.length >= MAX_KEYWORDS) return toast(`Up to ${MAX_KEYWORDS} keywords`)
+    if (keywords.length >= MAX_KEYWORDS) return toast(`Max ${MAX_KEYWORDS} keywords. Remove one to add another.`)
     setKeywords([...keywords, k])
     setDraft('')
   }
@@ -170,7 +170,7 @@ function AuditInner() {
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addKeyword())}
-              placeholder="e.g. gym in salt lake"
+              placeholder={keywords.length >= MAX_KEYWORDS ? `Max ${MAX_KEYWORDS} keywords — remove one to add another` : 'e.g. pu college near me'}
               className="flex-1"
             />
             <Button variant="outline" icon={Plus} onClick={addKeyword}>
