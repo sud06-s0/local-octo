@@ -15,6 +15,7 @@ const Messaging = lazyPage(() => import('./pages/Messaging'))
 const Reviews = lazyPage(() => import('./pages/Reviews'))
 const Integrations = lazyPage(() => import('./pages/Integrations'))
 const Audit = lazyPage(() => import('./pages/Audit'))
+const AuditPublic = lazyPage(() => import('./pages/AuditPublic'))
 const NotFound = lazyPage(() => import('./pages/NotFound'))
 const Login = lazyPage(() => import('./pages/Login'))
 const Onboarding = lazyPage(() => import('./pages/Onboarding'))
@@ -61,6 +62,15 @@ export default function App() {
   // Public review page: no login, no app shell
   if (window.location.pathname.replace(/\/+$/, '').endsWith('/review')) {
     return <ReviewPage />
+  }
+  // Public audit report: /audit-report/<token>
+  const audit = window.location.pathname.match(/\/audit-report\/([a-f0-9]{24})\/?$/)
+  if (audit) {
+    return (
+      <Suspense fallback={<FullPageSpinner />}>
+        <AuditPublic token={audit[1]} />
+      </Suspense>
+    )
   }
   return (
     <ToastProvider>

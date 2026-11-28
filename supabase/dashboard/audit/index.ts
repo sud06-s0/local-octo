@@ -106,7 +106,9 @@ async function gbp(token, url, init = {}) {
 // supabase/functions/audit/index.ts
 var PLACES = "https://places.googleapis.com/v1";
 var MAX_KEYWORDS = 10;
-var GRID_STEP_KM = 1.5;
+var HEATMAP_KEYWORDS = 3;
+var HEAT = { size: 7, stepKm: 1 };
+var SMALL = { size: 3, stepKm: 1.5 };
 var NOT_FOUND = 21;
 async function places(path, fields, init = {}) {
   const key = Deno.env.get("GOOGLE_PLACES_API_KEY");
@@ -119,20 +121,41 @@ async function places(path, fields, init = {}) {
   if (!res.ok) throw new Error(body?.error?.message ?? `Google Places HTTP ${res.status}`);
   return body;
 }
+async function pool(jobs, limit) {
+  const out = new Array(jobs.length);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(limit, jobs.length) }, async () => {
+      while (next < jobs.length) {
+        const i = next++;
+        out[i] = await jobs[i]();
+      }
+    })
+  );
+  return out;
+}
+var prettyId = (id) => id.replace(/^.*:/, "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 async function gbpProfile(admin, businessId) {
   const { data: conn } = await admin.from("google_connections").select("location_name, account_name").eq("business_id", businessId).maybeSingle();
   if (!conn?.location_name) return null;
   const { token } = await accessTokenFor(admin, businessId);
-  const mask = "title,categories,profile,serviceItems,regularHours,phoneNumbers,websiteUri,storefrontAddress,latlng";
+  const mask = "title,categories,profile,serviceItems,regularHours,phoneNumbers,websiteUri,storefrontAddress,latlng,serviceArea";
   const l = await gbp(token, `https://mybusinessbusinessinformation.googleapis.com/v1/${conn.location_name}?readMask=${mask}`);
+  const typeNames = /* @__PURE__ */ new Map();
+  for (const c of [l.categories?.primaryCategory, ...l.categories?.additionalCategories ?? []])
+    for (const t of c?.serviceTypes ?? []) if (t.serviceTypeId) typeNames.set(t.serviceTypeId, t.displayName);
+  const services = (l.serviceItems ?? []).map((s) => {
+    if (s.freeFormServiceItem) return { name: s.freeFormServiceItem.label?.displayName ?? "", description: s.freeFormServiceItem.label?.description ?? "" };
+    const id = s.structuredServiceItem?.serviceTypeId ?? "";
+    return { name: typeNames.get(id) ?? prettyId(id), description: s.structuredServiceItem?.description ?? "" };
+  }).filter((s) => s.name);
   let photos = null;
+  let posts = null;
   if (conn.account_name) {
-    try {
-      const m = await gbp(token, `https://mybusiness.googleapis.com/v4/${conn.account_name}/${conn.location_name}/media?pageSize=1`);
-      photos = m.totalMediaItemCount ?? (m.mediaItems?.length ?? 0);
-    } catch {
-      photos = null;
-    }
+    const base = `https://mybusiness.googleapis.com/v4/${conn.account_name}/${conn.location_name}`;
+    const [m, p] = await Promise.allSettled([gbp(token, `${base}/media?pageSize=1`), gbp(token, `${base}/localPosts?pageSize=100`)]);
+    if (m.status === "fulfilled") photos = m.value.totalMediaItemCount ?? m.value.mediaItems?.length ?? 0;
+    if (p.status === "fulfilled") posts = (p.value.localPosts ?? []).map((x) => ({ summary: x.summary ?? "", createTime: x.createTime ?? "" }));
   }
   const addr = l.storefrontAddress;
   return {
@@ -146,13 +169,14 @@ async function gbpProfile(admin, businessId) {
       lng: l.latlng?.longitude ?? null,
       primaryCategory: l.categories?.primaryCategory?.displayName ?? "",
       additionalCategories: (l.categories?.additionalCategories ?? []).map((c) => c.displayName).filter(Boolean),
-      services: (l.serviceItems ?? []).length,
+      services,
       description: l.profile?.description ?? "",
       phone: !!l.phoneNumbers?.primaryPhone,
       website: !!l.websiteUri,
       hours: !!l.regularHours?.periods?.length,
       photos,
-      source: "gbp"
+      serviceArea: !!(l.serviceArea?.places?.placeInfos?.length || l.serviceArea?.regionCode),
+      posts
     }
   };
 }
@@ -185,12 +209,14 @@ async function loadProfile(admin, businessId) {
     primaryCategory: g?.profile.primaryCategory || p.primaryTypeDisplayName?.text || "",
     additionalCategories: g?.profile.additionalCategories ?? [],
     services: g?.profile.services ?? null,
-    description: g ? g.profile.description ?? "" : p.editorialSummary?.text ?? null,
-    phone: g ? !!g.profile.phone : !!(p.nationalPhoneNumber || b.phone),
-    website: g ? !!g.profile.website : !!(p.websiteUri || b.website),
-    hours: g ? !!g.profile.hours : !!p.regularOpeningHours?.periods?.length,
+    description: g ? g.profile.description : p.editorialSummary?.text ?? null,
+    phone: g ? g.profile.phone : !!(p.nationalPhoneNumber || b.phone),
+    website: g ? g.profile.website : !!(p.websiteUri || b.website),
+    hours: g ? g.profile.hours : !!p.regularOpeningHours?.periods?.length,
     photos: g?.profile.photos ?? (p.photos ? p.photos.length : null),
     // Places returns at most 10
+    serviceArea: g ? g.profile.serviceArea : null,
+    posts: g?.profile.posts ?? null,
     source: g ? "gbp" : "places"
   };
   return { profile, placeId: p.id || b.place_id || "", gbp: g, gbpError };
@@ -213,17 +239,27 @@ function keywordsFromCategories(profile) {
   const cats = [profile.primaryCategory, ...profile.additionalCategories].filter(Boolean).map((c) => c.toLowerCase());
   const out = /* @__PURE__ */ new Set();
   for (const c of cats) {
-    if (profile.city) out.add(`${c} in ${profile.city.toLowerCase()}`);
     out.add(`${c} near me`);
+    if (profile.city) out.add(`${c} in ${profile.city.toLowerCase()}`);
     out.add(`best ${c}`);
   }
   return [...out].slice(0, MAX_KEYWORDS);
 }
-function grid(lat, lng) {
-  const dLat = GRID_STEP_KM / 111.32;
-  const dLng = GRID_STEP_KM / (111.32 * Math.cos(lat * Math.PI / 180));
+var STOP = /* @__PURE__ */ new Set(["near", "me", "best", "top", "in", "the", "a", "an", "and", "for", "of", "at", "to", "with", "my", "open", "now", "cheap", "good"]);
+function targetTerms(keywords, profile) {
+  const words = [...keywords, profile.primaryCategory, ...profile.additionalCategories].join(" ").toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !STOP.has(w) && w !== profile.city.toLowerCase());
+  return [...new Set(words)];
+}
+var termsIn = (text, terms) => {
+  const t = text.toLowerCase();
+  return terms.filter((w) => new RegExp(`\\b${w}`).test(t));
+};
+function gridPoints(lat, lng, size, stepKm) {
+  const dLat = stepKm / 111.32;
+  const dLng = stepKm / (111.32 * Math.cos(lat * Math.PI / 180));
+  const half = (size - 1) / 2;
   const pts = [];
-  for (const r of [1, 0, -1]) for (const c of [-1, 0, 1]) pts.push({ lat: lat + r * dLat, lng: lng + c * dLng });
+  for (let r = half; r >= -half; r--) for (let c = -half; c <= half; c++) pts.push({ lat: lat + r * dLat, lng: lng + c * dLng });
   return pts;
 }
 var searchBody = (keyword, p) => JSON.stringify({
@@ -233,32 +269,44 @@ var searchBody = (keyword, p) => JSON.stringify({
   pageSize: 20,
   locationBias: { circle: { center: { latitude: p.lat, longitude: p.lng }, radius: 1e3 } }
 });
-async function rankKeyword(keyword, placeId, lat, lng) {
-  const pts = grid(lat, lng);
-  const results = await Promise.all(
-    pts.map(async (pt, i) => {
-      if (i === 4) {
-        const body2 = await places("places:searchText", "places.id,places.displayName,places.rating,places.userRatingCount", { method: "POST", body: searchBody(keyword, pt) });
+async function rankKeyword(keyword, placeId, lat, lng, heat) {
+  const g = heat ? HEAT : SMALL;
+  const pts = gridPoints(lat, lng, g.size, g.stepKm);
+  const mid = (pts.length - 1) / 2;
+  let nearby = [];
+  const ranks = await pool(
+    pts.map((pt, i) => async () => {
+      if (i === mid) {
+        const body2 = await places("places:searchText", "places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount", {
+          method: "POST",
+          body: searchBody(keyword, pt)
+        });
         const list = body2.places ?? [];
+        nearby = list.map((x, n) => ({ placeId: x.id, name: x.displayName?.text ?? "", address: x.formattedAddress ?? "", rating: x.rating ?? null, reviews: x.userRatingCount ?? null, rank: n + 1 }));
         const idx2 = list.findIndex((x) => x.id === placeId);
-        const competitors = list.map((x, n) => ({ placeId: x.id, name: x.displayName?.text ?? "", rating: x.rating ?? null, reviews: x.userRatingCount ?? null, rank: n + 1 })).filter((x) => x.placeId !== placeId && (idx2 === -1 ? x.rank <= 3 : x.rank < idx2 + 1));
-        return { rank: idx2 === -1 ? NOT_FOUND : idx2 + 1, competitors };
+        return idx2 === -1 ? NOT_FOUND : idx2 + 1;
       }
       const body = await places("places:searchText", "places.id", { method: "POST", body: searchBody(keyword, pt) });
       const idx = (body.places ?? []).findIndex((x) => x.id === placeId);
-      return { rank: idx === -1 ? NOT_FOUND : idx + 1, competitors: [] };
-    })
+      return idx === -1 ? NOT_FOUND : idx + 1;
+    }),
+    16
   );
-  const ranks = results.map((r) => r.rank);
   const avg = ranks.reduce((a, b) => a + b, 0) / ranks.length;
+  const average = Math.round(avg * 10) / 10;
   return {
     keyword,
+    size: g.size,
+    stepKm: g.stepKm,
     grid: ranks,
-    center: ranks[4],
-    average: Math.round(avg * 10) / 10,
+    center: ranks[mid],
+    average,
     foundIn: ranks.filter((r) => r <= 20).length,
     top3In: ranks.filter((r) => r <= 3).length,
-    competitors: results[4].competitors
+    points: ranks.length,
+    // Estimate: map-pack clicks fall roughly with rank^1.5, so moving from the average rank to #1 multiplies them by about this much
+    growth: Math.round(Math.pow(Math.min(average, 20), 1.52) * 100) / 100,
+    nearby: nearby.filter((x) => x.placeId !== placeId)
   };
 }
 async function reviewStats(admin, businessId) {
@@ -269,10 +317,29 @@ async function reviewStats(admin, businessId) {
     admin.from("reviews").select("id", { count: "exact", head: true }).eq("business_id", businessId).not("reply_text", "is", null).neq("reply_source", "draft")
   ]);
   return {
-    perWeek: Math.round((recent ?? 0) / 12 * 10) / 10,
+    perWeek: Math.round((recent ?? 0) / 12 * 100) / 100,
     synced: total ?? 0,
+    unreplied: (total ?? 0) - (replied ?? 0),
     responseRate: total ? Math.round((replied ?? 0) / total * 100) : null
   };
+}
+var METROS = ["bengaluru", "bangalore", "mumbai", "delhi", "new delhi", "kolkata", "chennai", "hyderabad", "pune", "ahmedabad", "gurugram", "gurgaon", "noida", "navi mumbai", "thane"];
+var SPEND = [
+  { match: /gym|fitness|yoga|crossfit|pilates|zumba/, ticket: 300, share: 0.03 },
+  { match: /restaurant|cafe|caf|food|bakery|dhaba|biryani|pizza|sweet/, ticket: 400, share: 0.25 },
+  { match: /salon|spa|beauty|barber|parlour|parlor|makeup/, ticket: 500, share: 0.08 },
+  { match: /dent|clinic|doctor|hospital|medical|physio|diagnostic|pharmacy/, ticket: 800, share: 0.05 },
+  { match: /school|college|coaching|academy|education|tutor|institute|university/, ticket: 3e3, share: 0.01 },
+  { match: /hotel|resort|lodge|guest house/, ticket: 3e3, share: 0.01 },
+  { match: /car|auto|bike|motor|garage|tyre/, ticket: 1500, share: 0.02 },
+  { match: /pet|vet|groom/, ticket: 800, share: 0.01 }
+];
+function market(profile) {
+  const cat = [profile.primaryCategory, ...profile.additionalCategories].join(" ").toLowerCase();
+  const s = SPEND.find((x) => x.match.test(cat)) ?? { ticket: 500, share: 0.03 };
+  const population = METROS.includes(profile.city.toLowerCase()) ? 6e6 : 1e6;
+  const people = Math.round(population * s.share / 1e3) * 1e3;
+  return { monthly: people * s.ticket, people, ticket: s.ticket };
 }
 var clamp = (n) => Math.max(0, Math.min(100, Math.round(n)));
 function titleCheck(name, city) {
@@ -286,11 +353,92 @@ function titleCheck(name, city) {
   const risk = issues.length >= 2 ? "High" : issues.length === 1 ? "Medium" : "Low";
   return { score: clamp(100 - issues.length * 35), issues, risk };
 }
+function buildChecks(profile, reviews, terms) {
+  const desc = profile.description ?? "";
+  const descTerms = termsIn(desc, terms);
+  const monthAgo = Date.now() - 30 * 864e5;
+  const recentPosts = profile.posts?.filter((p) => new Date(p.createTime).getTime() >= monthAgo) ?? null;
+  const postsWithTerms = recentPosts?.filter((p) => termsIn(p.summary, terms).length > 0).length ?? 0;
+  const services = profile.services;
+  const noDesc = services?.filter((s) => !s.description.trim()) ?? [];
+  const unknown = "Connect Google Business Profile to check this.";
+  const checks = [
+    {
+      key: "description",
+      label: "Business Description",
+      pass: profile.description == null ? null : descTerms.length >= Math.min(3, terms.length) && desc.length >= 250,
+      detail: profile.description == null ? unknown : `${descTerms.length} of your keywords are in the description (${desc.length} characters). Use at least 3 and 250+ characters.`
+    },
+    {
+      key: "reviewFrequency",
+      label: "Review Frequency",
+      pass: reviews.perWeek >= 1,
+      detail: `${reviews.perWeek} new reviews per week. Target: at least 1 per week.`
+    },
+    {
+      key: "rating",
+      label: "Google Rating",
+      pass: profile.rating == null ? null : profile.rating >= 4,
+      detail: profile.rating == null ? "No rating yet." : `${profile.rating.toFixed(1)} stars. Target: 4.0 or more.`
+    },
+    {
+      key: "replies",
+      label: "Review Replies",
+      pass: reviews.synced ? reviews.unreplied === 0 : null,
+      detail: reviews.synced ? reviews.unreplied ? `${reviews.unreplied} reviews have no reply.` : "Every review has a reply." : "Sync reviews from Google to check this."
+    },
+    {
+      key: "images",
+      label: "# of Images",
+      pass: profile.photos == null ? null : profile.photos >= 8,
+      detail: profile.photos == null ? unknown : `${profile.photos} images. Target: at least 8.`
+    },
+    {
+      key: "postFrequency",
+      label: "Post Frequency",
+      pass: recentPosts == null ? null : recentPosts.length >= 3,
+      detail: recentPosts == null ? unknown : `${recentPosts.length} Google posts in the last 30 days. Recommended: one every 5 days (at least 3 a month).`
+    },
+    {
+      key: "postKeywords",
+      label: "Post Keyword Optimization",
+      pass: recentPosts == null ? null : recentPosts.length > 0 && postsWithTerms >= Math.ceil(recentPosts.length / 2),
+      detail: recentPosts == null ? unknown : recentPosts.length ? `${postsWithTerms} of ${recentPosts.length} recent posts use your keywords.` : "No recent posts to check."
+    },
+    {
+      key: "services",
+      label: "Services List",
+      pass: services == null ? null : services.length >= 25,
+      detail: services == null ? unknown : `${services.length} services listed. Target: at least 25.`
+    },
+    {
+      key: "serviceDescriptions",
+      label: "Service Descriptions",
+      pass: services == null ? null : services.length > 0 && noDesc.length === 0,
+      detail: services == null ? unknown : services.length ? `${noDesc.length} of ${services.length} services have no description.` : "No services listed."
+    },
+    {
+      key: "serviceArea",
+      label: "Service Area",
+      pass: profile.serviceArea,
+      detail: profile.serviceArea == null ? unknown : profile.serviceArea ? "Service area is set." : "No service area set."
+    }
+  ];
+  const passed = checks.filter((c) => c.pass === true).length;
+  return {
+    checks,
+    optimizationScore: clamp(passed / checks.length * 100),
+    descTerms,
+    recentPosts: recentPosts?.length ?? null,
+    noDesc: noDesc.map((s) => s.name)
+  };
+}
 function buildScores(profile, reviews) {
   const title = titleCheck(profile.name, profile.city);
   const categories = 1 + profile.additionalCategories.length;
   const categoryScore = profile.source === "gbp" ? clamp(categories / 5 * 100) : null;
-  const serviceScore = profile.services == null ? null : clamp(profile.services / 20 * 100);
+  const serviceCount = profile.services?.length ?? null;
+  const serviceScore = serviceCount == null ? null : clamp(serviceCount / 25 * 100);
   const descLen = profile.description?.length ?? 0;
   const descHasCategory = !!profile.primaryCategory && (profile.description ?? "").toLowerCase().includes(profile.primaryCategory.toLowerCase().split(" ")[0]);
   const descriptionScore = profile.description == null ? null : clamp(Math.min(descLen, 600) / 600 * 80 + (descHasCategory ? 20 : 0));
@@ -300,27 +448,57 @@ function buildScores(profile, reviews) {
     { label: "Opening hours", done: profile.hours },
     { label: "Description", done: profile.description == null ? null : descLen >= 250 },
     { label: "5+ categories", done: profile.source === "gbp" ? categories >= 5 : null },
-    { label: "20+ services", done: profile.services == null ? null : profile.services >= 20 },
-    { label: "10+ photos", done: profile.photos == null ? null : profile.photos >= 10 },
-    { label: "Replies to reviews", done: reviews.responseRate == null ? null : reviews.responseRate >= 80 }
+    { label: "25+ services", done: serviceCount == null ? null : serviceCount >= 25 },
+    { label: "8+ photos", done: profile.photos == null ? null : profile.photos >= 8 },
+    { label: "Service area", done: profile.serviceArea }
   ];
   const known = checklist.filter((c) => c.done !== null);
   const completion = known.length ? clamp(known.filter((c) => c.done).length / known.length * 100) : 0;
-  const reviewScore = clamp(reviews.perWeek / 2 * 100);
+  const reviewScore = clamp(reviews.perWeek * 100);
   const responseScore = reviews.responseRate == null ? null : clamp(reviews.responseRate / 80 * 100);
-  const parts = [title.score, categoryScore, serviceScore, descriptionScore, completion, reviewScore, responseScore].filter((n) => n != null);
-  const profileScore = clamp(parts.reduce((a, b) => a + b, 0) / parts.length);
   return {
-    profileScore,
     title: { ...title, value: profile.name },
     categories: { count: profile.source === "gbp" ? categories : null, target: 5, score: categoryScore, list: [profile.primaryCategory, ...profile.additionalCategories].filter(Boolean) },
-    services: { count: profile.services, target: 20, score: serviceScore },
+    services: { count: serviceCount, target: 25, score: serviceScore },
     description: { length: profile.description == null ? null : descLen, target: 600, mentionsCategory: descHasCategory, score: descriptionScore },
     completion: { score: completion, checklist },
-    reviews: { perWeek: reviews.perWeek, target: 2, score: reviewScore, synced: reviews.synced },
+    reviews: { perWeek: reviews.perWeek, target: 1, score: reviewScore, synced: reviews.synced },
     response: { rate: reviews.responseRate, target: 80, score: responseScore },
     suspensionRisk: title.risk
   };
+}
+async function writeSummary(facts) {
+  const key = Deno.env.get("GROQ_API_KEY");
+  if (!key) return "";
+  const model = Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-120b";
+  const prompt = `You are Local Octo, a friendly local marketing agency. Write an audit summary for the owner of a business, based ONLY on these facts (JSON):
+${JSON.stringify(facts)}
+
+Rules:
+- Start with "Hi ${facts.firstWord}, I'm Local Octo and it's nice to meet you." then say you reviewed their Google Business Profile.
+- 3 to 4 short paragraphs, plain text, no headings, no bullet points, no markdown.
+- Praise what passes, then explain each failing check and what to do, using the real numbers.
+- Do not invent numbers or facts. Skip checks whose pass is null.
+- End by offering to help manage these improvements.`;
+  try {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model,
+        temperature: 0.6,
+        max_completion_tokens: 1200,
+        ...model.includes("gpt-oss") ? { reasoning_effort: "low" } : {},
+        messages: [{ role: "user", content: prompt }]
+      }),
+      signal: AbortSignal.timeout(25e3)
+    });
+    const body = await res.json();
+    if (!res.ok) return "";
+    return String(body?.choices?.[0]?.message?.content ?? "").trim();
+  } catch {
+    return "";
+  }
 }
 Deno.serve(async (req) => {
   const pre = preflight(req);
@@ -359,35 +537,62 @@ Deno.serve(async (req) => {
         }
       }
       const rows = [];
-      for (let i = 0; i < keywords.length; i += 3) {
-        rows.push(...await Promise.all(keywords.slice(i, i + 3).map((k) => rankKeyword(k, placeId, profile.lat, profile.lng))));
-      }
+      for (let i = 0; i < keywords.length; i++) rows.push(await rankKeyword(keywords[i], placeId, profile.lat, profile.lng, i < HEATMAP_KEYWORDS));
       const comp = /* @__PURE__ */ new Map();
       for (const r of rows)
-        for (const c of r.competitors) {
-          const cur = comp.get(c.placeId) ?? { ...c, keywords: 0, rankSum: 0 };
-          cur.keywords += 1;
+        for (const c of r.nearby.slice(0, 10)) {
+          const cur = comp.get(c.placeId) ?? { ...c, times: 0, rankSum: 0 };
+          cur.times += 1;
           cur.rankSum += c.rank;
           comp.set(c.placeId, cur);
         }
-      const competitors = [...comp.values()].sort((a, b) => b.keywords - a.keywords || a.rankSum / a.keywords - b.rankSum / b.keywords).slice(0, 8).map((c) => ({ name: c.name, rating: c.rating, reviews: c.reviews, keywords: c.keywords, averageRank: Math.round(c.rankSum / c.keywords * 10) / 10 }));
+      const competitors = [...comp.values()].sort((a, b) => b.times - a.times || a.rankSum / a.times - b.rankSum / b.times).slice(0, 5).map((c) => ({ name: c.name, address: c.address, rating: c.rating, reviews: c.reviews, averageRank: Math.round(c.rankSum / c.times * 10) / 10, keywords: c.times }));
       const reviews = await reviewStats(admin, businessId);
+      const terms = targetTerms(keywords, profile);
+      const { checks, optimizationScore, descTerms, recentPosts, noDesc } = buildChecks(profile, reviews, terms);
       const scores = buildScores(profile, reviews);
-      const searchRank = Math.round(rows.reduce((a, r) => a + r.average, 0) / rows.length * 10) / 10;
+      const top = rows.slice(0, 5);
+      const searchRank = Math.round(top.reduce((a, r) => a + r.average, 0) / top.length * 10) / 10;
+      const mk = market(profile);
+      const serviceCount = profile.services?.length ?? null;
+      const summary = await writeSummary({
+        firstWord: profile.name.split(/\s+/)[0],
+        business: profile.name,
+        category: profile.primaryCategory,
+        rating: profile.rating,
+        reviewsPerWeek: reviews.perWeek,
+        reviewsWithoutReply: reviews.synced ? reviews.unreplied : null,
+        images: profile.photos,
+        googlePostsLast30Days: recentPosts,
+        services: serviceCount,
+        servicesWithoutDescription: profile.services ? noDesc.length : null,
+        averageSearchRank: searchRank,
+        checks: checks.map((c) => ({ check: c.label, pass: c.pass, detail: c.detail }))
+      });
       const report = {
-        version: 1,
-        business: { name: profile.name, address: profile.address, rating: profile.rating, reviewCount: profile.reviewCount, category: profile.primaryCategory },
+        version: 2,
+        business: { name: profile.name, address: profile.address, rating: profile.rating, reviewCount: profile.reviewCount, category: profile.primaryCategory, lat: profile.lat, lng: profile.lng },
         source: profile.source,
-        gbpNote: g ? "" : gbpError || "Google Business Profile is not connected, so services, categories and description could not be checked.",
-        gridStepKm: GRID_STEP_KM,
+        gbpNote: g ? "" : gbpError || "Google Business Profile is not connected, so services, posts, photos and service area could not be checked.",
         searchRank,
+        optimizationScore,
+        market: mk,
+        summary,
+        checks,
+        suggestions: {
+          description: profile.description,
+          descriptionKeywords: descTerms,
+          services: profile.services?.map((s) => s.name) ?? null,
+          moreServices: serviceCount == null ? null : Math.max(0, 25 - serviceCount),
+          servicesWithoutDescription: profile.services ? noDesc : null
+        },
         scores,
-        keywords: rows.map(({ competitors: _c, ...r }) => ({ ...r, impressions: impressions.get(r.keyword) ?? null })),
+        keywords: rows.map(({ nearby: _n, ...r }) => ({ ...r, impressions: impressions.get(r.keyword) ?? null })),
         competitors
       };
-      const { data, error } = await admin.from("business_audits").insert({ business_id: businessId, keywords, report, created_by: user.id }).select("id, created_at").single();
+      const { data, error } = await admin.from("business_audits").insert({ business_id: businessId, keywords, report, created_by: user.id }).select("id, created_at, share_token").single();
       if (error) throw new Error(error.message);
-      return json({ id: data.id, createdAt: data.created_at, report });
+      return json({ id: data.id, createdAt: data.created_at, shareToken: data.share_token, report });
     }
     return json({ error: "Unknown action" }, 400);
   } catch (e) {

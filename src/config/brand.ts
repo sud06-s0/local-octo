@@ -8,6 +8,7 @@ export const brand = {
   logoUrl: `${import.meta.env.BASE_URL}logo.png`, // main logo (public/logo.png); favicons are in public/ too
   poweredBy: 'Local Octo',
   supportEmail: 'adarsh.k@localocto.com',
+  auditContactUrl: '' as string, // "Get In Touch" on audit reports (WhatsApp/Calendly/site link); empty = email to supportEmail
   bookCallUrl: '' as string, // optional Calendly/Cal.com link; empty = in-app form
   sendWindow: { start: '9 AM', end: '7 PM' },
   followUpGapDays: 3,
