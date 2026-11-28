@@ -58,7 +58,7 @@ export interface Report {
     suspensionRisk: string
   }
   keywords: KeywordRow[]
-  competitors: { name: string; address?: string; rating: number | null; reviews: number | null; keywords: number; averageRank: number }[]
+  competitors: { name: string; address?: string; rating: number | null; reviews: number | null; keywords: number; averageRank: number; totalKeywords?: number }[]
 }
 
 const scoreTone = (s: number | null | undefined) => (s == null ? 'text-muted' : s >= 80 ? 'text-emerald-600' : s >= 50 ? 'text-amber-600' : 'text-red-600')
@@ -270,9 +270,13 @@ export function AuditReport({ report: r, createdAt }: { report: Report; createdA
                   </p>
                 </div>
                 <span className="shrink-0 text-right text-xs text-muted">
-                  avg rank
-                  <br />
-                  <span className="text-sm font-semibold text-ink">{c.averageRank}</span>
+                  avg rank <span className="text-sm font-semibold text-ink">{c.averageRank}</span>
+                  {c.totalKeywords != null && (
+                    <>
+                      <br />
+                      in {c.keywords} of {c.totalKeywords} keywords
+                    </>
+                  )}
                 </span>
               </li>
             ))}

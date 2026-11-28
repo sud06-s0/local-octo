@@ -475,7 +475,7 @@ async function writeSummary(facts) {
 ${JSON.stringify(facts)}
 
 Rules:
-- Start with "Hi ${facts.firstWord}, I'm Local Octo and it's nice to meet you." then say you reviewed their Google Business Profile.
+- Start with "Hi ${facts.business} team, I'm Local Octo and it's nice to meet you." then say you reviewed their Google Business Profile.
 - 3 to 4 short paragraphs, plain text, no headings, no bullet points, no markdown.
 - Praise what passes, then explain each failing check and what to do, using the real numbers.
 - Do not invent numbers or facts. Skip checks whose pass is null.
@@ -546,7 +546,16 @@ Deno.serve(async (req) => {
           cur.rankSum += c.rank;
           comp.set(c.placeId, cur);
         }
-      const competitors = [...comp.values()].sort((a, b) => b.times - a.times || a.rankSum / a.times - b.rankSum / b.times).slice(0, 5).map((c) => ({ name: c.name, address: c.address, rating: c.rating, reviews: c.reviews, averageRank: Math.round(c.rankSum / c.times * 10) / 10, keywords: c.times }));
+      const overall = (c) => (c.rankSum + (rows.length - c.times) * NOT_FOUND) / rows.length;
+      const competitors = [...comp.values()].sort((a, b) => overall(a) - overall(b)).slice(0, 5).map((c) => ({
+        name: c.name,
+        address: c.address,
+        rating: c.rating,
+        reviews: c.reviews,
+        averageRank: Math.round(c.rankSum / c.times * 10) / 10,
+        keywords: c.times,
+        totalKeywords: rows.length
+      }));
       const reviews = await reviewStats(admin, businessId);
       const terms = targetTerms(keywords, profile);
       const { checks, optimizationScore, descTerms, recentPosts, noDesc } = buildChecks(profile, reviews, terms);
@@ -556,7 +565,6 @@ Deno.serve(async (req) => {
       const mk = market(profile);
       const serviceCount = profile.services?.length ?? null;
       const summary = await writeSummary({
-        firstWord: profile.name.split(/\s+/)[0],
         business: profile.name,
         category: profile.primaryCategory,
         rating: profile.rating,
