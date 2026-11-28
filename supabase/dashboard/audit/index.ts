@@ -106,6 +106,7 @@ async function gbp(token, url, init = {}) {
 // supabase/functions/audit/index.ts
 var PLACES = "https://places.googleapis.com/v1";
 var MAX_KEYWORDS = 5;
+var MAX_SUGGESTIONS = 10;
 var HEATMAP_KEYWORDS = 3;
 var HEAT = { size: 7, stepKm: 1 };
 var SMALL = { size: 3, stepKm: 1.5 };
@@ -243,7 +244,7 @@ function keywordsFromCategories(profile) {
     if (profile.city) out.add(`${c} in ${profile.city.toLowerCase()}`);
     out.add(`best ${c}`);
   }
-  return [...out].slice(0, MAX_KEYWORDS);
+  return [...out].slice(0, MAX_SUGGESTIONS);
 }
 var STOP = /* @__PURE__ */ new Set(["near", "me", "best", "top", "in", "the", "a", "an", "and", "for", "of", "at", "to", "with", "my", "open", "now", "cheap", "good"]);
 function targetTerms(keywords, profile) {
@@ -588,7 +589,7 @@ Deno.serve(async (req) => {
       if (g) {
         try {
           const kw = await searchKeywords(g.token, g.location);
-          if (kw.length) return json({ keywords: kw.slice(0, MAX_KEYWORDS).map((k) => k.keyword), source: "google" });
+          if (kw.length) return json({ keywords: kw.slice(0, MAX_SUGGESTIONS).map((k) => k.keyword), source: "google" });
         } catch {
         }
       }

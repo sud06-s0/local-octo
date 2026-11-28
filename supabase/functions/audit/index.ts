@@ -13,7 +13,8 @@ import { accessTokenFor, gbp } from '../_shared/gbp.ts'
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 
 const PLACES = 'https://places.googleapis.com/v1'
-const MAX_KEYWORDS = 5
+const MAX_KEYWORDS = 5 // per audit
+const MAX_SUGGESTIONS = 10 // Suggest offers up to 10 to pick from
 const HEATMAP_KEYWORDS = 3
 const HEAT = { size: 7, stepKm: 1 } // 7 x 7 points, 1 km apart
 const SMALL = { size: 3, stepKm: 1.5 } // 3 x 3 points, 1.5 km apart
@@ -204,7 +205,7 @@ function keywordsFromCategories(profile: Profile): string[] {
     if (profile.city) out.add(`${c} in ${profile.city.toLowerCase()}`)
     out.add(`best ${c}`)
   }
-  return [...out].slice(0, MAX_KEYWORDS)
+  return [...out].slice(0, MAX_SUGGESTIONS)
 }
 
 const STOP = new Set(['near', 'me', 'best', 'top', 'in', 'the', 'a', 'an', 'and', 'for', 'of', 'at', 'to', 'with', 'my', 'open', 'now', 'cheap', 'good'])
@@ -630,7 +631,7 @@ Deno.serve(async (req) => {
       if (g) {
         try {
           const kw = await searchKeywords(g.token, g.location)
-          if (kw.length) return json({ keywords: kw.slice(0, MAX_KEYWORDS).map((k) => k.keyword), source: 'google' })
+          if (kw.length) return json({ keywords: kw.slice(0, MAX_SUGGESTIONS).map((k) => k.keyword), source: 'google' })
         } catch {
           // Performance API not enabled or no data yet: fall back to categories
         }

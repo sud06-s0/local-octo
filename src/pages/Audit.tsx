@@ -36,6 +36,7 @@ function AuditInner() {
   const [draft, setDraft] = useState('')
   const [loading, setLoading] = useState(true)
   const [suggesting, setSuggesting] = useState(false)
+  const [suggestions, setSuggestions] = useState<string[] | null>(null) // up to 10 ideas, shown after clicking Suggest
   const [running, setRunning] = useState(false)
   const [runKeywords, setRunKeywords] = useState<string[]>([])
 
@@ -44,7 +45,7 @@ function AuditInner() {
     setSuggesting(true)
     try {
       const r = await invokeFn<{ keywords: string[]; source: string }>('audit', { action: 'suggest', businessId: activeBusinessId })
-      setKeywords(r.keywords.slice(0, MAX_KEYWORDS))
+      setSuggestions(r.keywords.slice(0, 10))
       if (!r.keywords.length) toast('No keywords found. Add them yourself.')
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not get keywords')
@@ -74,20 +75,21 @@ function AuditInner() {
         const rows = (data ?? []) as Saved[]
         setCurrent(rows[0] ?? null)
         if (rows[0]) setKeywords(rows[0].keywords.slice(0, MAX_KEYWORDS))
-        else void suggest()
       })
     return () => {
       off = true
     }
   }, [mode, activeBusinessId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const addKeyword = () => {
-    const k = draft.trim().toLowerCase()
+  useEffect(() => setSuggestions(null), [activeBusinessId])
+
+  const addKeyword = (value?: string) => {
+    const k = (value ?? draft).trim().toLowerCase()
     if (!k) return
     if (keywords.includes(k)) return setDraft('')
     if (keywords.length >= MAX_KEYWORDS) return toast(`Max ${MAX_KEYWORDS} keywords. Remove one to add another.`)
     setKeywords([...keywords, k])
-    setDraft('')
+    if (value === undefined) setDraft('')
   }
 
   const run = async () => {
@@ -163,8 +165,30 @@ function AuditInner() {
                 </button>
               </span>
             ))}
-            {!keywords.length && <span className="text-sm text-muted">{suggesting ? 'Getting keywords…' : 'No keywords yet'}</span>}
+            {!keywords.length && <span className="text-sm text-muted">No keywords yet — add your own or click Suggest</span>}
           </div>
+          {suggestions && (
+            <div className="mb-3 rounded-lg border border-line bg-canvas p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-sm font-medium text-ink">Suggestions — click to add</p>
+                <button onClick={() => setSuggestions(null)} aria-label="Close suggestions" className="rounded p-0.5 text-muted hover:text-ink">
+                  <X className="size-4" />
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {suggestions.filter((sg) => !keywords.includes(sg.toLowerCase())).map((sg) => (
+                  <button
+                    key={sg}
+                    onClick={() => addKeyword(sg)}
+                    className="inline-flex items-center gap-1 rounded-lg border border-line bg-white px-2.5 py-1 text-sm text-ink hover:border-brand-300 hover:bg-brand-50"
+                  >
+                    <Plus className="size-3.5" /> {sg}
+                  </button>
+                ))}
+                {suggestions.every((sg) => keywords.includes(sg.toLowerCase())) && <span className="text-sm text-muted">All suggestions added.</span>}
+              </div>
+            </div>
+          )}
           <div className="flex flex-col gap-2 sm:flex-row">
             <Input
               value={draft}
@@ -173,7 +197,7 @@ function AuditInner() {
               placeholder={keywords.length >= MAX_KEYWORDS ? `Max ${MAX_KEYWORDS} keywords — remove one to add another` : 'e.g. pu college near me'}
               className="flex-1"
             />
-            <Button variant="outline" icon={Plus} onClick={addKeyword}>
+            <Button variant="outline" icon={Plus} onClick={() => addKeyword()}>
               Add
             </Button>
             <Button icon={running ? Loader2 : Play} onClick={run} disabled={running || !keywords.length}>
