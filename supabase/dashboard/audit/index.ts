@@ -667,6 +667,7 @@ Deno.serve(async (req) => {
       };
       const { data, error } = await admin.from("business_audits").insert({ business_id: businessId, keywords, report, created_by: user.id }).select("id, created_at, share_token").single();
       if (error) throw new Error(error.message);
+      await admin.from("business_audits").delete().eq("business_id", businessId).neq("id", data.id);
       return json({ id: data.id, createdAt: data.created_at, shareToken: data.share_token, report });
     }
     return json({ error: "Unknown action" }, 400);

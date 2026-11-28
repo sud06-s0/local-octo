@@ -10,7 +10,7 @@ import { useStore } from '../store/AppStore'
 import { useAuth } from '../store/AuthProvider'
 import { useToast } from '../components/ui/Toast'
 import { db, invokeFn } from '../lib/supabase'
-import { AuditReport, fmtDate, type Report } from '../components/audit/AuditReport'
+import { AuditReport, type Report } from '../components/audit/AuditReport'
 
 const MAX_KEYWORDS = 10
 
@@ -31,7 +31,6 @@ export default function Audit() {
 function AuditInner() {
   const { mode, activeBusinessId, state } = useStore()
   const toast = useToast()
-  const [history, setHistory] = useState<Saved[]>([])
   const [current, setCurrent] = useState<Saved | null>(null)
   const [keywords, setKeywords] = useState<string[]>([])
   const [draft, setDraft] = useState('')
@@ -67,13 +66,12 @@ function AuditInner() {
       .select('id, created_at, keywords, share_token, report')
       .eq('business_id', activeBusinessId)
       .order('created_at', { ascending: false })
-      .limit(20)
+      .limit(1)
       .then(({ data, error }) => {
         if (off) return
         setLoading(false)
         if (error) return toast(error.message)
         const rows = (data ?? []) as Saved[]
-        setHistory(rows)
         setCurrent(rows[0] ?? null)
         if (rows[0]) setKeywords(rows[0].keywords)
         else void suggest()
@@ -99,7 +97,6 @@ function AuditInner() {
     try {
       const r = await invokeFn<{ id: string; createdAt: string; shareToken: string; report: Report }>('audit', { action: 'run', businessId: activeBusinessId, keywords })
       const saved: Saved = { id: r.id, created_at: r.createdAt, keywords, share_token: r.shareToken, report: r.report }
-      setHistory((h) => [saved, ...h])
       setCurrent(saved)
       toast('Audit ready')
     } catch (e) {
@@ -183,22 +180,6 @@ function AuditInner() {
               {running ? 'Running…' : 'Run audit'}
             </Button>
           </div>
-          {history.length > 1 && (
-            <div className="mt-4 flex items-center gap-2 text-sm">
-              <span className="text-muted">Past reports</span>
-              <select
-                className="rounded-lg border border-line bg-white px-2 py-1.5"
-                value={current?.id ?? ''}
-                onChange={(e) => setCurrent(history.find((h) => h.id === e.target.value) ?? null)}
-              >
-                {history.map((h) => (
-                  <option key={h.id} value={h.id}>
-                    {fmtDate(h.created_at)}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
         </Card>
       </div>
 

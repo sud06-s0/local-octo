@@ -729,6 +729,8 @@ Deno.serve(async (req) => {
         .select('id, created_at, share_token')
         .single()
       if (error) throw new Error(error.message)
+      // Keep only the latest report per business (older ones and their public links are removed)
+      await admin.from('business_audits').delete().eq('business_id', businessId).neq('id', data.id)
       return json({ id: data.id, createdAt: data.created_at, shareToken: data.share_token, report })
     }
 
