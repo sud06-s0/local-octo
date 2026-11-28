@@ -191,7 +191,7 @@ function AuditInner() {
         </div>
       ) : current ? (
         <div className={running ? 'pointer-events-none opacity-40 print:hidden' : ''}>
-          <AuditReport report={current.report} createdAt={current.created_at} />
+          <AuditReport report={current.report} createdAt={current.created_at} shareToken={current.share_token} />
         </div>
       ) : running ? null : (
         <Card className="p-10 text-center text-muted print:hidden">No report yet. Check the keywords and run the audit.</Card>

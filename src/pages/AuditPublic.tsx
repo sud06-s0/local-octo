@@ -43,7 +43,7 @@ export default function AuditPublic({ token }: { token: string }) {
         {error ? (
           <p className="py-20 text-center text-muted">{error}</p>
         ) : data ? (
-          <AuditReport report={data.report} createdAt={data.createdAt} />
+          <AuditReport report={data.report} createdAt={data.createdAt} shareToken={token} />
         ) : (
           <div className="flex h-64 items-center justify-center">
             <span className="size-8 animate-spin rounded-full border-[3px] border-brand-100 border-t-brand-700" />

@@ -148,7 +148,7 @@ function NameList({ items }: { items: string[] }) {
   )
 }
 
-export function AuditReport({ report: r, createdAt }: { report: Report; createdAt: string }) {
+export function AuditReport({ report: r, createdAt, shareToken }: { report: Report; createdAt: string; shareToken?: string }) {
   const s = r.scores
   const risk = s.suspensionRisk
   const score = r.optimizationScore ?? s.profileScore ?? 0
@@ -156,6 +156,7 @@ export function AuditReport({ report: r, createdAt }: { report: Report; createdA
   const heat = r.keywords.filter((k) => (k.size ?? 3) >= 7)
   const small = r.keywords.filter((k) => (k.size ?? 3) < 7)
   const hasLoc = r.business.lat != null && r.business.lng != null
+  const drillFor = (k: KeywordRow) => (shareToken ? { token: shareToken, keywordIndex: r.keywords.indexOf(k) } : undefined)
 
   return (
     <div className="space-y-5 print:space-y-4">
@@ -436,7 +437,7 @@ export function AuditReport({ report: r, createdAt }: { report: Report; createdA
                   )}
                 </div>
                 {hasLoc ? (
-                  <RankMap lat={r.business.lat!} lng={r.business.lng!} size={k.size ?? 7} stepKm={k.stepKm ?? 1} grid={k.grid} />
+                  <RankMap lat={r.business.lat!} lng={r.business.lng!} size={k.size ?? 7} stepKm={k.stepKm ?? 1} grid={k.grid} drill={drillFor(k)} />
                 ) : (
                   <RankGrid grid={k.grid} size={k.size ?? 7} />
                 )}
@@ -456,7 +457,7 @@ export function AuditReport({ report: r, createdAt }: { report: Report; createdA
                 <p className="mb-2 truncate text-sm font-medium text-ink" title={k.keyword}>
                   {k.keyword} <span className="font-normal text-muted">· avg {k.average > 20 ? '20+' : k.average}</span>
                 </p>
-                {hasLoc ? <RankMap lat={r.business.lat!} lng={r.business.lng!} size={k.size ?? 3} stepKm={k.stepKm ?? 1.5} grid={k.grid} /> : <RankGrid grid={k.grid} size={k.size ?? 3} />}
+                {hasLoc ? <RankMap lat={r.business.lat!} lng={r.business.lng!} size={k.size ?? 3} stepKm={k.stepKm ?? 1.5} grid={k.grid} drill={drillFor(k)} /> : <RankGrid grid={k.grid} size={k.size ?? 3} />}
               </div>
             ))}
           </div>
