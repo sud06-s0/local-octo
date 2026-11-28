@@ -213,7 +213,8 @@ export default function Audit() {
     )
   }
 
-  const chips = [...new Set([...(suggestions ?? []), ...keywords])]
+  // Suggestion chips only; picked keywords (incl. custom ones) are listed in the Selected box
+  const chips = suggestions ?? []
 
   return (
     <div className="mx-auto max-w-[1100px]">
@@ -260,7 +261,7 @@ export default function Audit() {
                   onClick={() => toggleKeyword(k)}
                   className={cn(
                     'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition',
-                    on ? 'bg-brand-700 text-white hover:bg-brand-800' : 'bg-canvas text-ink ring-1 ring-line hover:ring-brand-300',
+                    on ? 'bg-brand-50 text-brand-800 ring-2 ring-brand-400' : 'bg-canvas text-ink ring-1 ring-line hover:ring-brand-300',
                   )}
                 >
                   {on ? <Check className="size-3.5" /> : <Plus className="size-3.5" />} {titleCase(k)}
