@@ -23,5 +23,5 @@ export const navItems: NavItem[] = [
   { to: '/messaging', label: 'Messaging', icon: MessageSquare },
   { to: '/reviews', label: 'Reviews', icon: Star },
   { to: '/integrations', label: 'Integrations', icon: Plug },
-  { to: '/audit', label: 'Audit', icon: ClipboardCheck, agencyOnly: true },
+  { to: '/audit', label: 'Audit', icon: ClipboardCheck },
 ]

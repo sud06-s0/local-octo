@@ -1,5 +1,5 @@
 // supabase/functions/audit/index.ts
-// Audit / rank report for one business. Agency logins only.
+// Audit / rank report for one business. Agency logins: unlimited. Client logins: 1 audit per calendar month (India time).
 // Body: { action: 'suggest', businessId }            -> { keywords, source }  (Google search keywords if available, else from categories + city)
 //       { action: 'run', businessId, keywords[] }    -> { id, createdAt, shareToken, report }  (saved in business_audits)
 // Secrets: GOOGLE_PLACES_API_KEY (Places API (New)); GROQ_API_KEY (optional, writes the summary).
@@ -623,7 +623,8 @@ Deno.serve(async (req) => {
   const input = (await req.json().catch(() => ({}))) as { action?: string; businessId?: string; keywords?: string[] }
   const businessId = input.businessId
   if (!businessId) return json({ error: 'businessId is required' }, 400)
-  if (!(await isAgency(admin, user.id)) || !(await isMember(admin, user.id, businessId))) return json({ error: 'Not allowed' }, 403)
+  if (!(await isMember(admin, user.id, businessId))) return json({ error: 'Not allowed' }, 403)
+  const agency = await isAgency(admin, user.id)
 
   try {
     if (input.action === 'suggest') {
@@ -640,6 +641,13 @@ Deno.serve(async (req) => {
     }
 
     if (input.action === 'run') {
+      // Clients: one audit per calendar month (India time); agency runs don't count
+      if (!agency) {
+        const { data: b } = await admin.from('businesses').select('last_client_audit_at').eq('id', businessId).single()
+        const month = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }).slice(0, 7)
+        if (b?.last_client_audit_at && month(new Date(b.last_client_audit_at)) === month(new Date()))
+          return json({ error: 'You have used this month’s audit. The next one is available on the 1st of next month.' }, 429)
+      }
       const keywords = [...new Set((input.keywords ?? []).map((k) => String(k).trim().toLowerCase()).filter(Boolean))].slice(0, MAX_KEYWORDS)
       if (!keywords.length) return json({ error: 'Add at least one keyword' }, 400)
 
@@ -736,6 +744,7 @@ Deno.serve(async (req) => {
         .select('id, created_at, share_token')
         .single()
       if (error) throw new Error(error.message)
+      if (!agency) await admin.from('businesses').update({ last_client_audit_at: new Date().toISOString() }).eq('id', businessId)
       // Keep only the latest report per business (older ones and their public links are removed)
       await admin.from('business_audits').delete().eq('business_id', businessId).neq('id', data.id)
       return json({ id: data.id, createdAt: data.created_at, shareToken: data.share_token, report })

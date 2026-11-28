@@ -1,9 +1,8 @@
 // src/pages/Audit.tsx
-// Audit / rank report for the selected business. Agency logins only (hidden from clients' menu, and refused by the audit function).
+// Audit / rank report for the selected business. Agency logins: unlimited runs. Client logins: 1 run per calendar month.
 // "Download PDF" prints the report; "Copy public link" gives a page anyone can open (/audit-report/<token>).
 
 import { useCallback, useEffect, useState } from 'react'
-import { Navigate } from 'react-router'
 import { Download, Link2, Loader2, Play, Plus, Sparkles, X } from 'lucide-react'
 import { Button, Card, Input, PageHeader } from '../components/ui/primitives'
 import { useStore } from '../store/AppStore'
@@ -22,14 +21,15 @@ interface Saved {
   report: Report
 }
 
-export default function Audit() {
-  const { isAgency } = useAuth()
-  if (!isAgency) return <Navigate to="/dashboard" replace />
-  return <AuditInner />
+const monthKey = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }).slice(0, 7)
+const nextMonthStart = () => {
+  const now = new Date()
+  return new Date(now.getFullYear(), now.getMonth() + 1, 1).toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })
 }
 
-function AuditInner() {
+export default function Audit() {
   const { mode, activeBusinessId, state } = useStore()
+  const { isAgency } = useAuth()
   const toast = useToast()
   const [current, setCurrent] = useState<Saved | null>(null)
   const [keywords, setKeywords] = useState<string[]>([])
@@ -39,6 +39,9 @@ function AuditInner() {
   const [suggestions, setSuggestions] = useState<string[] | null>(null) // up to 10 ideas, shown after clicking Suggest
   const [running, setRunning] = useState(false)
   const [runKeywords, setRunKeywords] = useState<string[]>([])
+  const [lastClientRun, setLastClientRun] = useState<string | null>(null)
+  // Clients get 1 audit per calendar month (agency runs don't count)
+  const usedThisMonth = !isAgency && !!lastClientRun && monthKey(new Date(lastClientRun)) === monthKey(new Date())
 
   const suggest = useCallback(async () => {
     if (!activeBusinessId) return
@@ -76,6 +79,13 @@ function AuditInner() {
         setCurrent(rows[0] ?? null)
         if (rows[0]) setKeywords(rows[0].keywords.slice(0, MAX_KEYWORDS))
       })
+    if (!isAgency)
+      db()
+        .from('businesses')
+        .select('last_client_audit_at')
+        .eq('id', activeBusinessId)
+        .maybeSingle()
+        .then(({ data }) => !off && setLastClientRun(data?.last_client_audit_at ?? null))
     return () => {
       off = true
     }
@@ -100,6 +110,7 @@ function AuditInner() {
       const r = await invokeFn<{ id: string; createdAt: string; shareToken: string; report: Report }>('audit', { action: 'run', businessId: activeBusinessId, keywords })
       const saved: Saved = { id: r.id, created_at: r.createdAt, keywords, share_token: r.shareToken, report: r.report }
       setCurrent(saved)
+      if (!isAgency) setLastClientRun(new Date().toISOString())
       toast('Audit ready')
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Audit failed')
@@ -200,10 +211,15 @@ function AuditInner() {
             <Button variant="outline" icon={Plus} onClick={() => addKeyword()}>
               Add
             </Button>
-            <Button icon={running ? Loader2 : Play} onClick={run} disabled={running || !keywords.length}>
+            <Button icon={running ? Loader2 : Play} onClick={run} disabled={running || !keywords.length || usedThisMonth}>
               {running ? 'Running…' : 'Run audit'}
             </Button>
           </div>
+          {!isAgency && (
+            <p className="mt-3 text-sm text-muted">
+              {usedThisMonth ? `You've used this month's audit. The next one is available on ${nextMonthStart()}.` : 'You can run 1 audit per month.'}
+            </p>
+          )}
         </Card>
       </div>
 

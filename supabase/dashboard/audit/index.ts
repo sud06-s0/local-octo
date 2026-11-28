@@ -582,7 +582,8 @@ Deno.serve(async (req) => {
   const input = await req.json().catch(() => ({}));
   const businessId = input.businessId;
   if (!businessId) return json({ error: "businessId is required" }, 400);
-  if (!await isAgency(admin, user.id) || !await isMember(admin, user.id, businessId)) return json({ error: "Not allowed" }, 403);
+  if (!await isMember(admin, user.id, businessId)) return json({ error: "Not allowed" }, 403);
+  const agency = await isAgency(admin, user.id);
   try {
     if (input.action === "suggest") {
       const { profile, gbp: g } = await loadProfile(admin, businessId);
@@ -596,6 +597,12 @@ Deno.serve(async (req) => {
       return json({ keywords: keywordsFromCategories(profile), source: "categories" });
     }
     if (input.action === "run") {
+      if (!agency) {
+        const { data: b } = await admin.from("businesses").select("last_client_audit_at").eq("id", businessId).single();
+        const month = (d) => d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }).slice(0, 7);
+        if (b?.last_client_audit_at && month(new Date(b.last_client_audit_at)) === month(/* @__PURE__ */ new Date()))
+          return json({ error: "You have used this month\u2019s audit. The next one is available on the 1st of next month." }, 429);
+      }
       const keywords = [...new Set((input.keywords ?? []).map((k) => String(k).trim().toLowerCase()).filter(Boolean))].slice(0, MAX_KEYWORDS);
       if (!keywords.length) return json({ error: "Add at least one keyword" }, 400);
       const { profile, placeId, gbp: g, gbpError } = await loadProfile(admin, businessId);
@@ -673,6 +680,7 @@ Deno.serve(async (req) => {
       };
       const { data, error } = await admin.from("business_audits").insert({ business_id: businessId, keywords, report, created_by: user.id }).select("id, created_at, share_token").single();
       if (error) throw new Error(error.message);
+      if (!agency) await admin.from("businesses").update({ last_client_audit_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", businessId);
       await admin.from("business_audits").delete().eq("business_id", businessId).neq("id", data.id);
       return json({ id: data.id, createdAt: data.created_at, shareToken: data.share_token, report });
     }
