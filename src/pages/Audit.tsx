@@ -12,7 +12,7 @@ import { useToast } from '../components/ui/Toast'
 import { db, invokeFn } from '../lib/supabase'
 import { AuditReport, type Report } from '../components/audit/AuditReport'
 
-const MAX_KEYWORDS = 10
+const MAX_KEYWORDS = 5
 
 interface Saved {
   id: string
@@ -73,7 +73,7 @@ function AuditInner() {
         if (error) return toast(error.message)
         const rows = (data ?? []) as Saved[]
         setCurrent(rows[0] ?? null)
-        if (rows[0]) setKeywords(rows[0].keywords)
+        if (rows[0]) setKeywords(rows[0].keywords.slice(0, MAX_KEYWORDS))
         else void suggest()
       })
     return () => {

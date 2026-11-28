@@ -13,7 +13,7 @@ import { accessTokenFor, gbp } from '../_shared/gbp.ts'
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 
 const PLACES = 'https://places.googleapis.com/v1'
-const MAX_KEYWORDS = 10
+const MAX_KEYWORDS = 5
 const HEATMAP_KEYWORDS = 3
 const HEAT = { size: 7, stepKm: 1 } // 7 x 7 points, 1 km apart
 const SMALL = { size: 3, stepKm: 1.5 } // 3 x 3 points, 1.5 km apart

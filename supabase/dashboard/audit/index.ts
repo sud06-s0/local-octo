@@ -105,7 +105,7 @@ async function gbp(token, url, init = {}) {
 
 // supabase/functions/audit/index.ts
 var PLACES = "https://places.googleapis.com/v1";
-var MAX_KEYWORDS = 10;
+var MAX_KEYWORDS = 5;
 var HEATMAP_KEYWORDS = 3;
 var HEAT = { size: 7, stepKm: 1 };
 var SMALL = { size: 3, stepKm: 1.5 };
